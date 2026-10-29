@@ -22,5 +22,13 @@ class CrosswordUpgradeTests(unittest.TestCase):
         self.assertIn("input.addEventListener('paste'",source)
         self.assertIn("input.oninput",source)
 
+    def test_v2_runtime_is_replaced_and_reveal_is_available_offline(self):
+        source='<body><script>const QE={};const SETTINGS={"type":"crossword"};function renderCrossword(){}</script><script id="scormify-crossword-v2">oldRuntime()</script></body>'
+        upgraded=upgrade_crossword_html(source)
+        self.assertNotIn('oldRuntime()',upgraded)
+        self.assertIn('scormify-crossword-v3',upgraded)
+        self.assertIn('REVELAR RESPOSTAS PARA ESTUDAR',upgraded)
+        self.assertEqual(upgrade_crossword_html(upgraded),upgraded)
+
 
 if __name__=='__main__':unittest.main()

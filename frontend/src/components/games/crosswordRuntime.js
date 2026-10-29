@@ -1,7 +1,51 @@
 // Serialized into offline game documents. Do not reference module scope.
 export function crosswordRuntime(Game, BANK, QE, stage) {
-  if (!Game || Game.crosswordVersion === 2) return;
-  Game.crosswordVersion = 2;
+  if (!Game || Game.crosswordVersion === 3) return;
+  Game.crosswordVersion = 3;
+  const originalStart=Game.start, originalRestart=Game.restart, originalEnd=Game.end, originalTimer=Game.resetTimer;
+  let ended=false, successTimer=null;
+  function resetReview() {
+    ended=false;Game.locked=false;clearTimeout(successTimer);
+    document.getElementById('crossword-review')?.remove();
+    document.getElementById('crossword-reveal')?.remove();
+  }
+  Game.start=function(){resetReview();return originalStart.call(this);};
+  Game.restart=function(){resetReview();return originalRestart.call(this);};
+  Game.resetTimer=function(){
+    originalTimer.call(this);clearInterval(this.tick);
+    this.tick=setInterval(()=>{
+      if(ended || this.locked)return;
+      this.seconds=Math.max(0,this.seconds-1);this.sync();
+      if(this.seconds===0)this.end();
+    },1000);
+  };
+  Game.end=function(){
+    if(ended)return;
+    ended=true;this.locked=true;clearTimeout(successTimer);
+    originalEnd.call(this);
+    if(this.correct===BANK.length)return;
+    const finish=document.querySelector('#finishScreen .finish');if(!finish || !this.cross)return;
+    const reveal=document.createElement('button');reveal.id='crossword-reveal';reveal.className='cta';reveal.type='button';
+    reveal.textContent='REVELAR RESPOSTAS PARA ESTUDAR';
+    reveal.onclick=()=>{
+      if(document.getElementById('crossword-review'))return;
+      const review=document.createElement('section');review.id='crossword-review';
+      const heading=document.createElement('h2');heading.textContent='Gabarito para aprendizagem';
+      const note=document.createElement('p');note.textContent='Consulta sem pontos: revelar as respostas não altera o resultado desta tentativa.';
+      review.append(heading,note);
+      const board=stage.querySelector('.cross-board')?.cloneNode(true);
+      if(board){board.querySelectorAll('input.cell').forEach(input=>{const wasCorrect=input.value.toUpperCase()===input.dataset.solution;input.value=input.dataset.solution;input.readOnly=true;input.style.background=wasCorrect?'#6ee7b7':'#fde68a';input.setAttribute('aria-label',input.getAttribute('aria-label')+': '+input.value);});review.appendChild(board);}
+      const list=document.createElement('ol');
+      this.cross.placements.slice().sort((a,b)=>a.number-b.number||Number(a.vertical)-Number(b.vertical)).forEach(p=>{
+        const item=document.createElement('li');
+        const answer=p.q.alternatives?.[QE.correct(p.q)]?.text || p.word;
+        item.textContent='Dica '+p.number+' · '+(p.vertical?'Vertical':'Horizontal')+': '+p.q.question+' — '+answer;
+        list.appendChild(item);
+      });
+      review.appendChild(list);finish.appendChild(review);reveal.disabled=true;reveal.textContent='RESPOSTAS REVELADAS';
+    };
+    finish.appendChild(reveal);
+  };
   const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z]/g, '');
   if (!document.getElementById('crossword-style-v2')) {
     const style = document.createElement('style'); style.id = 'crossword-style-v2';
@@ -22,6 +66,9 @@ export function crosswordRuntime(Game, BANK, QE, stage) {
       .cross-clue strong{display:block;font-size:13px;color:#a5f3fc;margin-bottom:5px}.cross-clue span{font-size:12px;line-height:1.4;display:block}
       .cross-clue[aria-pressed=true]{border:2px solid #22d3ee;background:#164e63}
       .cross-status{min-height:28px;font-size:12px;line-height:1.5;margin:10px 0;color:#e2e8f0}
+      #finishScreen{overflow-y:auto;align-items:flex-start;padding:24px}#finishScreen .finish{margin:auto;max-height:none}
+      #crossword-reveal{display:block;margin:16px auto}#crossword-review{text-align:left;color:#f8fafc;background:#172440;padding:16px;border-radius:16px;margin-top:16px}
+      #crossword-review p,#crossword-review li{color:#f8fafc;line-height:1.6}#crossword-review .cross-board{overflow:auto}#crossword-review li{margin:12px 0}
       @media(max-width:800px){.cross-wrap{grid-template-columns:minmax(0,1fr);width:100%}.cross-wrap .clues{max-height:none}.cross-board{width:100%}.cross-grid{padding:10px}.cross-wrap .cta{width:100%}}
     `;
     document.head.appendChild(style);
@@ -77,7 +124,6 @@ export function crosswordRuntime(Game, BANK, QE, stage) {
     return {version:2,size,grid,placements,starts};
   };
   Game.renderCrossword = function () {
-    clearInterval(this.tick);
     if (!this.cross || this.cross.version !== 2) this.cross=this.makeCross();
     const c=this.cross; let active=null;
     stage.innerHTML='<div class="cross-wrap"><div class="cross-board glass"><div class="cross-grid"></div></div><div class="clues glass"><h3>Dicas numeradas</h3><p class="cross-instructions">Clique em uma dica para destacar a palavra. O número na primeira casa corresponde à dica. Digite sem acentos: o cursor avança sozinho. Em cruzamentos, use Enter para trocar a direção.</p><div class="cross-clue-list"></div><p class="cross-status" role="status" aria-live="polite"></p></div></div>';
@@ -142,7 +188,7 @@ export function crosswordRuntime(Game, BANK, QE, stage) {
     const cells=[...stage.querySelectorAll('input.cell')];if(!cells.length)return;
     const ok=cells.every(cell=>cell.value.toUpperCase()===cell.dataset.solution);
     cells.forEach(cell=>cell.style.background=cell.value.toUpperCase()===cell.dataset.solution?'#6ee7b7':'#fca5a5');
-    if(ok){this.locked=true;this.correct=BANK.length;this.xp+=500;this.coins+=60;this.index=BANK.length;this.sync();this.burst();setTimeout(()=>this.end(),700);}
+    if(ok){this.locked=true;clearInterval(this.tick);this.correct=BANK.length;this.xp+=500;this.coins+=60;this.index=BANK.length;this.sync();this.burst();successTimer=setTimeout(()=>this.end(),700);}
     else{this.lives--;this.sync();stage.querySelector('.cross-status').textContent='Revise as casas em vermelho e tente novamente.';if(this.lives<=0)this.end();}
   };
 }

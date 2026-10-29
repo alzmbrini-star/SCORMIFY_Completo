@@ -69,7 +69,42 @@ test('intersection Enter switches direction and score is credited only once',()=
 
 test('legacy upgrade is idempotent; other games are unchanged',()=>{
   const legacy='<html><body><script>const QE={};const SETTINGS={"type":"crossword"};function renderCrossword(){}</script></body></html>';
-  expect(upgradeCrosswordHtml(legacy)).toContain('scormify-crossword-v2');
+  expect(upgradeCrosswordHtml(legacy)).toContain('scormify-crossword-v3');
   expect(upgradeCrosswordHtml(upgradeCrosswordHtml(legacy))).toBe(upgradeCrosswordHtml(legacy));
   expect(upgradeCrosswordHtml(legacy.replace('"crossword"','"climb"'))).toBe(legacy.replace('"crossword"','"climb"'));
+});
+
+test('timeout ends once and reveals a read-only answer key without rewards or new completion',()=>{
+  const save=jest.spyOn(game,'end');
+  expect(document.getElementById('crossword-reveal')).toBeNull();
+  jest.advanceTimersByTime(30000);
+  expect(game.seconds).toBe(0);expect(save).toHaveBeenCalledTimes(1);
+  const reveal=document.getElementById('crossword-reveal');expect(reveal).not.toBeNull();
+  const state=[game.correct,game.xp,game.coins,game.index,game.lives];
+  reveal.click();reveal.click();
+  expect(document.querySelectorAll('#crossword-review')).toHaveLength(1);
+  document.querySelectorAll('#crossword-review input').forEach(input=>{expect(input.value).toBe(input.dataset.solution);expect(input.readOnly).toBe(true);});
+  expect(document.querySelectorAll('#crossword-review li')).toHaveLength(game.cross.placements.length);
+  expect([game.correct,game.xp,game.coins,game.index,game.lives]).toEqual(state);
+  jest.advanceTimersByTime(10000);expect(save).toHaveBeenCalledTimes(1);
+  game.restart();expect(document.getElementById('crossword-review')).toBeNull();expect(game.locked).toBe(false);expect(game.seconds).toBe(30);
+});
+
+test('losing all lives permits review, while a perfect solution never does',()=>{
+  game.validateCross();game.validateCross();game.validateCross();
+  expect(document.getElementById('crossword-reveal')).not.toBeNull();
+  game.restart();
+  document.querySelectorAll('input.cell').forEach(input=>{input.value=input.dataset.solution;});
+  game.validateCross();jest.advanceTimersByTime(700);
+  expect(game.xp).toBe(500);expect(game.coins).toBe(60);
+  expect(document.getElementById('crossword-reveal')).toBeNull();
+});
+
+test('restart cancels pending success completion and v2 documents are replaced by v3',()=>{
+  document.querySelectorAll('input.cell').forEach(input=>{input.value=input.dataset.solution;});
+  game.validateCross();game.restart();jest.advanceTimersByTime(700);
+  expect(document.getElementById('finishScreen').classList.contains('hidden')).toBe(true);
+  const old='<html><body><script>const QE={};const SETTINGS={"type":"crossword"};function renderCrossword(){}</script><script id="scormify-crossword-v2">oldRuntime()</script></body></html>';
+  const upgraded=upgradeCrosswordHtml(old);
+  expect(upgraded).not.toContain('oldRuntime()');expect(upgraded).toContain('scormify-crossword-v3');
 });

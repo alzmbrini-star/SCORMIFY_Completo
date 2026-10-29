@@ -13,7 +13,7 @@ def crossword_runtime_source():
 
 
 def upgrade_crossword_html(html):
-    if not isinstance(html,str) or not html or 'scormify-crossword-v2' in html:
+    if not isinstance(html,str) or not html or 'scormify-crossword-v3' in html:
         return html
     if html.startswith('__B64__:'):
         try:
@@ -24,7 +24,8 @@ def upgrade_crossword_html(html):
             return html
     if not re.search(r'["\']type["\']\s*:\s*["\']crossword["\']',html) or 'renderCrossword' not in html or 'const QE=' not in html:
         return html
-    script='<script id="scormify-crossword-v2">('+crossword_runtime_source()+")(Game,BANK,QE,document.getElementById('stage'));</script>"
+    html=re.sub(r'<script\b[^>]*\bid=["\']scormify-crossword-v2["\'][^>]*>[\s\S]*?</script>','',html,flags=re.I)
+    script='<script id="scormify-crossword-v3">('+crossword_runtime_source()+")(Game,BANK,QE,document.getElementById('stage'));</script>"
     return re.sub(r'</body>',lambda _:script+'</body>',html,count=1,flags=re.I) if re.search(r'</body>',html,re.I) else html+script
 
 
