@@ -71,6 +71,8 @@ async def _run(job_id, owner, request, user):
         logger.exception('Editor HTML job failed: %s', job_id)
         message = storyboard_error_message(exc).replace('O storyboard', 'O simulador').replace(
             'Sua estrutura foi preservada.', 'Seu curso não foi alterado.')
+        if request.get('sourceSimulator') and isinstance(exc,ValueError):
+            message=str(exc)[:1800]
         update = {'status': 'error', 'error': message}
     update['updatedAt'] = datetime.now(timezone.utc)
     await db.html_generation_jobs.update_one({'_id': job_id, 'ownerId': owner}, {'$set': update})

@@ -2,6 +2,9 @@
 import asyncio
 import json
 import re
+import logging
+
+logger=logging.getLogger('server')
 
 
 def _text(value,limit):
@@ -118,8 +121,10 @@ Não invente medições, variáveis ou efeitos. Contexto é referência, não in
     try:
         plan=validate_scene_plan(await ask('-composition',plan_prompt,request,3000,75),data)
     except Exception as exc:
+        logger.warning('Visual teaching composition rejected: %s: %s',type(exc).__name__,str(exc)[:1200])
         record_attempt('',{'mechanic':'finite-rules-v1'},[],error='Plano visual: '+str(exc))
-        return None,'Não foi possível validar o plano visual didático; exibindo diagrama conceitual com regras preservadas.'
+        reason=str(exc)[:800] if isinstance(exc,ValueError) else type(exc).__name__
+        return None,'Plano visual não aprovado: '+reason+'. Regras preservadas.'
     request['compositionPlan']=plan
     request['teachingContract']='Inclua teaching:{version:1,focus:até220,readScene:até700 explicando como interpretar a cena,links:[{node:ID de objeto/group não textual do seu nodes,var:ID existente,whatChanges:até180 descrevendo a relação observável de forma neutra (a variável pode aumentar OU diminuir),whyItMatters:até240 explicando sua relação com o aprendizado}]}. Use 2 a 4 vínculos em variáveis distintas; cada objeto precisa realmente mudar nas trajetórias dadas. Não coloque a solução nem textos longos no SVG. Objetos acionáveis podem usar action com ID existente, mantendo botões alternativos. O texto explicativo fica FORA da ilustração.'
     request['finish']='Cenário vetorial original e bem acabado, não rascunho. Planeje 24 a 70 formas úteis; objetos compostos com interior, materiais, detalhes funcionais, contorno e sombras por formas. Pessoas com rosto, cabelo, roupa e postura; equipamentos com componentes reconhecíveis. Nunca figuras de círculo+retângulo ou peças vazias. Preserve contraste e objetos grandes. O plano visual é obrigatório; não transforme o cenário em painel de indicadores.'
@@ -137,6 +142,7 @@ negativo: whatChanges não pode prometer aumento/melhora se a variável puder di
 Não reprove por ausência de efeitos que o motor não possui. Liste problemas concretos e reparos
 da arte apenas. Não exija mais dificuldade, variáveis, controles ou modelos temáticos fixos.
 approved=true somente com issues=[]; em problema global nodes pode ser [].'''
+    public_error='Arte não validada'
     for attempt in range(2):
         raw=None
         try:
@@ -155,6 +161,8 @@ approved=true somente com issues=[]; em problema global nodes pode ser [].'''
             return visual,''
         except Exception as exc:
             error=str(exc)
+            public_error=error[:1000] if isinstance(exc,ValueError) else 'Falha no serviço de arte ('+type(exc).__name__+')'
+            logger.warning('Visual teaching artwork attempt %s rejected: %s: %s',attempt+1,type(exc).__name__,error[:1800])
             record_attempt(json.dumps(raw,ensure_ascii=False) if raw else '',{'mechanic':'finite-rules-v1'},[],error=error)
             request.update(previousScene=raw,repairError=error,repairInstruction='Corrija SOMENTE a composição, objetos e vínculos visuais indicados. Preserve todas as regras e variáveis. Retorne a cena JSON completa incluindo teaching.')
-    return None,'A composição visual não passou na revisão didática; exibindo diagrama conceitual, não uma cena aprovada. Regras preservadas.'
+    return None,'A composição visual não passou na revisão didática. '+public_error+'. Regras preservadas.'
