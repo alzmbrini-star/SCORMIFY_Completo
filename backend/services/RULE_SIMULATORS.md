@@ -8,8 +8,9 @@ existentes não são regenerados ou substituídos automaticamente.
 ## Contrato executável
 
 A IA retorna exclusivamente dados JSON: variáveis inteiras limitadas, predicados,
-ações com efeitos atômicos, cenas condicionais, objetivo, fracasso e testes de
-trajetórias. Flags e estágios representam descobertas, dependências e histórico
+ações com efeitos atômicos, cenas condicionais, objetivo e fracasso. O próprio
+motor deriva os testes de trajetórias com os estados realmente calculados, sem
+depender da aritmética declarada pela IA. Flags e estágios representam descobertas, dependências e histórico
 relevante. Custos de tempo, esforço e orçamento são variáveis explícitas, não
 efeitos implícitos ou cronômetros inventados.
 
@@ -27,12 +28,16 @@ reiniciar sempre restaura o estado e limpa comparações e histórico.
 
 ## Evidência de solução e limites
 
-O servidor valida tipos, referências, tamanhos, limites numéricos e os testes
-propostos pela IA. Em seguida executa busca em largura limitada a 30.000 estados
+O servidor valida tipos, referências, tamanhos, limites numéricos e dependências
+causais diretas ou indiretas do objetivo. Em seguida executa busca em largura limitada a 30.000 estados
 expandidos e até 24 decisões. Exige caminho de sucesso com ao menos três ações
 distintas, desbloqueio real por estado e mudança da cena, além de teste negativo.
 O caminho comprovado e os testes ficam nos diagnósticos privados do autor, não no
-HTML do aluno. Reuso de diagnósticos exige a versão 8 do gerador.
+HTML do aluno. Reuso de diagnósticos exige a versão 9 do gerador. Propostas de
+testes inconsistentes são substituídas por trajetórias comprovadas e contabilizadas
+nos metadados de verificação. Erros independentes de regras são reportados juntos;
+cada reparo usa uma conversa nova. O compilador coloca cenas incondicionais como
+fallback e garante cobertura de estados, sem alterar as ações ou os objetivos.
 
 Orçamento de busca esgotado significa **não comprovado**, nunca prova de que uma
 simulação é impossível. Há até três tentativas de correção dos dados. Falhas não

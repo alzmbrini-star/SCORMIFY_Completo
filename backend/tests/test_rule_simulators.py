@@ -144,16 +144,39 @@ class RuleTests(unittest.TestCase):
         for mutate in [lambda d:d['variables'][0].update(initial=True),
             lambda d:d['actions'][0]['effects'].update(unknown=1),
             lambda d:d['actions'][1].update(id=d['actions'][0]['id']),
-            lambda d:d['checks'][0]['expected'].update(acordo=0),
-            lambda d:d['scenes'][-1].update(when=False),
             lambda d:d['goal'].update(when=True),
-            lambda d:d['checks'][0].update(actions=['negociar']),
             lambda d:d['actions'][0]['effects'].update(descoberta='eval(1)')]:
             raw=fixtures()[0];mutate(raw)
             with self.assertRaises(ValueError):validate_rules(raw)
         raw=fixtures()[0];raw['goal']['when']=op('all',op('eq',ref('acordo'),1),op('ge',ref('confianca'),4))
         raw['checks'][0]['outcome']='failure'
         with self.assertRaises(ValueError):validate_rules(raw)
+
+    def test_engine_derives_checks_instead_of_trusting_model_arithmetic(self):
+        raw=fixtures()[0];raw['checks'][0]['expected']['acordo']=0
+        data=validate_rules(raw)
+        self.assertEqual(data['verification']['recomputedProposedChecks'],1)
+        self.assertEqual(data['checks'][0]['expected']['acordo'],1)
+        raw.pop('checks');data=validate_rules(raw)
+        self.assertEqual({c['outcome'] for c in data['checks']},{'success','failure'})
+
+    def test_indirect_goal_dependency_is_valid_and_scene_coverage_is_compiled(self):
+        raw=fixtures()[0];raw['goal']['when']=op('eq',ref('acordo'),1)
+        raw['scenes'].reverse()  # An unconditional scene cannot shadow all others.
+        data=validate_rules(raw)
+        self.assertTrue(data['verification']['solutionVerified'])
+        self.assertIs(data['scenes'][-1]['when'],True)
+        raw['scenes']=[s for s in raw['scenes'] if s['when'] is not True]
+        raw['scenes'].append({'id':'outro','when':False,'title':'Outra condição','description':'Nunca cobre todos os estados.','facts':['Uma condição específica.']})
+        self.assertIs(validate_rules(raw)['scenes'][-1]['when'],True)
+
+    def test_repairs_receive_independent_faults_together(self):
+        raw=fixtures()[0]
+        raw['goal']['when']=op('ge',ref('acordo'),1)
+        raw['failure']['when']=op('lt',ref('acordo'),1)
+        for a in raw['actions']:a['requires']=True
+        with self.assertRaisesRegex(ValueError,'Estado inicial já é terminal.*Todas as ações'):
+            validate_rules(raw)
 
     def test_renderer_escapes_untrusted_text_and_omits_answer_traces(self):
         raw=fixtures()[0];raw['title']='</script><img src=x onerror=alert(1)>'

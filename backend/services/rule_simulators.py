@@ -4,7 +4,6 @@ Integer state + typed expression trees + atomic guarded transitions. Bounded BFS
 proves an executable witness, not correctness of the real-world subject matter.
 """
 import asyncio
-import copy
 import json
 from collections import deque
 from pathlib import Path
@@ -33,9 +32,7 @@ Contrato:
  scenes: 2..10 objetos {id, when: PREDICADO, title: até 120,
    description: até 700, facts: 1..5 textos até 220},
  goal: {when: PREDICADO, message: até 700},
- failure: {when: PREDICADO, message: até 700},
- checks: 2..4 objetos {actions: lista de IDs de ações (até maxSteps),
-   outcome: "success"|"failure", expected: objeto {idDeVariavel: valorInteiro,...}}}
+ failure: {when: PREDICADO, message: até 700}}
 IDs [a-z][a-z0-9_]* até 32. Cada grupo tem IDs únicos.
 EXPRESSAO_NUMERICA: inteiro ou {var:"id"} ou
 {op:"add"|"sub"|"mul"|"min"|"max",args:[expressao,expressao]}.
@@ -51,15 +48,25 @@ As cenas são avaliadas em ordem: a PRIMEIRA com when=true é exibida; termine
 com uma cena when=true. Mude a cena com as descobertas/estado, não apenas pontuação.
 Pelo menos duas ações devem estar disponíveis inicialmente. Deve haver decisões
 com trade-offs e ações dependentes de descobertas anteriores (flags 0/1).
-Objetivo precisa depender de >=2 variáveis afetadas pelas ações e só ser alcançável
+Objetivo precisa depender direta OU indiretamente de >=2 variáveis afetadas pelas ações e só ser alcançável
 após >=3 ações. A condição inicial não pode ser sucesso nem fracasso.
-Inclua um caminho de sucesso verificável E outro de fracasso nos checks, com
-estados esperados corretos. Não dê a solução nos textos do aluno.
-As ações usadas nos checks devem estar habilitadas em cada passo. Estados terminais
+O motor calcula os caminhos e os estados esperados; não invente resultados de testes.
+Não dê a solução nos textos do aluno. Estados terminais
 não permitem novas ações. Ao atingir maxSteps sem objetivo o motor encerra sem sucesso.
 Mantenha espaço de busca pequeno (flags, estágios e escalas discretas), mas com
 desafio real: investigar antes de decidir, compensar custos e comparar consequências.
 Não use incremento de 1 repetido até 100 ou vitória por clicar em uma sequência óbvia.
+Verifique mentalmente que as ações afetam o objetivo, inclusive indicadores derivados:
+se qualidade é uma variável, ela só muda por um efeito declarado, NUNCA por uma
+fórmula implícita. Para avaliar um resultado após preparação, use uma ação de avaliar
+com requires dependendo dos critérios e effects calculados a partir deles.
+Fracasso por qualidade insuficiente só deve ser avaliado APÓS uma tentativa de
+entrega (flag avaliado=1), nunca no estado inicial com resultado ainda zero.
+Exemplo de semântica, não de tema: uma ação avaliar pode exigir preparo suficiente
+e definir resultado={op:"min",args:[{var:"criterio_a"},{var:"criterio_b"}]},
+avaliado=1. Goal combina avaliado=1 e resultado>=limiar; failure combina avaliado=1
+e resultado<limiar. Os critérios só se alteram por ações declaradas. Adapte a
+estrutura ao problema, sem copiar uma receita de três etapas para todos os temas.
 Explicite premissas e dados fictícios. Indicadores didáticos não são probabilidades
 reais, diagnósticos, certificação ou cálculo de engenharia. Respeite o conteúdo do curso.
 Se o pedido depender de recursos não representáveis (p.ex. física contínua precisa,
@@ -162,7 +169,7 @@ def transition(spec, state, action):
 def solve_rules(spec, budget=SEARCH_BUDGET):
     initial = {v['id']:v['initial'] for v in spec['variables']}
     ids = [v['id'] for v in spec['variables']]
-    queue = deque([(initial, [])]); seen = {tuple(initial[k] for k in ids)}
+    queue = deque([(initial, [])]); seen = {(tuple(initial[k] for k in ids),0)}
     nodes = 0; witness = None; failure = None; enabled = set()
     while queue:
         if nodes >= budget:
@@ -181,7 +188,7 @@ def solve_rules(spec, budget=SEARCH_BUDGET):
             if updated is None: continue
             enabled.add(action['id']); new_path = path+[action['id']]
             result = outcome(spec,updated,len(new_path))
-            key = tuple(updated[k] for k in ids)
+            key = (tuple(updated[k] for k in ids),len(new_path))
             # Terminal states are checked before deduplication (step limits matter).
             if result == 'success' and witness is None: witness = new_path
             if result == 'failure' and failure is None: failure = new_path
@@ -196,6 +203,17 @@ def _refs(node):
     if not isinstance(node,dict): return set()
     if 'var' in node: return {node['var']}
     return set().union(*(_refs(a) for a in node.get('args',[])))
+
+
+def trace_rules(spec, path):
+    state={v['id']:v['initial'] for v in spec['variables']}
+    by_id={a['id']:a for a in spec['actions']}
+    for i,key in enumerate(path):
+        if key not in by_id or outcome(spec,state,i) != 'active':
+            raise ValueError('Trajetória usa ação inexistente ou posterior a um estado terminal')
+        state=transition(spec,state,by_id[key])
+        if state is None: raise ValueError('Trajetória usa ação desabilitada: '+key)
+    return {'actions':list(path),'outcome':outcome(spec,state,len(path)),'expected':state}
 
 
 def validate_rules(raw, budget=SEARCH_BUDGET):
@@ -242,33 +260,41 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
         spec['scenes'].append({'id':key,'when':expression(row.get('when'),ids,True),
             'title':_text(row.get('title'),120),'description':_text(row.get('description'),700),
             'facts':[_text(f,220) for f in facts]})
-    if spec['scenes'][-1]['when'] is not True: raise ValueError('A última cena precisa ter when=true como cobertura')
+    # Coverage is a compiler responsibility, not an arbitrary reason to reject
+    # an otherwise executable model. Unconditional scenes serve only as fallback.
+    defaults=[s for s in spec['scenes'] if s['when'] is True]
+    spec['scenes']=[s for s in spec['scenes'] if s['when'] is not True]
+    fallback=defaults[0] if defaults else {'id':'state_fallback','when':True,
+        'title':spec['title'],'description':spec['briefing'],'facts':[spec['mission']]}
+    if not defaults:
+        while fallback['id'] in scene_ids: fallback['id']+='x'
+    spec['scenes'].append(fallback)
     for key in ('goal','failure'):
         row=raw.get(key)
         if not isinstance(row,dict): raise ValueError('Defina objetivo e fracasso')
         spec[key]={'when':expression(row.get('when'),ids,True),'message':_text(row.get('message'),700)}
-    if len(_refs(spec['goal']['when']) & changed) < 2: raise ValueError('Objetivo deve depender de pelo menos duas variáveis alteradas pelas ações')
+    influencing=_refs(spec['goal']['when'])
+    while True:
+        before=set(influencing)
+        for a in spec['actions']:
+            if set(a['effects']) & influencing:
+                influencing.update(_refs(a['requires']))
+                for key,value in a['effects'].items():
+                    if key in influencing: influencing.update(_refs(value))
+        if before==influencing: break
+    errors=[]
+    if len(influencing & changed) < 2:
+        errors.append('O objetivo só é influenciado por '+', '.join(sorted(influencing))+'. Ligue os outros indicadores às condições ou cálculos das ações que alcançam o objetivo; não presuma fórmulas implícitas.')
     initial={v['id']:v['initial'] for v in variables}
-    if outcome(spec,initial,0) != 'active': raise ValueError('Estado inicial não pode ser terminal')
-    if sum(transition(spec,initial,a) is not None for a in spec['actions']) < 2: raise ValueError('Ofereça pelo menos duas ações inicialmente disponíveis')
-    checks=raw.get('checks')
-    if not isinstance(checks,list) or not 2 <= len(checks) <= 4: raise ValueError('Inclua 2 a 4 testes de trajetórias')
-    tested=set(); spec['checks']=[]; by_id={a['id']:a for a in spec['actions']}
-    for check in checks:
-        if not isinstance(check,dict) or check.get('outcome') not in {'success','failure'}: raise ValueError('Resultado de teste inválido')
-        path=check.get('actions'); expected=check.get('expected')
-        if not isinstance(path,list) or not 1 <= len(path) <= spec['maxSteps'] or any(not isinstance(k,str) or k not in by_id for k in path): raise ValueError('Trajetória de teste inválida')
-        if not isinstance(expected,dict) or not expected or any(k not in ids or type(v) is not int for k,v in expected.items()): raise ValueError('Declare o estado esperado do teste')
-        state=dict(initial)
-        for i,key in enumerate(path):
-            if outcome(spec,state,i) != 'active': raise ValueError('Teste tenta agir depois de estado terminal')
-            state=transition(spec,state,by_id[key])
-            if state is None: raise ValueError('Teste usa ação desabilitada: '+key)
-        if outcome(spec,state,len(path)) != check['outcome'] or any(state[k]!=v for k,v in expected.items()): raise ValueError('Estado/resultado esperado não confere com a execução do teste')
-        tested.add(check['outcome']); spec['checks'].append(copy.deepcopy(check))
-    if tested != {'success','failure'}: raise ValueError('Teste sucesso e fracasso')
+    active=outcome(spec,initial,0)=='active'
+    if not active: errors.append('Estado inicial já é terminal: '+json.dumps(initial,ensure_ascii=False)+'. Corrija goal/failure. Falta de resultado ANTES de avaliar não é fracasso; use uma flag de entrega/avaliação.')
+    if sum(transition(spec,initial,a) is not None for a in spec['actions']) < 2: errors.append('Ofereça pelo menos duas ações inicialmente disponíveis')
+    if not any(_refs(a['requires']) for a in spec['actions']): errors.append('Todas as ações têm requires constante. Inclua decisões/desbloqueios dependentes do estado anterior.')
+    if errors: raise ValueError(' | '.join(errors))
+    by_id={a['id']:a for a in spec['actions']}
     proof=solve_rules(spec,budget)
     if proof['success'] is None: raise ValueError('Busca esgotou o orçamento sem provar solução' if proof['status']=='budget' else 'Objetivo inalcançável pelas regras')
+    if proof['failure'] is None: raise ValueError('Não foi comprovada uma trajetória negativa. Inclua custos e condições de fracasso executáveis, não decorativos.')
     if len(proof['success']) < 3: raise ValueError('Conclusão trivial: exija pelo menos três decisões')
     if len(set(proof['success'])) < 3: raise ValueError('Inclua pelo menos três intervenções distintas, não apenas repetir uma ação')
     state=dict(initial); visited_scenes=set(); unlocked=False
@@ -280,8 +306,16 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
     visited_scenes.add(next(s['id'] for s in spec['scenes'] if evaluate(s['when'],state)))
     if not unlocked: raise ValueError('O caminho precisa desbloquear ações por descobertas/decisões anteriores')
     if len(visited_scenes)<2: raise ValueError('A cena precisa mudar conforme o estado, não permanecer decorativa')
-    # Checks/witnesses remain server-side; never ship the answer to the learner.
+    # The interpreter, not the language model, derives exact acceptance traces.
+    spec['checks']=[trace_rules(spec,proof[key]) for key in ('success','failure')]
+    proposal_mismatches=0
+    for check in (raw.get('checks') if isinstance(raw.get('checks'),list) else [])[:4]:
+        try:
+            actual=trace_rules(spec,check['actions'])
+            if actual['outcome']!=check['outcome'] or any(actual['expected'].get(k)!=v for k,v in check['expected'].items()): proposal_mismatches+=1
+        except (ValueError,TypeError,KeyError,AttributeError): proposal_mismatches+=1
     spec['verification']={'engine':ENGINE,'solutionVerified':True,'visitedStates':proof['nodes']}
+    spec['verification']['recomputedProposedChecks']=proposal_mismatches
     return spec
 
 
@@ -297,11 +331,12 @@ def render_rules(data):
 async def generate_rule_simulator(prompt, context, session_id, provider, key, model):
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     from services.simulator_diagnostics import record_attempt
-    chat=LlmChat(api_key=key,session_id=session_id+'-finite-rules',system_message=PROMPT).with_model(provider,model).with_params(temperature=0.3,max_tokens=13000)
     original={'request':prompt[:7000],'courseContext':context[:10000]}; request=json.dumps(original,ensure_ascii=False)
     error=''
     for attempt in range(3):
         raw=None
+        # Fresh planning history prevents a failed candidate anchoring all repairs.
+        chat=LlmChat(api_key=key,session_id=session_id+f'-finite-rules-{attempt}',system_message=PROMPT).with_model(provider,model).with_params(temperature=0.3,max_tokens=13000)
         response=await asyncio.wait_for(chat.send_message(UserMessage(text=request)),timeout=180)
         try:
             raw=json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',str(response).strip(),flags=re.I))
@@ -314,5 +349,5 @@ async def generate_rule_simulator(prompt, context, session_id, provider, key, mo
             record_attempt(str(response),{'mechanic':ENGINE},[{'issue':error,'context':'Contrato de estados e regras','action':'Corrigir dados e testar trajetórias sem reduzir o desafio.'}],error=error)
             if isinstance(raw,dict) and raw.get('unsupported'): break
             request=json.dumps(dict(original,previousResponse=str(response)[:65000],repairError=error,
-                repairInstruction='Retorne JSON completo corrigido. Calcule cada passo dos checks. Preserve tema, decisões e consequências; não gere código nem remova os testes.'),ensure_ascii=False)
+                repairInstruction='Reconstrua as regras JSON completas corrigindo TODOS os erros apontados. O motor calculará os caminhos e testes. Preserve tema, decisões e consequências; não gere código nem presuma efeitos implícitos.'),ensure_ascii=False)
     raise ValueError('Não foi possível comprovar uma simulação executável com os recursos suportados. '+error)
