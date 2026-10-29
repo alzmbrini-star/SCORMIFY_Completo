@@ -92,6 +92,15 @@ def experiment_fixture():
 
 
 class RuleTests(unittest.TestCase):
+    def test_static_scene_repair_receives_executed_witness_not_a_generic_complaint(self):
+        raw=fixtures()[0]
+        raw['scenes'][0]['when']=op('ge',ref('confianca'),0)
+        with self.assertRaisesRegex(ValueError,'Trajetória observada') as error:
+            validate_rules(raw)
+        self.assertIn('investigar',str(error.exception))
+        self.assertIn('"state"',str(error.exception))
+        self.assertIn('"outcome": "success"',str(error.exception))
+
     def test_predicate_aliases_compile_to_same_canonical_rules_in_every_theme(self):
         def aliases(node):
             if isinstance(node,list):return [aliases(value) for value in node]

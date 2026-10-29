@@ -12,7 +12,7 @@ import re
 
 _scope = ContextVar('simulator_diagnostic_scope', default=None)
 _record = ContextVar('simulator_diagnostic_record', default=None)
-VERSION = 15
+VERSION = 16
 MAX_DOCUMENT = 1000000
 
 
@@ -134,6 +134,10 @@ an earlier approval: all JSON passes the current proof and quality policy again.
                 if has_options(context) and data.get('experience') and any(data['experience'].get(k)!=selected[k] for k in selected):continue
                 if has_options(context) and not data.get('experience'):
                     data['experience']=normalize_experience(None,data,selected)
+                from services.rule_visuals import illustration_detail_issues
+                if has_options(context) and data.get('visual') and illustration_detail_issues(data['visual'],data):
+                    data.pop('visual');data.pop('visualNotice',None)
+                    data['verification']['visualDetailRevalidationRequired']=True
                 if not data.get('visual'):
                     from services.rule_visuals import validate_visual
                     for attempt in reversed(previous.get('attempts',[])[-3:]):
@@ -141,7 +145,9 @@ an earlier approval: all JSON passes the current proof and quality policy again.
                         if attempt.get('truncated') or not isinstance(document,str):continue
                         try:
                             scene=json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',document.strip(),flags=re.I))
-                            data['visual']=validate_visual(scene,data)
+                            visual=validate_visual(scene,data)
+                            if has_options(context) and illustration_detail_issues(visual,data):continue
+                            data['visual']=visual
                             data['verification'].update(visualMode='illustrated',visualRecompiled=True)
                             data.pop('visualNotice',None)
                             break

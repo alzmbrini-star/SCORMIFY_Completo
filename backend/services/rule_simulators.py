@@ -343,13 +343,19 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
     if proof['success'] is None: raise ValueError('Busca esgotou o orçamento sem provar solução' if proof['status']=='budget' else 'Objetivo inalcançável pelas regras')
     if proof['failure'] is None: raise ValueError('Não foi comprovada uma trajetória negativa. Inclua custos e condições de fracasso executáveis, não decorativos. Ação fora de min/max é desabilitada e não altera o estado; escolha um limiar de fracasso dentro dos limites e alcançável por ações habilitadas. Se houver avaliação, permita avaliar também uma preparação insuficiente, sem exigir os critérios de sucesso para habilitá-la. O limite de decisões não substitui failure.when. Verifique a sequência negativa ação por ação antes de retornar as regras.')
     if len(proof['success']) < 3: raise ValueError('Conclusão trivial: exija pelo menos três decisões')
-    state=dict(initial); visited_scenes=set()
+    state=dict(initial); visited_scenes=set(); scene_trace=[]
     for key in proof['success']:
-        visited_scenes.add(next(s['id'] for s in spec['scenes'] if evaluate(s['when'],state)))
+        scene=next(s['id'] for s in spec['scenes'] if evaluate(s['when'],state))
+        visited_scenes.add(scene);scene_trace.append({'state':dict(state),'scene':scene,'nextAction':key})
         action=by_id[key]
         state=transition(spec,state,action)
     visited_scenes.add(next(s['id'] for s in spec['scenes'] if evaluate(s['when'],state)))
-    if len(visited_scenes)<2: raise ValueError('A cena precisa mudar conforme o estado, não permanecer decorativa')
+    if len(visited_scenes)<2:
+        scene_trace.append({'state':dict(state),'scene':next(iter(visited_scenes)),'outcome':'success'})
+        raise ValueError('A cena precisa mudar conforme o estado, não permanecer decorativa. '
+            'A primeira condição verdadeira tem prioridade. Corrija os predicados/ordem das cenas usando '
+            'as variáveis que realmente mudam nesta solução já comprovada; não altere ações ou objetivo '
+            'para encurtar a solução. Trajetória observada: '+json.dumps(scene_trace[:6]+scene_trace[-1:],ensure_ascii=False))
     # The interpreter, not the language model, derives exact acceptance traces.
     spec['checks']=[trace_rules(spec,proof[key]) for key in ('success','failure')]
     proposal_mismatches=0

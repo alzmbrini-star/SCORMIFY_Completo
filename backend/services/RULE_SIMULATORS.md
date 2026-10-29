@@ -42,7 +42,7 @@ primeiro caminho encontrado, nem bloqueios artificiais: experimentos por parâme
 podem alternar ajustes dos mesmos controles. Requisitos de descobertas e etapas
 são usados quando fazem parte das regras declaradas, não como modelo universal.
 O caminho comprovado e os testes ficam nos diagnósticos privados do autor, não no
-HTML do aluno. Reuso direto de diagnósticos exige a versão 15 do gerador. Dados
+HTML do aluno. Reuso direto de diagnósticos exige a versão 16 do gerador. Dados
 JSON de versões conhecidas do mesmo contrato podem ser revalidados, sem IA,
 somente se o hash corresponder exatamente ao pedido, contexto e modelo originais.
 As rotas filtram proprietário, sessão e validade de retenção. O compilador atual
@@ -53,6 +53,10 @@ testes inconsistentes são substituídas por trajetórias comprovadas e contabil
 nos metadados de verificação. Erros independentes de regras são reportados juntos;
 cada reparo usa uma conversa nova. O compilador coloca cenas incondicionais como
 fallback e garante cobertura de estados, sem alterar as ações ou os objetivos.
+
+Quando a cena não muda na solução, a revisão recebe a trajetória executada com
+estados e cenas selecionadas. Isso permite corrigir predicados e prioridade sem
+adivinhar valores ou reduzir o desafio já comprovado.
 
 Além da validade formal, a geração de desafios testa cada ação repetida sozinha:
 se uma delas já permite vencer por repetição, a IA recebe esse contraexemplo para
@@ -98,6 +102,13 @@ antigos sem esse plano conservam sua apresentação; as opções valem para nova
 gerações. O autor deve revisar a pertinência e o acabamento: verificações
 estruturais de objetos compostos e mudanças contextuais não certificam realismo
 fotográfico nem qualidade pedagógica absoluta.
+
+Novas cenas ilustradas passam ainda por um piso de detalhamento na geração:
+ao menos dois objetos compostos e 16 formas não textuais. A orientação pede
+detalhes funcionais, ambiente e volume, não preenchimento com formas inúteis.
+Essa checagem não é uma avaliação estética e não revalida retroativamente
+documentos salvos nem se aplica a esquemas técnicos. Falhas reparam somente
+a arte; se a cena não for validada, o aviso de diagrama conceitual permanece.
 
 Depois de aprovar a lógica, uma etapa separada solicita uma cena JSON original.
 O grafo usa grupos e primitivas SVG (formas, caminhos, polígonos e texto), não

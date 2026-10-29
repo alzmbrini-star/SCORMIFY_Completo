@@ -4,7 +4,7 @@ import json
 import unittest
 from unittest.mock import patch
 from services.rule_simulators import validate_rules,render_rules,transition,trace_rules,single_action_shortcuts
-from services.rule_visuals import validate_visual,visual_state,generate_visual,upgrade_visual_document
+from services.rule_visuals import validate_visual,visual_state,generate_visual,upgrade_visual_document,illustration_detail_issues
 from test_rule_simulators import fixtures,base,var,action,op,ref
 
 
@@ -69,6 +69,36 @@ def sales_visual():
 
 
 class VisualTests(unittest.TestCase):
+    def test_owned_exact_context_revalidation_keeps_proven_logic_when_art_needs_detail(self):
+        from services.simulator_diagnostics import _revalidate_rule_data,generation_key
+        from services.simulator_experience import with_options,options,normalize_experience
+        raw=lock_fixture();data=validate_rules(raw)
+        data['experience']=normalize_experience(None,data,options('guided','illustrated'))
+        data['mechanic']='finite-rules-v1'
+        context=with_options('contexto',options());config=['provider','model']
+        previous=dict(version=15,status='accepted',generationKey=generation_key('pedido',context,config,15),plan=data,result={'spec':data})
+        result=_revalidate_rule_data([previous],'pedido',context,config)
+        self.assertIsNotNone(result)
+        self.assertNotIn('visual',result['spec'])
+        self.assertEqual(result['spec']['checks'],data['checks'])
+        self.assertTrue(result['spec']['verification']['visualDetailRevalidationRequired'])
+        self.assertIn('visual',previous['result']['spec'])
+
+    def test_illustrated_generation_has_detail_floor_without_changing_saved_scenes_or_technical_style(self):
+        raw=lock_fixture();data=validate_rules(raw);visual=data['visual']
+        self.assertEqual(illustration_detail_issues(visual,data),[])
+        data['experience']={'visualStyle':'technical'}
+        self.assertEqual(illustration_detail_issues(visual,data),[])
+        data['experience']['visualStyle']='illustrated'
+        self.assertTrue(illustration_detail_issues(visual,data))
+        detailed=copy.deepcopy(visual)
+        detailed['nodes'].append(shape('segundo','group','Outro objeto composto',dict(x=0,y=0)))
+        for i in range(6):
+            detailed['nodes'].append(shape('detalhe'+str(i),'rect','Detalhe',dict(x=10*i,y=20,width=8,height=10,fill='#ffffff'),parent='segundo'))
+        self.assertEqual(illustration_detail_issues(detailed,data),[])
+        # Existing validated artwork is not retroactively rejected by the new generation-only floor.
+        self.assertIsNotNone(validate_visual(visual,data))
+
     def test_nested_groups_compile_without_inventing_rules_or_bindings(self):
         raw=sales_visual();flat=copy.deepcopy(raw['visual']);nested=copy.deepcopy(flat)
         nested['nodes']=[{'id':'room','type':'group','x':0,'y':0,'nodes':nested['nodes']}]
