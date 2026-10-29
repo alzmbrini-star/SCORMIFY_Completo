@@ -153,7 +153,7 @@ class CustomRepairTests(unittest.TestCase):
                 return json.dumps({'pass':False,'issues':[{'issue':'Indicador congelado','context':'Após ajustar a duração','action':'Atualizar o indicador a partir do estado'}]})
         with patch.dict(os.environ,{'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}),patch('services.visual_simulators.LlmChat',Chat),diagnostic_scope(saved.append):
             with self.assertRaisesRegex(ValueError,'Indicador congelado'):
-                asyncio.run(generate_visual_simulator('Montando Seu Cronograma','Gestão do Tempo'))
+                asyncio.run(generate_visual_simulator('Oficina de revisão de prompts','Gestão do Tempo'))
         failure=saved[-1]
         self.assertEqual(failure['status'],'failed')
         self.assertEqual(len(failure['attempts']),3)

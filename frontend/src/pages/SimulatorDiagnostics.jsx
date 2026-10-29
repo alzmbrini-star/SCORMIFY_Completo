@@ -3,7 +3,7 @@ import { authHeaders } from '../contexts/AuthContext';
 import { getApiUrl } from '../utils/apiUrl';
 
 const API = getApiUrl();
-const stateName = value => ({running:'Em geração',accepted:'Aprovado pela revisão automática',failed:'Reprovado ou interrompido'}[value] || value);
+const stateName = value => ({running:'Em geração',accepted:'Validado para inserção',failed:'Reprovado ou interrompido'}[value] || value);
 
 export default function SimulatorDiagnostics() {
   const [sessions,setSessions]=useState([]), [sessionId,setSessionId]=useState(''), [slideIndex,setSlideIndex]=useState('');
@@ -59,10 +59,10 @@ export default function SimulatorDiagnostics() {
         <button className="bg-slate-700 p-3 rounded disabled:opacity-50" disabled={!data?.records?.length} onClick={download}>Baixar diagnóstico completo (JSON)</button>
       </div>
     </>}
-    {data?.run && <section role="status" className="bg-slate-800 p-4 rounded"><h2 className="font-bold">{data.run.title}: {stateName(data.run.status)}</h2>{data.run.error && <p className="whitespace-pre-wrap">{data.run.error}</p>}{data.run.status==='accepted' && <p>O resultado validado foi guardado. Volte à aba original e retome o Storyboard para reaproveitá-lo. Isso não equivale a uma verificação visual no navegador.</p>}</section>}
+    {data?.run && <section role="status" className="bg-slate-800 p-4 rounded"><h2 className="font-bold">{data.run.title}: {stateName(data.run.status)}</h2>{data.run.error && <p className="whitespace-pre-wrap">{data.run.error}</p>}{data.run.status==='accepted' && <p>O resultado validado foi guardado. Volte à aba original e retome o Storyboard para reaproveitá-lo. A validação pode usar motor testado e dados verificados ou revisão automática de código; não equivale a uma verificação visual no navegador.</p>}</section>}
     {data?.records?.map(record=><section key={record.generationKey} className="border border-slate-600 p-4 rounded space-y-3">
       <h2 className="font-bold">{record.activityTitle} — {stateName(record.status)}</h2>
-      {record.attempts.map((attempt,i)=><details key={i} className="bg-slate-900 p-3 rounded"><summary>Tentativa {i+1}: {attempt.error || 'Aprovada pela revisão automática'}</summary>{attempt.issues.map((issue,j)=><div key={j} className="border-t border-slate-600 mt-3 pt-3"><p>{issue.issue}</p><p>Contexto: {issue.context || 'Não informado pelo revisor'}</p><p>Correção sugerida: {issue.action || 'Não informada pelo revisor'}</p></div>)}</details>)}
+      {record.attempts.map((attempt,i)=><details key={i} className="bg-slate-900 p-3 rounded"><summary>Tentativa {i+1}: {attempt.error || 'Documento validado'}</summary>{attempt.issues.map((issue,j)=><div key={j} className="border-t border-slate-600 mt-3 pt-3"><p>{issue.issue}</p><p>Contexto: {issue.context || 'Não informado pelo revisor'}</p><p>Correção sugerida: {issue.action || 'Não informada pelo revisor'}</p></div>)}</details>)}
     </section>)}
   </div></main>;
 }
