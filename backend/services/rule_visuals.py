@@ -1,5 +1,6 @@
 """Declarative, bounded SVG scenes over the existing rule state. No generated code."""
 import asyncio
+import copy
 import json
 import math
 import re
@@ -58,8 +59,37 @@ def _property(key,value,ids):
     raise ValueError('Propriedade visual não suportada: '+key)
 
 
+def normalize_visual(raw):
+    """Compile conventional nested groups to the same flat graph, not a theme fix."""
+    if not isinstance(raw,dict):return raw
+    raw=copy.deepcopy(raw);flat=[]
+    def walk(rows,parent=None,depth=0):
+        if not isinstance(rows,list) or depth>10:raise ValueError('Árvore visual inválida ou muito profunda')
+        for row in rows:
+            if not isinstance(row,dict):raise ValueError('Objeto visual inválido')
+            if len(flat)>=100:raise ValueError('Máximo de 100 objetos visuais')
+            if 'nodes' in row and 'children' in row:raise ValueError('Use nodes ou children, não ambos')
+            children=row.pop('nodes',None) if 'nodes' in row else row.pop('children',None)
+            if children is not None and row.get('type')!='group':raise ValueError('Somente grupos contêm objetos filhos')
+            if parent:
+                if row.get('parent',parent)!=parent:raise ValueError('Parent conflita com a árvore visual')
+                row['parent']=parent
+            attrs=row.setdefault('attrs',{})
+            if not isinstance(attrs,dict):raise ValueError('attrs precisa ser objeto')
+            for field in set(NUMBERS)|COLORS|{'text','anchor','d','points'}:
+                if field in row:
+                    if field in attrs and attrs[field]!=row[field]:raise ValueError('Atributo visual duplicado: '+field)
+                    attrs[field]=row.pop(field)
+            row.setdefault('label',str(row.get('id','Objeto')).replace('_',' '))
+            flat.append(row)
+            if children is not None:walk(children,row.get('id'),depth+1)
+    walk(raw.get('nodes'));raw['nodes']=flat
+    return raw
+
+
 def validate_visual(raw, spec):
     from services.rule_simulators import expression,_refs,_id,trace_rules
+    raw=normalize_visual(raw)
     if not isinstance(raw,dict) or raw.get('version')!=VERSION or set(raw)-{'version','title','description','background','nodes'}:
         raise ValueError('Cena deve seguir o contrato visual versão 1')
     result={'version':VERSION,'title':_text(raw.get('title'),100),'description':_text(raw.get('description'),600),
@@ -126,9 +156,32 @@ def validate_visual(raw, spec):
         return json.dumps(visual_state(result,state),sort_keys=True)
     first=signature(initial)
     checks=spec.get('checks',[])
+    states=[initial]
     for check in checks:
         final=trace_rules(spec,check['actions'])['expected']
         if signature(final)==first:raise ValueError('A cena não reage à trajetória '+check['outcome'])
+        for length in range(1,len(check['actions'])+1):states.append(trace_rules(spec,check['actions'][:length])['expected'])
+    # Check moving objects at actual executable states, including intermediate
+    # steps. A complementary y/height binding is evaluated together, not guessed.
+    definitions={n['id']:n for n in result['nodes']}
+    for state in states:
+        projections={n['id']:n for n in visual_state(result,state)}
+        for node in result['nodes']:
+            current=node;ox=oy=0;dynamic=bool(node['bindings']);rotated=False;visible=True
+            while current:
+                projected=projections[current['id']];visible=visible and projected['visible']
+                rotated=rotated or bool(projected['attrs'].get('rotation',0))
+                if current is not node:ox+=projected['attrs'].get('x',0);oy+=projected['attrs'].get('y',0);dynamic=dynamic or bool(current['bindings'])
+                current=definitions.get(current.get('parent'))
+            if not dynamic or rotated or not visible:continue
+            a=projections[node['id']]['attrs'];x=a.get('x',0)+ox;y=a.get('y',0)+oy;bounds=None
+            if node['type']=='rect':bounds=(x,y,x+a['width'],y+a['height'])
+            elif node['type'] in ('circle','ellipse'):
+                rx=a.get('r',a.get('rx',0));ry=a.get('r',a.get('ry',0));bounds=(x-rx,y-ry,x+rx,y+ry)
+            elif node['type']=='polygon':
+                xs=[p[0]+ox for p in a['points']];ys=[p[1]+oy for p in a['points']];bounds=(min(xs),min(ys),max(xs),max(ys))
+            if bounds and (bounds[0]<-8 or bounds[1]<-8 or bounds[2]>808 or bounds[3]>458):
+                raise ValueError('Objeto dinâmico '+node['id']+' fica fora do canvas 800x450: '+str(bounds)+'. Ajuste x/y e tamanho juntos; barras que crescem para cima precisam de y complementar à altura.')
     return result
 
 
@@ -161,7 +214,8 @@ async def generate_visual(data,prompt,context,session_id,provider,key,model):
     from emergentintegrations.llm.chat import LlmChat,UserMessage
     from services.simulator_diagnostics import record_attempt
     source={k:v for k,v in data.items() if k not in {'checks','verification','visual','template','mechanic'}}
-    request={'request':prompt[:4000],'courseContext':context[:5000],'model':source}
+    request={'request':prompt[:4000],'courseContext':context[:5000],'model':source,
+             'sceneInstructions':'Prefira lista plana nodes com parent. A cena deve alterar os próprios objetos do ambiente, não só barras de indicadores. Preserve formas visíveis dentro de 800x450 no estado inicial e nos finais. Para uma barra/volume que cresce para cima, vincule y e height de forma complementar, mantendo a base fixa.'}
     for attempt in range(2):
         response=''
         try:

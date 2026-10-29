@@ -69,6 +69,18 @@ def sales_visual():
 
 
 class VisualTests(unittest.TestCase):
+    def test_nested_groups_compile_without_inventing_rules_or_bindings(self):
+        raw=sales_visual();flat=copy.deepcopy(raw['visual']);nested=copy.deepcopy(flat)
+        nested['nodes']=[{'id':'room','type':'group','x':0,'y':0,'nodes':nested['nodes']}]
+        logic=dict(raw);logic.pop('visual');data=validate_rules(logic)
+        scene=validate_visual(nested,data)
+        self.assertEqual(len(scene['nodes']),len(flat['nodes'])+1)
+        self.assertEqual(scene['nodes'][1]['parent'],'room')
+        self.assertEqual(scene['nodes'][1]['attrs'],flat['nodes'][0]['attrs'])
+        bad=lock_fixture();bad['visual']['nodes'][5]['attrs']['y']=440
+        bad['visual']['nodes'][5]['bindings']=[binding('height','nivel',0,2,40,160)]
+        with self.assertRaisesRegex(ValueError,'fora do canvas'):validate_rules(bad)
+
     def test_different_subjects_share_one_graph_and_unchanged_rule_engine(self):
         for raw in (lock_fixture(),sales_visual()):
             data=validate_rules(raw);without=dict(raw);without.pop('visual')
