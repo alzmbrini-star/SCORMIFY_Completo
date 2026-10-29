@@ -134,9 +134,13 @@ async def generate_teaching_visual(data,prompt,context,session_id,provider,key,m
     from services.rule_visuals import VISUAL_PROMPT,validate_visual,illustration_detail_issues
     from services.simulator_diagnostics import record_attempt
     async def ask(suffix,system,payload,tokens,timeout):
-        chat=LlmChat(api_key=key,session_id=session_id+suffix,system_message=system).with_model(provider,model).with_params(temperature=0.25,max_tokens=tokens)
+        from services.visual_schema import format_for_stage,omit_null_fields
+        params={'temperature':0.25,'max_tokens':tokens}
+        response_format=format_for_stage(provider,model,suffix,data,payload)
+        if response_format:params['response_format']=response_format
+        chat=LlmChat(api_key=key,session_id=session_id+suffix,system_message=system).with_model(provider,model).with_params(**params)
         response=await asyncio.wait_for(chat.send_message(UserMessage(text=json.dumps(payload,ensure_ascii=False))),timeout)
-        return json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',str(response).strip(),flags=re.I))
+        return omit_null_fields(json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',str(response).strip(),flags=re.I)))
     source={k:v for k,v in data.items() if k not in {'checks','visual','visualNotice','verification','template','mechanic'}}
     request={'request':prompt[:4000],'courseContext':context[:5000],'model':source,
              'availableVariableIds':[v['id'] for v in data['variables']],'executedVariableChanges':observed_changes(data)}
