@@ -137,7 +137,7 @@ function Review({ model, onClose, onApply, sessionId, slideIndex, elementIndex }
       </fieldset>
       <Button type="button" disabled={busy || !catalog} onClick={() => request(false)}>Validar e preparar prévia</Button>
       {busy && <p role="status">Validando o projeto…</p>}
-      {error && <p role="alert" className="text-red-500">{error} O simulador anterior foi preservado.</p>}
+      {error && <p role="alert" className="text-red-500">{error} Seu rascunho visual continua aberto. Se a conexão falhou ao salvar no Agente, reabra o storyboard para confirmar o estado antes de repetir.</p>}
       {view === 'preview' && (preview ? <iframe title="Prévia do projeto visual" srcDoc={preview} sandbox="allow-scripts" className="w-full aspect-video border rounded bg-white" /> : <p>Prepare uma prévia validada para experimentar as ações e aprovar o resultado.</p>)}
       <div className="flex justify-end gap-2"><Button variant="outline" disabled={busy} onClick={onClose}>Cancelar</Button><Button disabled={!preview || busy} onClick={() => request(true)}>{sessionId ? 'Aplicar e salvar no storyboard' : 'Aplicar à prévia do Editor'}</Button></div>
     </DialogContent>

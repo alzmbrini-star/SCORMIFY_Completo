@@ -41,7 +41,7 @@ test('Agent saves explicit indices, errors retain old presentation', async () =>
   global.fetch.mockResolvedValueOnce({ok:true,json:async()=>({html:'preview'})});await click('Validar e preparar prévia');
   global.fetch.mockResolvedValueOnce({ok:false,json:async()=>({detail:'O storyboard mudou'})});
   await click('Aplicar e salvar no storyboard');
-  expect(apply).not.toHaveBeenCalled();expect(host.querySelector('[role="alert"]').textContent).toContain('preservado');
+  expect(apply).not.toHaveBeenCalled();expect(host.querySelector('[role="alert"]').textContent).toContain('rascunho visual continua aberto');
   const [url, request] = global.fetch.mock.calls.at(-1);
   expect(url).toContain('/components/sessions/session');expect(JSON.parse(request.body)).toMatchObject({slideIndex:2,elementIndex:1});
 });
