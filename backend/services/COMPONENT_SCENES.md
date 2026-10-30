@@ -306,3 +306,12 @@ não executa código gerado, nem insere/salva automaticamente no curso. Se as
 tentativas falharem, mantém o aviso de diagrama conceitual; no refino preserva
 a prévia anterior. É análise do grafo, não inspeção de pixels ou garantia de
 qualidade universal. Atividades já inseridas precisam de refino visual explícito.
+
+A geração/refino guiado usa também o contrato de saída estruturada nos modelos
+OpenAI já suportados pelo projeto. Paths ficam limitados a 1600 caracteres,
+polígonos a 40 pontos, e campos opcionais nulos são removidos antes da validação.
+O painel teaching não é obrigatório para demonstrações; não se impõe um segundo
+indicador por causa do formato de saída. Outros provedores mantêm JSON validado.
+A direção de arte pede contornos compactos, sem sequências intermináveis; a
+revisão aceita contato esquemático, alinhamento em linha e rotações simultâneas
+opostas, sem exigir encaixe ou relações de transmissão matematicamente exatos.

@@ -357,6 +357,10 @@ Rotação de forma perfeitamente simétrica sem detalhes não é movimento perce
 Confira o pivô: rotação ocorre na origem local. Uma peça com x/y deslocados e
 rotation gira em órbita da origem, não sobre seu eixo. Para giro axial, use group
 posicionado no eixo e detalhes centrados em (0,0). Órbitas são corretas quando pedidas.
+Aceite peças em linha reta quando o contato estiver representado. Engrenagens
+em contato podem girar simultaneamente em sentidos opostos; isso não é um defeito.
+Não exija encaixe matematicamente exato dos dentes, torque ou proporções físicas
+de velocidade. Não transforme uma simplificação legítima em motivo de recusa.
 Aponte só divergências concretas e corrigíveis nas formas, preservando as regras.
 Retorne somente JSON {"approved":true|false,"summary":"resumo até600",
 "issues":[{"nodes":["IDs existentes"],"problem":"até350","correction":"até500"}]}.
@@ -389,11 +393,13 @@ async def generate_visual(data,prompt,context,session_id,provider,key,model):
         return await generate_teaching_visual(data,prompt,context,session_id,provider,key,model)
     from emergentintegrations.llm.chat import LlmChat,UserMessage
     from services.simulator_diagnostics import record_attempt
+    from services.visual_schema import format_for_stage,omit_null_fields
     source={k:v for k,v in data.items() if k not in {'checks','verification','visual','visualNotice','template','mechanic','_refinementVisual'}}
     request={'request':prompt[:4000],'courseContext':context[:5000],'model':source,
              'pedagogicalPlan':data.get('experience'),
              'artDirection':'Execute o ambiente e a abordagem visual do plano pedagógico. illustrated pede cenário contextualizado com acabamento e objetos reconhecíveis; technical pede esquema técnico bem acabado, componentes, conexões e leitura operacional. QUALIDADE GRÁFICA É ALTA EM TODOS OS NÍVEIS; guided não significa boneco geométrico. No guiado, o cenário e as consequências devem explicar a atividade com poucas ações. Não repita o mesmo escritório/barras para todos os temas. As variáveis essenciais já têm indicadores: use mudanças nos próprios objetos. O plano é obrigatório como orientação visual, não cria novas leis físicas ou efeitos.',
              'sceneInstructions':'Prefira lista plana nodes com parent apontando para GROUP, nunca para rect/text/path. x/y dos filhos são LOCAIS ao grupo. Desenhe ilustração vetorial profissional: objetos reconhecíveis com detalhes, pessoas com rosto e roupa quando pertinentes, paleta harmônica com sombras por formas, fundo e elementos de ambiente. Evite bonecos feitos apenas de um retângulo e círculo. As variáveis devem alterar os próprios objetos do ambiente (artefatos, expressão, peças, organização), não apenas três barras de indicadores; indicadores já estão fora da cena. Preserve objetos e textos dentro de 800x450 em todos os estados. Separe rótulos pelo espaço que o texto inteiro ocupa: 12 caracteres em fonte 28 ocupam cerca de 185 unidades, não 50. Use textos curtos, sem sobreposição. Para volumes que crescem para cima, vincule y e height de forma complementar, mantendo a base fixa.'}
+    request['geometryBudget']='Geometria compacta e finita: cada path.d até1600 caracteres e250 números; polygon.points no máximo40 pontos. Nunca repita comandos por milhares de coordenadas. Para contorno repetitivo, prefira polígono fechado de até40 pontos, centrado na origem de um grupo; poucos detalhes bastam para tornar a peça reconhecível. Encerre cada forma e feche todo o JSON. Não gere linhas de dentes que escapam do objeto nem séries infinitas. Se a cena anterior for apenas um símbolo errado, preserve sua função e vínculo, não sua geometria incorreta.'
     if (data.get('experience') or {}).get('visualStyle')=='illustrated':
         request['finishRequirements']='Planeje 24 a 70 formas úteis (limite 100 nós). Crie pelo menos dois objetos compostos com detalhes internos em grupos próprios: contorno, interior, elementos funcionais e volume por formas. Construa ambiente com profundidade, piso/parede ou estrutura pertinente, materiais e iluminação. Pessoas precisam de rosto, cabelo, roupa e postura quando fizerem parte do cenário. Obras/artefatos não podem ser só retângulos vazios. Não use o mesmo escritório em todo tema. Evite repetir na arte os números já visíveis nos indicadores. Não polua a cena com textos ou minúcias ilegíveis. Isso é acabamento vetorial, não uma exigência de fotografia.'
     if data.get('_refinementVisual'):
@@ -410,9 +416,12 @@ async def generate_visual(data,prompt,context,session_id,provider,key,model):
     for attempt in range(2):
         response=''
         try:
-            chat=LlmChat(api_key=key,session_id=session_id+f'-scene-{attempt}',system_message=visual_prompt).with_model(provider,model).with_params(temperature=0.35,max_tokens=11000)
+            params={'temperature':0.35,'max_tokens':11000}
+            response_format=format_for_stage(provider,model,'-scene',data,request)
+            if response_format:params['response_format']=response_format
+            chat=LlmChat(api_key=key,session_id=session_id+f'-scene-{attempt}',system_message=visual_prompt).with_model(provider,model).with_params(**params)
             response=await asyncio.wait_for(chat.send_message(UserMessage(text=json.dumps(request,ensure_ascii=False))),timeout=150)
-            raw=json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',str(response).strip(),flags=re.I))
+            raw=omit_null_fields(json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',str(response).strip(),flags=re.I)))
             visual=validate_visual(raw,data)
             issues=illustration_detail_issues(visual,data)
             if issues:raise ValueError('; '.join(issues))
@@ -427,7 +436,10 @@ async def generate_visual(data,prompt,context,session_id,provider,key,model):
                     for length in sorted({0,min(1,len(path)),len(path)}):
                         state=trace_rules(data,path[:length])['expected']
                         samples.append({'state':state,'objects':visual_state(visual,state)})
-                reviewer=LlmChat(api_key=key,session_id=session_id+f'-scene-fidelity-{attempt}',system_message=FIDELITY_REVIEW_PROMPT).with_model(provider,model).with_params(temperature=0.1,max_tokens=2200)
+                review_params={'temperature':0.1,'max_tokens':2200}
+                response_format=format_for_stage(provider,model,'-review',data,{'scene':visual})
+                if response_format:review_params['response_format']=response_format
+                reviewer=LlmChat(api_key=key,session_id=session_id+f'-scene-fidelity-{attempt}',system_message=FIDELITY_REVIEW_PROMPT).with_model(provider,model).with_params(**review_params)
                 review_response=await asyncio.wait_for(reviewer.send_message(UserMessage(text=json.dumps({
                     'request':prompt[:4000],'model':source,'scene':visual,'executedSamples':samples},ensure_ascii=False))),timeout=75)
                 review_raw=json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',str(review_response).strip(),flags=re.I))

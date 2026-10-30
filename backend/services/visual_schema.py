@@ -18,7 +18,7 @@ def review_schema(ids):
     return obj({'approved':{'type':'boolean'},'summary':string(600),'issues':array(issue,0,6)})
 
 
-def scene_schema(ids,actions):
+def scene_schema(ids,actions,demo=False):
     from services.rule_visuals import ALLOWED,NUMBERS
     color={'type':'string','pattern':'^(#[0-9a-fA-F]{6}|none)$'}
     point=array({'type':'number'},2,2)
@@ -37,7 +37,7 @@ def scene_schema(ids,actions):
             elif key in {'fill','stroke'}:value=color
             elif key=='points':value=array(point,3,40)
             elif key=='anchor':value={'type':'string','enum':['start','middle','end']}
-            else:value=string()
+            else:value=string({'d':1600,'text':100}.get(key))
             fields[key]=value if not states and key in required.get(kind,set()) else nullable(value)
         return obj(fields)
     for kind in sorted(ALLOWED):
@@ -52,7 +52,7 @@ def scene_schema(ids,actions):
     link=obj({'node':string(),'var':{'type':'string','enum':ids},'whatChanges':string(180),'whyItMatters':string(240)})
     teaching=obj({'version':{'type':'integer','enum':[1]},'focus':string(220),'readScene':string(700),'links':array(link,2,4)})
     result=obj({'version':{'type':'integer','enum':[1]},'title':string(100),'description':string(600),
-        'background':{'type':'string','pattern':'^#[0-9a-fA-F]{6}$'},'nodes':array({'anyOf':variants},6,100),'teaching':teaching})
+        'background':{'type':'string','pattern':'^#[0-9a-fA-F]{6}$'},'nodes':array({'anyOf':variants},6,100),'teaching':{'type':'null'} if demo else teaching})
     result['$defs']=definitions
     return result
 
@@ -63,7 +63,7 @@ def format_for_stage(provider,model,suffix,data,payload):
     ids=[v['id'] for v in data['variables']]
     if 'composition' in suffix:schema=plan_schema(ids);stage='composition'
     elif 'review' in suffix:schema=review_schema([n['id'] for n in payload['scene']['nodes']]);stage='review'
-    else:schema=scene_schema(ids,[a['id'] for a in data['actions']]);stage='scene'
+    else:schema=scene_schema(ids,[a['id'] for a in data['actions']],data.get('didacticMode')=='process-demo-v1');stage='scene'
     return {'type':'json_schema','json_schema':{'name':'simulator_visual_'+stage,'strict':True,'schema':schema}}
 
 

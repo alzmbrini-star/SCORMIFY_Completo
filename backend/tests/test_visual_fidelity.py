@@ -42,7 +42,8 @@ class VisualFidelity(unittest.TestCase):
             def with_params(self,**kwargs):return self
             async def send_message(self,message):
                 calls.append({'system':self.system,'payload':json.loads(message.text)})
-                return json.dumps(responses[len(calls)-1])
+                result=responses[len(calls)-1]
+                return result if isinstance(result,str) else json.dumps(result)
         with patch('emergentintegrations.llm.chat.LlmChat',Chat):result=asyncio.run(generate_visual(data,prompt,'Curso','qa','openai','fake','model'))
         self.assertEqual(data,before)
         return result,calls
@@ -61,6 +62,27 @@ class VisualFidelity(unittest.TestCase):
     def test_circles_can_be_correct_when_the_requested_objects_are_particles(self):
         (visual,notice),calls=self.run_generation([scene(False),approval()],'Partículas circulares com eixos ilustrativos')
         self.assertIsNotNone(visual);self.assertFalse(notice);self.assertEqual(len(calls),2)
+
+    def test_cut_off_repetitive_path_has_compact_repair_guidance(self):
+        broken='{"version":1,"nodes":[{"attrs":{"d":"M 0 0 '+'M 10 -60 l 10 10 '*1000
+        (visual,notice),calls=self.run_generation([broken,scene(True),approval()])
+        self.assertIsNotNone(visual);self.assertFalse(notice)
+        self.assertIn('Unterminated string',calls[1]['payload']['repairError'])
+        self.assertIn('até40 pontos',calls[1]['payload']['geometryBudget'])
+        self.assertEqual(len(calls),3)
+
+    def test_guided_structured_schema_bounds_paths_and_allows_no_teaching_panel(self):
+        from services.visual_schema import format_for_stage,omit_null_fields
+        data=validate_rules(process_demo())
+        fmt=format_for_stage('openai','gpt-4o','-scene',data,{})
+        schema=fmt['json_schema']['schema']
+        path=schema['$defs']['node_path']['properties']['attrs']['properties']['d']
+        self.assertEqual(path['maxLength'],1600)
+        self.assertEqual(schema['properties']['teaching'],{'type':'null'})
+        self.assertEqual(omit_null_fields({'teaching':None}),{})
+        review=format_for_stage('openai','gpt-4o','-review',data,{'scene':scene(True)})
+        self.assertTrue(review['json_schema']['strict'])
+        self.assertIsNone(format_for_stage('other','model','-scene',data,{}))
 
     def test_failed_review_is_never_silently_approved_as_an_illustration(self):
         (visual,notice),calls=self.run_generation([scene(False),rejection(),scene(False),rejection()])
