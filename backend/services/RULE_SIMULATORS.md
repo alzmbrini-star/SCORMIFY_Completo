@@ -37,6 +37,19 @@ não fidelidade fotográfica ou cálculos de engenharia. Uma nota visível ident
 representação simplificada. Isso é uma política genérica de demonstração para qualquer
 tema representável pelo contrato, não um modelo pronto de eclusa ou outro assunto.
 
+No Guiado, a cena pode reagir por intensidade/opacidade, espessura, cor ou
+visibilidade, sem exigir deslocamento geométrico. A validação exercita também
+controles opcionais alcançáveis, não somente a sequência que conclui a atividade.
+Texto dinâmico sozinho não comprova reação dos objetos; uma mudança apenas
+declarada, mas nunca observada nos estados amostrados, continua sendo rejeitada.
+A amostragem limita-se às primeiras 128 transições do explorador já limitado.
+O piso numérico de 16 formas/dois grupos não bloqueia esse modo, embora o prompt
+continue pedindo objetos reconhecíveis e acabamento; Aplicado/Avançado mantêm
+seus critérios. Cores hexadecimais curtas (#RGB) são expandidas sem perda para
+#RRGGBB antes de renderizar, sem aceitar CSS livre, URLs ou scripts.
+Falhas de geração/refino visual preservam também o modelo das regras no registro
+privado, para permitir reproduzir exatamente a combinação cena/controles.
+
 A IA retorna exclusivamente dados JSON: variáveis inteiras limitadas, predicados,
 ações com efeitos atômicos, cenas condicionais, objetivo e fracasso. O próprio
 motor deriva os testes de trajetórias com os estados realmente calculados, sem

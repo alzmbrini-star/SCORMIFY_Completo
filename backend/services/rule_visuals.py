@@ -26,6 +26,7 @@ def _number(value, bounds):
 
 
 def _color(value):
+    if isinstance(value,str) and re.fullmatch(r'#[0-9a-fA-F]{3}',value):value='#'+''.join(c*2 for c in value[1:])
     if not isinstance(value,str) or not re.fullmatch(r'#[0-9a-fA-F]{6}|none',value):
         raise ValueError('Cor visual: use #RRGGBB ou none')
     return value
@@ -134,7 +135,8 @@ def validate_visual(raw, spec):
     if result['background']=='none':raise ValueError('Defina fundo opaco para contraste')
     rows=raw.get('nodes')
     if not isinstance(rows,list) or not 6<=len(rows)<=100:raise ValueError('Cena precisa de 6 a 100 formas/objetos')
-    variables={v['id']:v for v in spec['variables']};ids=set(variables);seen={};dynamic=set();geometric=0
+    demo=spec.get('didacticMode')=='process-demo-v1'
+    variables={v['id']:v for v in spec['variables']};ids=set(variables);seen={};dynamic=set();geometric=0;appearance=0
     changed=set().union(*(set(a['effects']) for a in spec['actions']))
     # Report independent schema faults together before charging an art repair.
     contract_errors=[]
@@ -190,7 +192,9 @@ def validate_visual(raw, spec):
             a=_number(outputs[0],NUMBERS[prop]);b=_number(outputs[1],NUMBERS[prop])
             if a==b:raise ValueError('Vínculo visual não altera a cena')
             node['bindings'].append(dict(binding,input=[lo,hi],output=[a,b]));bound.add(prop)
-            if var in changed:dynamic.add(var);geometric+=prop not in {'opacity','strokeWidth'}
+            if var in changed:
+                dynamic.add(var);geometric+=prop not in {'opacity','strokeWidth'}
+                if kind!='text':appearance+=1
         states=row.get('states',[])
         if not isinstance(states,list) or len(states)>8:raise ValueError('Até 8 estados visuais por objeto')
         node['states']=[]
@@ -199,16 +203,18 @@ def validate_visual(raw, spec):
             when=expression(state['when'],ids,True)
             node['states'].append({'when':when,'set':{k:_property(k,v,ids) for k,v in state['set'].items()}})
             dynamic.update(_refs(when)&changed)
+            if kind!='text' and _refs(when)&changed:appearance+=1
             if _refs(when)&changed and set(state['set'])&{'x','y','width','height','r','rx','ry','rotation','d','points'}:geometric+=1
         if 'visibleWhen' in row:
             node['visibleWhen']=expression(row['visibleWhen'],ids,True);dynamic.update(_refs(node['visibleWhen'])&changed)
             if kind!='text' and _refs(node['visibleWhen'])&changed:geometric+=1
+            if kind!='text' and _refs(node['visibleWhen'])&changed:appearance+=1
         if row.get('action'):
             if row['action'] not in {a['id'] for a in spec['actions']}:raise ValueError('Ação visual inexistente')
             node['action']=row['action']
         seen[key]=kind;result['nodes'].append(node)
-    minimum=1 if spec.get('didacticMode')=='process-demo-v1' else 2
-    if len(dynamic)<minimum or not geometric:raise ValueError('Cena deve alterar formas/posições por estado e representar variáveis causais do processo; não apenas texto ou números')
+    minimum=1 if demo else 2
+    if len(dynamic)<minimum or not (appearance if demo else geometric):raise ValueError('Cena deve alterar objetos do processo por movimento, aparência ou visibilidade; não apenas texto ou números' if demo else 'Cena deve alterar formas/posições por estado e representar variáveis causais do processo; não apenas texto ou números')
     if (spec.get('experience') or {}).get('visualStyle')=='illustrated':
         def descendants(key):
             children=[n for n in result['nodes'] if n.get('parent')==key]
@@ -232,14 +238,25 @@ def validate_visual(raw, spec):
     # finite and observably different, without writing to the logical state.
     initial={v['id']:v['initial'] for v in spec['variables']}
     def signature(state):
-        return json.dumps(visual_state(result,state),sort_keys=True)
+        values=visual_state(result,state)
+        if demo:values=[v for v in values if seen[v['id']]!='text']
+        return json.dumps(values,sort_keys=True)
     first=signature(initial)
     checks=spec.get('checks',[])
     states=[initial]
-    for check in checks:
-        final=trace_rules(spec,check['actions'])['expected']
-        if signature(final)==first:raise ValueError('A cena não reage à trajetória '+check['outcome'])
-        for length in range(1,len(check['actions'])+1):states.append(trace_rules(spec,check['actions'][:length])['expected'])
+    if demo:
+        from services.visual_teaching import visual_transitions
+        unique={tuple(initial[k] for k in variables)}
+        for before,after in visual_transitions(spec)[:128]:
+            for state in (before,after):
+                key=tuple(state[k] for k in variables)
+                if key not in unique:states.append(state);unique.add(key)
+        if not any(signature(state)!=first for state in states[1:]):raise ValueError('A cena não reage aos controles disponíveis. Vincule os objetos a estados realmente alterados; texto sozinho não basta.')
+    else:
+        for check in checks:
+            final=trace_rules(spec,check['actions'])['expected']
+            if signature(final)==first:raise ValueError('A cena não reage à trajetória '+check['outcome'])
+            for length in range(1,len(check['actions'])+1):states.append(trace_rules(spec,check['actions'][:length])['expected'])
     # Check moving objects at actual executable states, including intermediate
     # steps. A complementary y/height binding is evaluated together, not guessed.
     definitions={n['id']:n for n in result['nodes']}
@@ -325,6 +342,7 @@ states: [{when:PREDICADO,set:{atributos permitidos}}] primeira condição verdad
 
 def illustration_detail_issues(visual,spec):
     """A generation-only floor, not a realism certificate or legacy migration."""
+    if spec.get('didacticMode')=='process-demo-v1':return []
     if (spec.get('experience') or {}).get('visualStyle')!='illustrated':return []
     shapes=[n for n in visual['nodes'] if n['type'] not in {'group','text'}]
     objects=sum(sum(n.get('parent')==g['id'] for n in shapes)>=3
@@ -360,8 +378,9 @@ async def generate_visual(data,prompt,context,session_id,provider,key,model):
         request['bindingGuidance']=binding_guidance(data,data['_refinementVisual'])
     visual_prompt=VISUAL_PROMPT
     if data.get('didacticMode')=='process-demo-v1':
-        visual_prompt=VISUAL_PROMPT.replace('Representar >=2 variáveis afetadas por ações','Representar >=1 variável/etapa do processo afetada pelas ações').replace('A cena deve mudar tanto na trajetória de sucesso quanto negativa.','A cena deve acompanhar as etapas demonstradas; uma trajetória negativa não é obrigatória.')
+        visual_prompt=VISUAL_PROMPT.replace('Representar >=2 variáveis afetadas por ações, com >=1 alteração de geometria/movimento.','Representar >=1 variável/etapa por mudança visível nos objetos: movimento, intensidade, cor, espessura ou visibilidade; geometria não é obrigatória.').replace('A cena deve mudar tanto na trajetória de sucesso quanto negativa.','A cena deve reagir a pelo menos um controle real disponível, mesmo se o caminho de conclusão não usa esse controle; uma trajetória negativa não é obrigatória.')
         request['processDemonstration']='Foco no processo geral e realismo ilustrativo, não precisão científica. Use objetos reconhecíveis, proporções visuais plausíveis, camadas de ambiente, contornos, materiais e luz/sombra suaves. Preserve as etapas pedidas e sua legibilidade. Não invente métricas nem exija equações, medições, tolerâncias de engenharia ou calibração física. Um só estado de etapa pode controlar várias peças por predicados/visibilidade.'
+        if 'finishRequirements' in request:request['finishRequirements']='Componha objetos reconhecíveis com detalhes funcionais e ambiente pertinente. Use materiais, contornos, volume e iluminação suaves. A quantidade de formas deve servir ao desenho, não a uma cota artificial de peças ou grupos. Não substitua equipamentos por cartões de métricas nem acrescente decoração inútil. Simplificação científica não significa arte inacabada.'
     for attempt in range(2):
         response=''
         try:
@@ -374,7 +393,7 @@ async def generate_visual(data,prompt,context,session_id,provider,key,model):
             return visual,''
         except Exception as exc:
             error=str(exc)
-            record_attempt(str(response),dict(mechanic='finite-rules-v1'),[{'issue':error,'context':'Cena visual; lógica preservada','action':'Corrigir apenas as formas e os vínculos visuais'}],error=error)
+            record_attempt(str(response),dict(data,mechanic='finite-rules-v1'),[{'issue':error,'context':'Cena visual; lógica preservada','action':'Corrigir apenas as formas e os vínculos visuais'}],error=error)
             request.update(previousScene=str(response)[:35000],repairError=error,
                            repairInstruction='Corrija concretamente os objetos/atributos identificados no erro, não repita a cena anterior sem mudar. Retorne a cena JSON completa preservando os IDs das variáveis do modelo.')
     return None,'A cena ilustrada não pôde ser validada. Exibindo diagrama conceitual dos estados; regras preservadas.'
