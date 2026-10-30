@@ -220,6 +220,26 @@ TTL de 24 horas do job existente; não se escreve no curso. Isso permite revisar
 o JSON exato de uma falha futura em vez de depender somente de uma captura da
 mensagem. Jobs antigos sem diagnóstico não ganham dados retroativamente.
 
+Efeitos vazios não são classificados como referências inexistentes: o diagnóstico
+identifica a ação com effects:{} e reúne seus demais defeitos de lógica antes do
+reparo. Consultas sem mudança pertencem à orientação/interface, não à contagem de
+intervenções; investigar pode registrar uma descoberta somente se houver uma
+dependência causal real. Tipos inválidos e IDs não declarados recebem campo,
+ação, nomes rejeitados e lista de IDs permitidos, sem descartar efeitos silenciosamente.
+
+Uma análise conservadora de intervalos identifica condições impossíveis nos
+limites declarados, incluindo comparações e árvores booleanas/aritméticas.
+Resultado desconhecido não significa impossível. A busca diagnóstica adicional
+é limitada a 2000 estados (ou ao orçamento menor solicitado); retorna o caminho
+curto encontrado, não uma aprovação, e não altera regras nem limiares.
+
+A prova de trajetória negativa exige atingir failure.when. Limite de passos e
+deadlock continuam encerrando a tentativa do aluno sem sucesso, mas não comprovam
+que o fracasso causal declarado é alcançável. Isso evita aceitar, por exemplo,
+pressão >100 quando a variável só permite 0..100 porque uma consulta sem efeitos
+pode ser repetida até acabar o limite de passos. O teste de regressão usa apenas
+a topologia numérica do diagnóstico, sem publicar os textos do curso do autor.
+
 `test_rule_simulators.py`: validação, busca, limites, segurança, integração canônica
 Agente/Editor, exportação e correção de dados. `test_rule_engine.cjs`: os mesmos
 cinco modelos com topologias distintas executados em Python e JS, comparando

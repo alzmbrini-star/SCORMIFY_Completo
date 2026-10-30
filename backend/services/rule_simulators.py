@@ -45,6 +45,9 @@ Exemplo efeito: {confianca:{op:"add",args:[{var:"confianca"},10]},evidencia:1}.
 O motor DESABILITA uma ação se o requisito for falso OU se qualquer efeito sair
 dos limites. Não há clamp oculto. Não presuma variáveis implícitas ou tempo real:
 custos de tempo, qualidade e orçamento devem estar explícitos nos efeitos.
+effects:{} NÃO é uma intervenção. Consultas sem mudança pertencem à orientação
+da interface. Se investigar desbloqueia uma decisão real, declare a descoberta
+e seu uso nos requisitos; não invente alterações decorativas para preencher effects.
 Declare ao menos uma trajetória executável que atinja failure.when, além da solução.
 Uma ação desabilitada por exceder min/max NÃO causa fracasso: o estado não muda.
 O limite de decisões também NÃO substitui a prova de failure.when. Se o orçamento
@@ -217,7 +220,7 @@ def solve_rules(spec, budget=SEARCH_BUDGET):
         result = outcome(spec,state,len(path))
         if result != 'active':
             if result == 'success' and witness is None: witness = path
-            if result == 'failure' and failure is None: failure = path
+            if result == 'failure' and failure is None and evaluate(spec['failure']['when'],state): failure = path
             if witness is not None and failure is not None:
                 return {'status':'verified','success':witness,'failure':failure,'nodes':nodes,'reachableActions':sorted(enabled),'observedRanges':observed}
             continue
@@ -230,7 +233,7 @@ def solve_rules(spec, budget=SEARCH_BUDGET):
             key = (tuple(updated[k] for k in ids),len(new_path))
             # Terminal states are checked before deduplication (step limits matter).
             if result == 'success' and witness is None: witness = new_path
-            if result == 'failure' and failure is None: failure = new_path
+            if result == 'failure' and failure is None and evaluate(spec['failure']['when'],updated): failure = new_path
             if witness is not None and failure is not None:
                 return {'status':'verified','success':witness,'failure':failure,'nodes':nodes,'reachableActions':sorted(enabled),'observedRanges':observed}
             if key not in seen and result == 'active':
@@ -321,6 +324,48 @@ class RuleDependencyError(ValueError):
         super().__init__(' | '.join(messages))
 
 
+class RuleEffectsError(ValueError):
+    def __init__(self, action, effects, ids):
+        unknown=sorted(str(k) for k in set(effects)-ids) if isinstance(effects,dict) else []
+        self.details={'code':'invalid_action_effects','action':action,'field':'actions.'+action+'.effects',
+            'receivedType':type(effects).__name__,'unknownVariables':unknown,'allowedVariableIds':sorted(ids),
+            'instruction':'effects deve ser um objeto não vazio com IDs declarados. Não invente IDs para contornar a validação.'}
+        super().__init__('actions.'+action+'.effects: '+('variáveis não declaradas: '+', '.join(unknown) if unknown
+            else 'esperado um objeto de efeitos, não '+type(effects).__name__))
+
+
+def predicate_bounds(node, variables):
+    """Conservative truth over declared ranges: None means unknown, never impossible."""
+    ranges={v['id']:(v['min'],v['max']) for v in variables}
+    def interval(n):
+        if type(n) is int:return (n,n)
+        if 'var' in n:return ranges[n['var']]
+        values=[interval(a) for a in n['args']];a,b=values[:2];op=n['op']
+        if op=='add':return (a[0]+b[0],a[1]+b[1])
+        if op=='sub':return (a[0]-b[1],a[1]-b[0])
+        if op=='mul':
+            products=[x*y for x in a for y in b];return (min(products),max(products))
+        if op=='min':return (min(v[0] for v in values),min(v[1] for v in values))
+        return (max(v[0] for v in values),max(v[1] for v in values))
+    def truth(n):
+        if type(n) is bool:return n
+        op=n['op']
+        if op in {'all','any','not'}:
+            values=[truth(a) for a in n['args']]
+            if op=='not':return None if values[0] is None else not values[0]
+            if op=='all':return False if False in values else True if all(v is True for v in values) else None
+            return True if True in values else False if all(v is False for v in values) else None
+        a,b=[interval(v) for v in n['args']]
+        if op in {'eq','ne'}:
+            result=False if a[1]<b[0] or b[1]<a[0] else True if a[0]==a[1]==b[0]==b[1] else None
+            return result if op=='eq' or result is None else not result
+        if op=='lt':return True if a[1]<b[0] else False if a[0]>=b[1] else None
+        if op=='le':return True if a[1]<=b[0] else False if a[0]>b[1] else None
+        if op=='gt':return True if a[0]>b[1] else False if a[1]<=b[0] else None
+        return True if a[0]>=b[1] else False if a[1]<b[0] else None
+    return truth(node)
+
+
 def validate_rules(raw, budget=SEARCH_BUDGET):
     if not isinstance(raw,dict): raise ValueError('Retorne um objeto JSON')
     if raw.get('unsupported'): raise ValueError('Recurso não representável: '+_text(raw['unsupported'],700))
@@ -341,13 +386,14 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
     spec['variables']=variables
     actions=raw.get('actions')
     if not isinstance(actions,list) or not 4 <= len(actions) <= 18: raise ValueError('Defina 4 a 18 ações')
-    spec['actions']=[]; action_ids=set(); changed=set()
+    spec['actions']=[]; action_ids=set(); changed=set();empty_effects=[]
     for row in actions:
         if not isinstance(row,dict): raise ValueError('Ação inválida')
         key=_id(row.get('id'))
         if key in action_ids: raise ValueError('ID de ação repetido')
         action_ids.add(key); effects=row.get('effects')
-        if not isinstance(effects,dict) or not effects or any(k not in ids for k in effects): raise ValueError('Efeitos devem referir variáveis existentes')
+        if not isinstance(effects,dict) or any(k not in ids for k in effects): raise RuleEffectsError(key,effects,ids)
+        if not effects:empty_effects.append(key)
         changed.update(effects)
         spec['actions'].append({'id':key,**{k:_text(row.get(k),lim) for k,lim in (
             ('label',100),('description',350),('unavailable',220),('feedback',500))},
@@ -388,6 +434,9 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
                     if key in influencing: influencing.update(_refs(value))
         if before==influencing: break
     errors=[]
+    if empty_effects:errors.append('Ações sem efeitos (effects vazio): '+', '.join(empty_effects)
+        +'. Uma consulta sem mudança deve ficar na orientação/interface, não contar como intervenção. '
+        'Se investigar muda decisões futuras, modele a descoberta e seus requisitos reais; não acrescente efeitos fictícios.')
     if len(influencing & changed) < 2:
         errors.append('O objetivo só é influenciado por variáveis com efeito declarado: '
             +(', '.join(sorted(influencing & changed)) or 'nenhuma')+'. Referências sem efeito nas ações: '
@@ -396,8 +445,21 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
     initial={v['id']:v['initial'] for v in variables}
     active=outcome(spec,initial,0)=='active'
     if not active: errors.append('Estado inicial já é terminal: '+json.dumps(initial,ensure_ascii=False)+'. Corrija goal/failure. Falta de resultado ANTES de avaliar não é fracasso; use uma flag de entrega/avaliação.')
-    if sum(transition(spec,initial,a) is not None for a in spec['actions']) < 2: errors.append('Ofereça pelo menos duas ações inicialmente disponíveis')
-    if errors: raise RuleDependencyError(errors,spec,influencing,changed)
+    if sum(bool(a['effects']) and transition(spec,initial,a) is not None for a in spec['actions']) < 2: errors.append('Ofereça pelo menos duas ações inicialmente disponíveis')
+    impossible=[key for key in ('goal','failure') if predicate_bounds(spec[key]['when'],variables) is False]
+    for key in impossible:errors.append(key+'.when é impossível dentro dos limites declarados. Corrija o limiar ou as regras causais; uma ação fora de min/max é desabilitada e não causa fracasso.')
+    if errors:
+        error=RuleDependencyError(errors,spec,influencing,changed)
+        error.details.update(emptyEffectActions=empty_effects,impossibleConditions=impossible,
+            variableBounds={v['id']:{'min':v['min'],'max':v['max']} for v in variables})
+        if active:
+            preview=solve_rules(spec,min(budget,2000))
+            error.details['boundedProof']={**preview,'note':'Busca diagnóstica, não aprovação. Timeout/deadlock não contam como failure.when.'}
+            if preview['success'] is not None and len(preview['success'])<3:
+                short=ShortSolutionError(spec,preview['success'])
+                error.details['shortSuccess']=short.details;errors.append(str(short))
+        error.args=(' | '.join(errors),)
+        raise error
     by_id={a['id']:a for a in spec['actions']}
     proof=solve_rules(spec,budget)
     if proof['success'] is None:
