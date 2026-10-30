@@ -21,3 +21,16 @@ dom.window.dispatchEvent(new dom.window.Event('pagehide'));assert.equal(callback
 dom.window.dispatchEvent(new dom.window.Event('pageshow'));button('play').click();step(0);assert.equal(callbacks.size,1);button('reset').click();assert.equal(callbacks.size,0);
 assert.deepEqual(errors,[]);dom.window.close();
 console.log('PASS visualization: no autoplay, play/pause, speed, scrub, keyboard explanation, labels, reset, single RAF lifecycle, no points');
+const match=html.match(/<script id="scormify-visualization-plan" type="application\/json">([\s\S]*?)<\/script>/);
+const centered=JSON.parse(match[1]);centered.nodes.find(n=>n.id==='electron').attrs.x=600;centered.motions[0].origin='center';
+const modern=new JSDOM(html.replace(match[1],JSON.stringify(centered)),{runScripts:'dangerously',beforeParse(w){w.requestAnimationFrame=()=>1;w.cancelAnimationFrame=()=>{};}});
+const scene=modern.window.document,particle=scene.querySelector('[aria-label="Elétron ilustrativo"]');
+for(const [position,expectedX,expectedY] of [[0,640,225],[250,400,345],[500,160,225],[750,400,105],[1000,640,225]]){
+  const slider=scene.getElementById('time');slider.value=position;slider.dispatchEvent(new modern.window.Event('input'));
+  const coordinates=particle.getAttribute('transform').match(/translate\(([^ ]+) ([^)]+)\)/);
+  const x=Number(scene.querySelector('[aria-label="Elétron ilustrativo"] circle').getAttribute('cx'))+Number(coordinates[1]);
+  const y=Number(scene.querySelector('[aria-label="Elétron ilustrativo"] circle').getAttribute('cy'))+Number(coordinates[2]);
+  assert.ok(Math.abs(x-expectedX)<1e-8);assert.ok(Math.abs(y-expectedY)<1e-8);
+  assert.ok(x-12>=0&&x+12<=800&&y-12>=0&&y+12<=450);
+}
+modern.window.close();console.log('PASS explicit orbit center: correct absolute positions across phases, no doubled displacement, legacy output unchanged');

@@ -2,7 +2,7 @@ import copy
 import json
 import unittest
 from unittest.mock import AsyncMock,patch
-from services.didactic_visualizations import validate,render,generate_visualization,ENGINE
+from services.didactic_visualizations import validate,render,generate_visualization,ENGINE,MotionBoundsError
 
 
 def fixture():
@@ -20,6 +20,29 @@ def fixture():
 
 
 class Visualizations(unittest.TestCase):
+    def test_explicit_orbit_center_avoids_double_displacement_and_keeps_legacy(self):
+        legacy=fixture();legacy['nodes'][3]['attrs']['x']=600
+        with self.assertRaises(MotionBoundsError):validate(legacy)
+        current=copy.deepcopy(legacy);current['motions'][0]['origin']='center'
+        self.assertEqual(validate(current)['motions'][0]['cx'],400)
+        local=copy.deepcopy(current);local['nodes'][3]['attrs'].update(x=0,y=0)
+        self.assertEqual(validate(local)['motions'][0]['origin'],'center')
+        self.assertNotIn('origin',validate(fixture())['motions'][0])
+        for phase in (0,90,180,270):
+            current['motions'][0]['phase']=phase
+            self.assertEqual(validate(current)['motions'][0]['phase'],phase)
+
+    def test_all_clipped_orbits_include_exact_bounds_and_repair_limits(self):
+        data=fixture();data['motions'][0].update(origin='center',cx=700,cy=400)
+        second=copy.deepcopy(data['nodes'][3]);second['id']='electron2';data['nodes'].append(second)
+        motion=copy.deepcopy(data['motions'][0]);motion['node']='electron2';motion['cx']=100;data['motions'].append(motion)
+        with self.assertRaises(MotionBoundsError) as error:validate(data)
+        details=error.exception.details
+        self.assertEqual([d['node'] for d in details],['electron','electron2'])
+        self.assertEqual(details[0]['maximumAmplitudeAtThisCenter'],[88,38])
+        self.assertEqual(details[0]['sweptBounds'],[448,268,952,532])
+        self.assertEqual(data['motions'][0]['dx'],240)  # validation never silently shrinks an orbit
+
     def test_no_outcomes_or_rule_solver_required(self):
         data=validate(fixture())
         self.assertEqual(len(data['motions']),1)
@@ -62,6 +85,20 @@ class Visualizations(unittest.TestCase):
 
 
 class Generation(unittest.IsolatedAsyncioTestCase):
+    async def test_motion_repair_receives_all_bounds_then_passes_independent_review(self):
+        from unittest.mock import MagicMock
+        bad=fixture();bad['motions'][0].update(origin='center',cx=700)
+        good=fixture();good['motions'][0]['origin']='center'
+        chat=MagicMock();chat.with_model.return_value=chat;chat.with_params.return_value=chat
+        chat.send_message=AsyncMock(side_effect=[json.dumps(bad),json.dumps(good),'{"approved":true,"issues":[]}'])
+        with patch('emergentintegrations.llm.chat.LlmChat',return_value=chat):
+            result=await generate_visualization('Elétrons em órbitas ilustrativas','Ciências','test','openai','fake','configured')
+        request=json.loads(chat.send_message.call_args_list[1].args[0].text)
+        self.assertEqual(request['motionGeometryHints'][0]['node'],'electron')
+        self.assertEqual(request['motionGeometryHints'][0]['maximumAmplitudeAtThisCenter'][0],88)
+        self.assertEqual(result['spec']['motions'][0]['origin'],'center')
+        self.assertEqual(chat.send_message.await_count,3)
+
     async def test_general_model_and_independent_review_no_scored_engine(self):
         chat=AsyncMock();chat.with_model.return_value=chat;chat.with_params.return_value=chat
         # chain methods must be synchronous, send only is asynchronous
@@ -71,6 +108,7 @@ class Generation(unittest.IsolatedAsyncioTestCase):
         with patch('emergentintegrations.llm.chat.LlmChat',return_value=chat):
             result=await generate_visualization('Represente um átomo','Curso de ciências','test','openai','fake','configured')
         self.assertEqual(result['spec']['mechanic'],ENGINE)
+        self.assertEqual(result['spec']['motions'][0]['origin'],'center')
         self.assertEqual(chat.send_message.await_count,2)
 
     async def test_selection_survives_editor_and_agent_contexts(self):

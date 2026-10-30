@@ -225,3 +225,20 @@ Falhas de perceptibilidade de vários vínculos são reunidas na mesma revisão,
 reduzir os critérios de aprovação. O reparo continua limitado às tentativas já
 existentes; falha final mantém a prévia e apresenta uma mensagem curta, enquanto
 os detalhes técnicos permanecem nos diagnósticos do serviço.
+
+### Origem explícita das órbitas ilustrativas
+
+Novas gerações usam `origin:"center"` em movimentos `orbit`. A posição absoluta
+da âncora é `(cx + dx*cos(ângulo), cy + dy*sin(ângulo))`; o renderizador subtrai
+attrs.x/y ao montar a transformação SVG, evitando somar a posição inicial duas
+vezes. O envelope de movimento usa o mesmo centro e inclui o tamanho do objeto.
+Movimentos antigos sem `origin` mantêm exatamente a semântica anterior,
+centrada em attrs.x/y. Nenhum curso salvo é migrado ou reescalado implicitamente.
+Somente a geração nova normaliza a omissão de origin para center; leitura e
+renderização de documentos já salvos não aplicam essa normalização.
+
+Recortes continuam sendo rejeitados. Os problemas de vários objetos são
+reunidos, com centro, amplitude, envelope e amplitudes máximas possíveis naquele
+centro. O reparo da geração recebe esses dados estruturados em vez de somente
+um nome de objeto. Não existe regra especial para átomos: a origem explícita
+vale para qualquer órbita ilustrativa suportada pelo contrato 2D.
