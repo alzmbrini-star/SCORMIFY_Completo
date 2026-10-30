@@ -90,6 +90,13 @@ abrem em diálogos. HTML, SCORM clássico e Single Page preservam esse viewport.
 
 ## Camada visual contextualizada
 
+### Projetos de componentes optativos
+
+A Fase 1 acrescenta `visualProject` versionado e catálogo mínimo de componentes
+de prova, compilados para o mesmo grafo SVG confiável. Não altera a lógica,
+não migra documentos e não ativa seleção automática na geração. Sem projeto,
+o caminho anterior permanece. Ver [contrato e limites](COMPONENT_SCENES.md).
+
 ### Composição didática avançada
 
 Novas gerações avançadas planejam ambiente, enquadramento e 2–4 mecanismos

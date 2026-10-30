@@ -11,7 +11,7 @@ async def refine_visual(source,prompt,context,complexity='advanced',visual_style
     raw=json.loads(source)
     if not isinstance(raw,dict):raise ValueError('Refino exige dados de um simulador do motor de regras')
     # Untrusted authored artwork/code is never executed or passed through.
-    raw.pop('visual',None);raw.pop('visualNotice',None)
+    raw.pop('visual',None);raw.pop('visualNotice',None);raw.pop('visualProject',None)
     data=validate_rules(raw)
     if single_action_shortcuts(data):raise ValueError('O modelo de origem precisa de revisão lógica antes do refino visual')
     data['experience']=normalize_experience(raw.get('experience'),data,options(complexity,visual_style))

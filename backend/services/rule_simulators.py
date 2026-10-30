@@ -383,7 +383,10 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
     if isinstance(raw.get('experience'),dict):
         from services.simulator_experience import normalize_experience
         spec['experience']=normalize_experience(raw['experience'],spec)
-    if raw.get('visual') is not None:
+    if raw.get('visualProject') is not None:
+        from services.component_scenes import compile_project
+        spec['visualProject'],spec['visual']=compile_project(raw['visualProject'],spec)
+    elif raw.get('visual') is not None:
         from services.rule_visuals import validate_visual
         spec['visual']=validate_visual(raw['visual'],spec)
     spec['verification']['visualMode']='illustrated' if spec.get('visual') else 'conceptual'

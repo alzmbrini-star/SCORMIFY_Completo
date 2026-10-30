@@ -73,7 +73,9 @@ export function ruleVisualRuntime() {
       else if(key==='anchor'){if(['start','middle','end'].indexOf(value)===-1)return;}
       else if(key==='d'){if(typeof value!=='string'||value.length>1600||!/^[MLHVCSQTAZmlhvcsqtaz0-9eE.,+\s-]+$/.test(value))return;}
       else if(key==='points'){if(!Array.isArray(value)||value.length>40)return;value=value.map(function(p){return Array.isArray(p)?p.slice(0,2).map(Number).join(','):'';}).join(' ');}
-      if((kind==='circle'||kind==='ellipse')&&(key==='x'||key==='y'))name=key==='x'?'cx':'cy';el.setAttribute(name,String(value));
+      if((kind==='circle'||kind==='ellipse')&&(key==='x'||key==='y'))name=key==='x'?'cx':'cy';
+      if(kind==='line'&&(key==='x'||key==='y'))name=key==='x'?'x1':'y1';
+      el.setAttribute(name,String(value));
     });
     var rotation=Number(attrs.rotation)||0;el.setAttribute('transform',(kind==='group'?'translate('+(Number(attrs.x)||0)+' '+(Number(attrs.y)||0)+') ':'')+'rotate('+rotation+')');
   }
