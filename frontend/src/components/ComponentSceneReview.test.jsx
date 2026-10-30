@@ -1,0 +1,47 @@
+import React, { act } from 'react';
+import { createRoot } from 'react-dom/client';
+import ComponentSceneReview, { sceneModel, syncLinks } from './ComponentSceneReview';
+jest.mock('../utils/apiUrl', () => ({ getApiUrl: () => 'http://test' }));
+jest.mock('../contexts/AuthContext', () => ({ authHeaders: extra => extra || {} }));
+jest.mock('./ui/button', () => ({ Button: ({variant, ...props}) => <button {...props}/> }));
+jest.mock('./ui/dialog', () => ({ Dialog: ({ children }) => <div>{children}</div>, DialogContent: ({ children }) => <div>{children}</div>, DialogHeader: ({ children }) => <div>{children}</div>, DialogTitle: ({ children }) => <h2>{children}</h2>, DialogDescription: ({ children }) => <p>{children}</p> }));
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+const model = { title:'Teste', subtitle:'Cena', mission:'Aprender', maxSteps:6, variables:[{id:'level',label:'Nível',min:0,max:3,unit:'m'}], actions:[{id:'rise',label:'Elevar',feedback:'Nível sobe'}] };
+const html = `<script id="scormify-simulator-plan" type="application/json">${JSON.stringify(model)}</script>`;
+const catalog = {version:2,components:{liquid_vessel:{version:1,description:'Recipiente',size:[220,250],inputs:['level'],actions:[]}}};
+let host, root;
+beforeEach(() => { host=document.createElement('div');document.body.appendChild(host);root=createRoot(host); global.fetch=jest.fn(async () => ({ok:true,json:async () => catalog})); });
+afterEach(() => {act(() => root.unmount());host.remove();jest.restoreAllMocks();});
+const click = async text => { await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent === text).click()); };
+const change = async (el, value) => { await act(async () => { Object.getOwnPropertyDescriptor(el.tagName === 'SELECT' ? HTMLSelectElement.prototype : HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input',{bubbles:true})); }); };
+test('only inert model documents offer review; links removed with their component', () => {
+  expect(sceneModel('<script>alert(1)</script>')).toBeNull();
+  expect(sceneModel(html+html)).toBeNull();
+  expect(sceneModel(html).title).toBe('Teste');
+  expect(syncLinks({instances:[],teaching:{links:[{instance:'old',input:'level'}]}}).teaching.links).toEqual([]);
+});
+test('Editor requires validated preview, invalidates it after edit, cancel does not apply', async () => {
+  const apply=jest.fn();act(() => root.render(<ComponentSceneReview html={html} onApply={apply}/>));
+  await click('Revisar projeto visual');
+  expect(host.textContent).toContain('Regras, ações');
+  await change(host.querySelector('select[id]'),'liquid_vessel');await click('Adicionar peça');
+  expect(host.textContent).toContain('1. Recipiente');
+  global.fetch.mockResolvedValue({ok:true,json:async () => ({html:'<p>Preview</p>'})});
+  await click('Validar e preparar prévia');
+  const iframe=host.querySelector('iframe');expect(iframe.getAttribute('sandbox')).toBe('allow-scripts');
+  expect([...host.querySelectorAll('button')].find(b=>b.textContent==='Aplicar à prévia do Editor').disabled).toBe(false);
+  await change(host.querySelector('input'),'Outro título');
+  expect(host.querySelector('iframe')).toBeNull();
+  expect([...host.querySelectorAll('button')].find(b=>b.textContent==='Aplicar à prévia do Editor').disabled).toBe(true);
+  await click('Cancelar');expect(apply).not.toHaveBeenCalled();
+});
+test('Agent saves explicit indices, errors retain old presentation', async () => {
+  const apply=jest.fn();act(() => root.render(<ComponentSceneReview html={html} onApply={apply} sessionId="session" slideIndex={2} elementIndex={1}/>));
+  await click('Revisar projeto visual');
+  global.fetch.mockResolvedValueOnce({ok:true,json:async()=>({html:'preview'})});await click('Validar e preparar prévia');
+  global.fetch.mockResolvedValueOnce({ok:false,json:async()=>({detail:'O storyboard mudou'})});
+  await click('Aplicar e salvar no storyboard');
+  expect(apply).not.toHaveBeenCalled();expect(host.querySelector('[role="alert"]').textContent).toContain('preservado');
+  const [url, request] = global.fetch.mock.calls.at(-1);
+  expect(url).toContain('/components/sessions/session');expect(JSON.parse(request.body)).toMatchObject({slideIndex:2,elementIndex:1});
+});

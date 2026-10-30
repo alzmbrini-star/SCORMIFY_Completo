@@ -28,6 +28,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui
 import { SlideTypeSwitcher, AvatarSceneMockup } from './AvatarSceneControls';
 import DensityBadge from '../../../components/DensityBadge';
 import DensitySuggestionsDialog from '../../../components/DensitySuggestionsDialog';
+import ComponentSceneReview from '../../../components/ComponentSceneReview';
 
 const API = getApiUrl();
 
@@ -44,6 +45,7 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [previewMode, setPreviewMode] = useState(true);
+  const [visualPreviews, setVisualPreviews] = useState({});
 
   // Density analysis state: auto-runs when the storyboard loads so badges
   // light up immediately. `densityForSlide[i]` is the {score, label, reasons}
@@ -357,6 +359,17 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
         const effectiveType = getSlideEffectiveType(slide, activeSlide);
         const isAvatarScene = slide.type === 'avatar_scene';
         const wasConverted = effectiveType !== slide.type;
+        const interactiveElement = slide.elements?.find(el => {
+          if (el?.type !== 'html') return false;
+          if (typeof el?.htmlContent === 'string' && el.htmlContent.trim()) return true;
+          return typeof el?.content === 'string' && /<(?:!doctype|html|script)\b/i.test(el.content);
+        });
+        // Older storyboards stored complete interactive documents in
+        // `content`; current ones use `htmlContent`. Support both so valid
+        // simulators/flashcards do not appear as "Sem conteúdo".
+        const originalInteractiveHtml = interactiveElement?.htmlContent || interactiveElement?.content || '';
+        const visualKey = `${activeSlide}:${originalInteractiveHtml}`;
+        const interactiveHtml = visualPreviews[visualKey] || originalInteractiveHtml;
         const typeBadgeClass = effectiveType === 'avatar_scene' ? 'bg-violet-600/20 text-violet-300'
           : effectiveType === 'quiz' ? 'bg-amber-600/20 text-amber-300'
           : effectiveType === 'title' ? 'bg-blue-600/20 text-blue-300'
@@ -396,6 +409,9 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
           <CardContent className="space-y-3">
             {/* Preview/Edit toggle */}
             <div className="flex items-center gap-2 justify-end">
+              <ComponentSceneReview html={interactiveHtml} sessionId={sessionId} slideIndex={activeSlide}
+                elementIndex={slide.elements?.indexOf(interactiveElement)} disabled={loading || savingEdits || !sessionId}
+                onApply={html => { setVisualPreviews(prev => ({ ...prev, [visualKey]: html })); toast.success('Projeto visual salvo no storyboard. Regras preservadas.'); }} />
               <button
                 onClick={() => setPreviewMode(true)}
                 className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${previewMode ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-600/40' : 'text-slate-400 hover:text-slate-200'}`}
@@ -435,16 +451,27 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
             {(!isAvatarScene || wasConverted) && (
               <div className="space-y-2">
                 {previewMode ? (
-                  <div
-                    className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 prose prose-sm prose-invert max-w-none [&_h1]:text-lg [&_h1]:font-bold [&_h1]:text-white [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-slate-200 [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-slate-300 [&_p]:text-sm [&_p]:text-slate-300 [&_p]:mb-2 [&_strong]:text-emerald-300 [&_ul]:text-slate-300 [&_ol]:text-slate-300 [&_li]:text-sm [&_li]:mb-1 [&_a]:text-emerald-400 min-h-[80px]"
-                    data-testid={`storyboard-preview-${activeSlide}`}
-                    dangerouslySetInnerHTML={{
-                      __html: DOMPurify.sanitize(slide.elements?.map((el, elIdx) => {
-                        const content = (editedSlides[activeSlide]?.elements?.find(e => e.index === elIdx)?.content) ?? (el.content || '');
-                        return content;
-                      }).join('') || '<p style="color:#64748b;font-style:italic">Sem conteúdo</p>')
-                    }}
-                  />
+                  interactiveHtml ? (
+                    <div className="overflow-hidden rounded-lg border border-orange-500/30 bg-white shadow-inner" data-testid={`storyboard-preview-${activeSlide}`}>
+                      <iframe
+                        title={`Prévia interativa: ${slide.title || effectiveType}`}
+                        srcDoc={interactiveHtml}
+                        sandbox="allow-scripts"
+                        className="block w-full h-[420px] bg-white"
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 prose prose-sm prose-invert max-w-none [&_h1]:text-lg [&_h1]:font-bold [&_h1]:text-white [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-slate-200 [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-slate-300 [&_p]:text-sm [&_p]:text-slate-300 [&_p]:mb-2 [&_strong]:text-emerald-300 [&_ul]:text-slate-300 [&_ol]:text-slate-300 [&_li]:text-sm [&_li]:mb-1 [&_a]:text-emerald-400 min-h-[80px]"
+                      data-testid={`storyboard-preview-${activeSlide}`}
+                      dangerouslySetInnerHTML={{
+                        __html: DOMPurify.sanitize(slide.elements?.map((el, elIdx) => {
+                          const content = (editedSlides[activeSlide]?.elements?.find(e => e.index === elIdx)?.content) ?? (el.content || '');
+                          return content;
+                        }).join('') || '<p style="color:#64748b;font-style:italic">Sem conteúdo</p>')
+                      }}
+                    />
+                  )
                 ) : (
                   slide.elements?.map((el, elIdx) => (
                     <div key={el.id || `el-${activeSlide}-${elIdx}`}>
@@ -854,4 +881,3 @@ const GRADIENT_DIRECTIONS = [
   { id: 'to top right', label: '↗' },
   { id: 'to top left', label: '↖' },
 ];
-

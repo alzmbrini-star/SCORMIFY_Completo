@@ -145,3 +145,34 @@ regeneração pontual ainda pertencem à Fase 3.
 Próximos marcos: Fase 3, compositor e revisão no Agente e no Editor.
 Fase 4: testes visuais, desempenho e homologação SCORM 1.2 no Didaxis. Fase 5:
 motores gráficos e adaptadores especializados somente com necessidade provada.
+
+## Fase 3A: revisão e composição manual
+
+O botão `Revisar projeto visual` está disponível para documentos do motor de
+regras no diálogo HTML do Editor (Colar HTML e resultado da IA) e na prévia do
+slide do Storyboard do Agente. Não altera automaticamente cursos existentes.
+O modelo lógico precisa já ter sido gerado; este passo não substitui a geração
+do storyboard nem a validação anterior de arte livre.
+
+A interface separa objetivo/relações, cenário/peças e prévia/aprovação. Permite
+adicionar/remover até seis peças, posicionar, ordenar camadas, escolher variantes,
+associar entradas a variáveis existentes ou constantes e ligar hotspots a ações
+existentes. As relações didáticas são editáveis. A prévia é invalidada após cada
+alteração; somente uma composição validada pode ser aplicada. Nenhuma chamada
+de IA, vetorizador ou Kling é feita por essa interface.
+
+Endpoints autenticados sob `/api/generate-html/jobs/components`:
+`GET /catalog`, `POST /preview` e `POST /sessions/{session_id}`. O último exige
+o proprietário da sessão e índices explícitos de slide/elemento. Rejeita regras
+ou apresentação de origem desatualizadas e faz compare-and-set somente no HTML
+daquele elemento, preservando as demais edições. Preview recebe JSON limitado,
+nunca executa HTML recebido; o compilador revalida regras e projeções, e produz
+um documento novo pelo renderizador confiável. O Agente persiste apenas após
+aprovação explícita; no Editor a mudança fica na prévia, que ainda precisa ser
+inserida no slide e salva pelo fluxo normal.
+
+Este é o primeiro incremento da Fase 3. Seleção automática por capacidade,
+planejamento antes da geração inicial, produção de componentes ausentes,
+regeneração pontual, importação de imagens/vetores e clipes de transição Kling
+ainda não estão integrados. A biblioteca declara suas limitações; não há
+substituição automática de um objeto desconhecido por outro fora do contexto.

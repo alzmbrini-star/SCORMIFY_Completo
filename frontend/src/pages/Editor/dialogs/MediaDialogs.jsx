@@ -9,6 +9,7 @@ import { Loader2, Sparkles, Plus, Check, Code, Image, Palette, Music, Mic, Trash
 import RichTextEditor from '../../../components/RichTextEditor';
 import KlingVideoForm from './KlingVideoForm';
 import SimulatorExperienceOptions from '../../../components/SimulatorExperienceOptions';
+import ComponentSceneReview from '../../../components/ComponentSceneReview';
 
 // Gallery image with auto-retry on load failure
 function GalleryImage({ src, alt }) {
@@ -206,6 +207,7 @@ export function HtmlDialog({
             </div>
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+              <ComponentSceneReview html={htmlConfig.content} disabled={aiHtmlLoading} onApply={content => setHtmlConfig({ ...htmlConfig, content })} />
               {htmlConfig.content.includes('finite-rules-v1') && <Button variant="outline" disabled={aiHtmlLoading} onClick={() => { setAiHtmlResult(htmlConfig.content); setHtmlDialogTab('ai'); }}>Preparar refino visual</Button>}
               <Button onClick={handleAddHtml} data-testid="confirm-add-html">Adicionar HTML</Button>
             </DialogFooter>
@@ -253,6 +255,7 @@ export function HtmlDialog({
             </div>
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+              <ComponentSceneReview html={aiHtmlResult} disabled={aiHtmlLoading} onApply={setAiHtmlResult} />
               {aiHtmlResult.includes('finite-rules-v1') && <Button variant="outline" disabled={aiHtmlLoading} onClick={() => handleGenerateHtmlAI(aiHtmlResult)} data-testid="ai-html-refine-visual-btn">Refinar cenário</Button>}
               {aiHtmlResult && <Button onClick={handleInsertAiHtml} disabled={aiHtmlLoading} data-testid="ai-html-insert-btn">Inserir no Slide</Button>}
             </DialogFooter>

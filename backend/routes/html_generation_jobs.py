@@ -25,6 +25,60 @@ class HtmlJobRequest(BaseModel):
     requestId: str = Field(min_length=16, max_length=100, pattern=r'^[A-Za-z0-9_-]+$')
 
 
+class ComponentRequest(BaseModel):
+    sourceSimulator: str = Field(min_length=2, max_length=120000)
+    visualProject: dict
+
+
+class SaveComponentRequest(ComponentRequest):
+    slideIndex: int = Field(ge=0, le=1000)
+    elementIndex: int = Field(ge=0, le=1000)
+
+
+@router.get('/components/catalog')
+async def component_catalog(user: dict = Depends(require_auth)):
+    from services.component_catalog import catalog
+    return catalog()
+
+
+@router.post('/components/preview')
+async def preview_components(body: 'ComponentRequest', user: dict = Depends(require_auth)):
+    from services.component_authoring import compose
+    try:
+        return await asyncio.to_thread(compose, body.sourceSimulator, body.visualProject)
+    except (ValueError, TypeError, KeyError) as exc:
+        raise HTTPException(422, str(exc)[:1000]) from exc
+
+
+@router.post('/components/sessions/{session_id}')
+async def save_components(session_id: str, body: 'SaveComponentRequest', user: dict = Depends(require_auth)):
+    from services.component_authoring import read_model, stored_model, same_rules, compose
+    owner = _owner(user)
+    session = await db.agent_sessions.find_one({'id': session_id, 'userId': owner})
+    if not session:
+        raise HTTPException(404, 'Sessão não encontrada para este autor')
+    try:
+        element = session['storyboard']['slides'][body.slideIndex]['elements'][body.elementIndex]
+        field = 'htmlContent' if element.get('htmlContent') else 'content'
+        original = element[field]
+        stored, submitted = stored_model(original), read_model(body.sourceSimulator)
+        if element.get('type') != 'html' or not same_rules(stored, submitted):
+            raise HTTPException(409, 'As regras deste slide mudaram. Reabra a revisão visual.')
+        if any(stored.get(k) != submitted.get(k) for k in ('visualProject', 'visual', 'experience')):
+            raise HTTPException(409, 'A apresentação deste slide mudou. Reabra a revisão visual.')
+        result = await asyncio.to_thread(compose, body.sourceSimulator, body.visualProject)
+    except (ValueError, TypeError, KeyError, IndexError) as exc:
+        raise HTTPException(422, str(exc)[:1000]) from exc
+    path = f'storyboard.slides.{body.slideIndex}.elements.{body.elementIndex}.{field}'
+    saved = await db.agent_sessions.update_one({'id': session_id, 'userId': owner, path: original},
+        {'$set': {path: result['html'], 'updatedAt': datetime.now(timezone.utc).isoformat()}})
+    if not saved.modified_count:
+        current = await db.agent_sessions.find_one({'id': session_id, 'userId': owner, path: result['html']})
+        if not current:
+            raise HTTPException(409, 'O storyboard mudou durante a revisão. Nenhuma alteração foi aplicada.')
+    return result
+
+
 def _owner(user):
     owner = user.get('user_id') or user.get('id')
     if not owner: raise HTTPException(401, 'Sua sessão expirou. Entre novamente.')
