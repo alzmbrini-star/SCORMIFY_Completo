@@ -8,6 +8,7 @@ import { resolveAssetUrls } from '../utils/htmlUtils';
 import { isSlideSimulator, upgradeSimulatorSlide } from '../utils/simulatorSlide';
 import { refinementModel } from '../utils/refinementModel';
 import { generateHtmlJob } from '../utils/htmlGenerationJob';
+import { fetchHtmlDiagnostic } from '../utils/htmlDiagnostic';
 import { getApiUrl } from '../utils/apiUrl';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -991,14 +992,12 @@ export default function Editor() {
 
   const handleDownloadHtmlDiagnostic = async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/generate-html/jobs/diagnostics/latest`, {
-        params: { projectId: currentProject?.id || projectId || '' }, headers: authHeaders(), withCredentials: true,
-      });
-      const url = URL.createObjectURL(new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' }));
+      const diagnostic = await fetchHtmlDiagnostic(API_URL, currentProject?.id || projectId || '', authHeaders());
+      const url = URL.createObjectURL(new Blob([JSON.stringify(diagnostic, null, 2)], { type: 'application/json' }));
       const link = document.createElement('a'); link.href = url; link.download = 'scormify-diagnostico-simulador.json';
       document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Não foi possível baixar o diagnóstico.');
+      toast.error(err.message || 'Não foi possível baixar o diagnóstico.');
     }
   };
 
