@@ -289,3 +289,20 @@ Mensagens de sucesso, cenas e fracassos ativos continuam validadas. Erros de
 texto identificam campo, motivo e comprimento para reparo localizado, sem
 repetir conteúdo privado nos metadados do erro. Desafios aplicados/avançados e
 modelos legados sem process-demo-v1 mantêm o contrato de texto anterior.
+
+### Fidelidade da ilustração guiada
+
+Depois de validar o grafo SVG de uma nova demonstração process-demo-v1, uma
+revisão semântica compara o pedido, a geometria, a hierarquia e amostras de
+estados executados. Rótulos não bastam para declarar um objeto reconhecível:
+silhueta, partes funcionais, relações e pivôs de movimento devem representar
+o pedido. Círculos continuam válidos para objetos que realmente os exigem.
+Não há cota de formas, exigência de fotografia ou precisão de engenharia.
+
+A revisão usa uma chamada adicional ao provedor por cena tecnicamente válida,
+limitada às duas tentativas visuais já existentes. Problemas concretos e IDs
+retornam ao desenhista para reparar apenas a arte. Não altera efeitos/regras,
+não executa código gerado, nem insere/salva automaticamente no curso. Se as
+tentativas falharem, mantém o aviso de diagrama conceitual; no refino preserva
+a prévia anterior. É análise do grafo, não inspeção de pixels ou garantia de
+qualidade universal. Atividades já inseridas precisam de refino visual explícito.

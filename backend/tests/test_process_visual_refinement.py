@@ -71,12 +71,15 @@ class DemoVisualRefinement(unittest.TestCase):
             def __init__(self,**kwargs):self.system=kwargs['system_message']
             def with_model(self,*args):return self
             def with_params(self,**kwargs):return self
-            async def send_message(self,message):messages.append(json.loads(message.text));return json.dumps(pump_scene())
+            async def send_message(self,message):
+                messages.append(json.loads(message.text))
+                if 'FIDELIDADE VISUAL' in self.system:return json.dumps({'approved':True,'summary':'Objetos pertinentes ao processo.','issues':[]})
+                return json.dumps(pump_scene())
         with patch('services.llm_config.simulator_generation_config',return_value=('openai','test','model')),patch('emergentintegrations.llm.chat.LlmChat',Chat):
             result=asyncio.run(refine_visual(json.dumps(model),'Refinar bomba','Curso','guided','illustrated'))
         final=stored_model(result['html'])
         for field in ('variables','actions','goal','failure','didacticMode'):self.assertEqual(final[field],model[field])
-        self.assertEqual(len(messages),1);self.assertIn('processDemonstration',messages[0])
+        self.assertEqual(len(messages),2);self.assertIn('processDemonstration',messages[0])
         self.assertIn('não a uma cota artificial',messages[0]['finishRequirements'])
 
 
