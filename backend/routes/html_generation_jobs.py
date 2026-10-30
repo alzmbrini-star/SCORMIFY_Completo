@@ -93,25 +93,31 @@ def _public(job):
     return result
 
 
+async def _generate_with_diagnostics(request, user, diagnostic):
+    from services.simulator_diagnostics import editor_attempts
+    with editor_attempts(diagnostic):
+        if request.get('sourceSimulator'):
+            from services.simulator_visual_refinement import refine_visual
+            return await asyncio.wait_for(refine_visual(request['sourceSimulator'],request['prompt'],request['courseContext'],
+                request.get('simulatorComplexity','advanced'),request.get('simulatorVisualStyle','illustrated')),timeout=18*60)
+        from routes.agent import GenerateHtmlRequest, generate_html_with_ai
+        return await asyncio.wait_for(generate_html_with_ai(
+            GenerateHtmlRequest(prompt=request['prompt'], courseContext=request['courseContext'],
+                                simulatorComplexity=request.get('simulatorComplexity','guided'),
+                                simulatorVisualStyle=request.get('simulatorVisualStyle','illustrated'),
+                                simulatorActivityType=request.get('simulatorActivityType','simulation')),
+            _user=user), timeout=18 * 60)
+
+
 async def _run(job_id, owner, request, user):
     # Claim atomically: a repeated POST must never generate/charge twice.
     claimed = await db.html_generation_jobs.update_one(
         {'_id': job_id, 'ownerId': owner, 'status': 'queued'},
         {'$set': {'status': 'running', 'updatedAt': datetime.now(timezone.utc)}})
     if not claimed.modified_count: return
+    diagnostic={}
     try:
-        if request.get('sourceSimulator'):
-            from services.simulator_visual_refinement import refine_visual
-            result=await asyncio.wait_for(refine_visual(request['sourceSimulator'],request['prompt'],request['courseContext'],
-                request.get('simulatorComplexity','advanced'),request.get('simulatorVisualStyle','illustrated')),timeout=18*60)
-        else:
-            from routes.agent import GenerateHtmlRequest, generate_html_with_ai
-            result = await asyncio.wait_for(generate_html_with_ai(
-            GenerateHtmlRequest(prompt=request['prompt'], courseContext=request['courseContext'],
-                                simulatorComplexity=request.get('simulatorComplexity','guided'),
-                                simulatorVisualStyle=request.get('simulatorVisualStyle','illustrated'),
-                                simulatorActivityType=request.get('simulatorActivityType','simulation')),
-            _user=user), timeout=18 * 60)
+        result=await _generate_with_diagnostics(request,user,diagnostic)
         if not result.get('html'): raise ValueError('A IA retornou uma atividade vazia.')
         update = {'status': 'done', 'html': result['html']}
     except HTTPException as exc:
@@ -130,6 +136,7 @@ async def _run(job_id, owner, request, user):
         if request.get('sourceSimulator') and isinstance(exc,ValueError):
             message=str(exc)[:1800]
         update = {'status': 'error', 'error': message}
+    if diagnostic.get('attempts'):update['diagnostic']=diagnostic
     update['updatedAt'] = datetime.now(timezone.utc)
     await db.html_generation_jobs.update_one({'_id': job_id, 'ownerId': owner}, {'$set': update})
 

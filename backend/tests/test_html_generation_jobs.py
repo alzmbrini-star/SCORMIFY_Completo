@@ -129,6 +129,22 @@ class Jobs(unittest.IsolatedAsyncioTestCase):
         self.assertIn('controle', result['error'])
         self.assertNotIn('html', result)
 
+    async def test_failed_editor_keeps_exact_attempts_private_in_owned_job(self):
+        job=await self.start();fake=ModuleType('routes.agent')
+        fake.GenerateHtmlRequest=lambda **kw:kw
+        async def fail(*args,**kwargs):
+            from services.simulator_diagnostics import record_attempt
+            record_attempt('{"actions":[]}',{'mechanic':'finite-rules-v1'},[{'issue':'missing writer'}],error='Invalid rule')
+            raise HttpError(422,'Plano inconsistente')
+        fake.generate_html_with_ai=fail
+        with patch.dict(sys.modules,{'routes.agent':fake}):
+            function,*args=self.tasks[0];await function(*args)
+        diagnostic=self.collection.docs[job['jobId']]['diagnostic']
+        self.assertEqual(diagnostic['attempts'][0]['document'],'{"actions":[]}')
+        public=await self.scope['get_html_job'](job['jobId'],self.user)
+        self.assertNotIn('diagnostic',public);self.assertNotIn('attempts',public)
+        with self.assertRaises(HttpError):await self.scope['get_html_job'](job['jobId'],{'user_id':'bob'})
+
     async def test_orphaned_job_after_restart_has_actionable_error(self):
         job = await self.start()
         self.collection.docs[job['jobId']].update(status='running', updatedAt=datetime.now(timezone.utc) - timedelta(minutes=21))

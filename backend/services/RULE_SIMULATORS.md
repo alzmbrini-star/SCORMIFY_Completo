@@ -204,6 +204,22 @@ prova de que o novo plano é executável. Esgotar reparos é reportado como defe
 do plano gerado; somente unsupported explícito é reportado como recurso não
 representável. Os testes usam respostas simuladas, sem chamadas pagas de IA.
 
+Falhas de pré-validação também enviam repairDetails: referências diretas do
+objetivo, dependências transitivas, variáveis com escrita declarada, dependências
+sem qualquer efeito e mapa de leituras/escritas por ação. A mensagem distingue
+referenciar uma variável de realmente modificá-la. Não se adicionam efeitos
+automáticos: a geração deve representar a operação causal solicitada e passar
+novamente por todas as provas. Indicadores constantes do cenário não precisam
+ser artificialmente modificados; outras decisões reais podem influenciar o
+objetivo pelos requisitos/cálculos das ações.
+
+Os jobs assíncronos do Editor preservam as últimas três tentativas e seus dados
+de reparo no próprio registro privado, isolado por ContextVar. Não são enviados
+no polling público nem incluídos nos logs. Aplicam-se o mesmo proprietário e
+TTL de 24 horas do job existente; não se escreve no curso. Isso permite revisar
+o JSON exato de uma falha futura em vez de depender somente de uma captura da
+mensagem. Jobs antigos sem diagnóstico não ganham dados retroativamente.
+
 `test_rule_simulators.py`: validação, busca, limites, segurança, integração canônica
 Agente/Editor, exportação e correção de dados. `test_rule_engine.cjs`: os mesmos
 cinco modelos com topologias distintas executados em Python e JS, comparando

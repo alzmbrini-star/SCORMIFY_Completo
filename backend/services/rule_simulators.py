@@ -297,6 +297,30 @@ class ShortSolutionError(ValueError):
                          +str(len(path))+' ação(ões); o reparo deve corrigir esse atalho causal.')
 
 
+class RuleDependencyError(ValueError):
+    def __init__(self, messages, spec, influencing, changed):
+        initial={v['id']:v['initial'] for v in spec['variables']}
+        self.details={'code':'invalid_causal_dependencies','issues':messages,
+            'directGoalReferences':sorted(_refs(spec['goal']['when'])),
+            'transitiveGoalDependencies':sorted(influencing),
+            'assignedVariables':sorted(changed),
+            'assignedGoalDependencies':sorted(influencing & changed),
+            'goalDependenciesWithoutEffects':sorted(influencing-changed),
+            'variablesOutsideGoalChain':sorted(changed-influencing),
+            'initialState':initial,'goal':spec['goal']['when'],
+            'actionDependencies':[{'action':a['id'],'requiresVariables':sorted(_refs(a['requires'])),
+                'writes':sorted(a['effects']),'effectReads':{k:sorted(_refs(v)) for k,v in a['effects'].items()},
+                'initialResult':transition(spec,initial,a)} for a in spec['actions']],
+            'instruction':'Uma variável mencionada em goal não é necessariamente alterada pelas ações. '
+            'Use assignedGoalDependencies para identificar as que têm efeitos explícitos e goalDependenciesWithoutEffects '
+            'para as que permanecem no valor inicial. Se um estado operacional deve mudar, implemente o controle '
+            'e seu efeito real, ligado aos requisitos das operações seguintes. Para constantes de cenário, não invente '
+            'mudanças: represente outras decisões causais reais do pedido e conecte-as ao objetivo direta ou indiretamente. '
+            'Não basta acrescentar uma referência ao objetivo, um efeito identidade, contador ou indicador decorativo. '
+            'Preserve também os critérios de segurança e as dependências já corretas.'}
+        super().__init__(' | '.join(messages))
+
+
 def validate_rules(raw, budget=SEARCH_BUDGET):
     if not isinstance(raw,dict): raise ValueError('Retorne um objeto JSON')
     if raw.get('unsupported'): raise ValueError('Recurso não representável: '+_text(raw['unsupported'],700))
@@ -365,12 +389,15 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
         if before==influencing: break
     errors=[]
     if len(influencing & changed) < 2:
-        errors.append('O objetivo só é influenciado por '+', '.join(sorted(influencing))+'. Ligue os outros indicadores às condições ou cálculos das ações que alcançam o objetivo; não presuma fórmulas implícitas.')
+        errors.append('O objetivo só é influenciado por variáveis com efeito declarado: '
+            +(', '.join(sorted(influencing & changed)) or 'nenhuma')+'. Referências sem efeito nas ações: '
+            +(', '.join(sorted(influencing-changed)) or 'nenhuma')
+            +'. Implemente as mudanças causais necessárias; apenas citar variáveis no objetivo não as altera.')
     initial={v['id']:v['initial'] for v in variables}
     active=outcome(spec,initial,0)=='active'
     if not active: errors.append('Estado inicial já é terminal: '+json.dumps(initial,ensure_ascii=False)+'. Corrija goal/failure. Falta de resultado ANTES de avaliar não é fracasso; use uma flag de entrega/avaliação.')
     if sum(transition(spec,initial,a) is not None for a in spec['actions']) < 2: errors.append('Ofereça pelo menos duas ações inicialmente disponíveis')
-    if errors: raise ValueError(' | '.join(errors))
+    if errors: raise RuleDependencyError(errors,spec,influencing,changed)
     by_id={a['id']:a for a in spec['actions']}
     proof=solve_rules(spec,budget)
     if proof['success'] is None:

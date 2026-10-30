@@ -16,6 +16,20 @@ VERSION = 17
 MAX_DOCUMENT = 1000000
 
 
+@contextmanager
+def editor_attempts(record):
+    """Collect bounded attempts in the owning Editor job, never in public logs."""
+    record.update(attempts=[],error='')
+    token=_record.set(record)
+    try:
+        yield
+    except Exception as exc:
+        record['error']=str(exc)[:12000]
+        raise
+    finally:
+        _record.reset(token)
+
+
 def simulator_request(source, content, config):
     from services.simulator_experience import options
     return (json.dumps(source, ensure_ascii=False), json.dumps({
