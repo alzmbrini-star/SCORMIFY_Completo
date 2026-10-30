@@ -7,6 +7,22 @@ from component_pilots import pilots,technical_pilot,feedback_pilot
 
 
 class ContextComponentTests(unittest.TestCase):
+    def test_empty_budget_is_distinct_from_one_remaining_block(self):
+        from component_pilots import planning_pilot
+        data=validate_rules(planning_pilot());state={v['id']:v['initial'] for v in data['variables']}
+        for value,visible in ((6,True),(1,True),(0,False)):
+            state['tempo']=value
+            upper=next(n for n in visual_state(data['visual'],state) if n['id']=='budget_upper')
+            self.assertEqual(upper['visible'],visible)
+
+    def test_fractional_constants_use_exact_visual_thresholds(self):
+        from services.context_components import Painter
+        painter=Painter({'id':'qa','component':'time_budget','position':{'x':0,'y':0},'label':'Tempo',
+                         'inputs':{'remaining':{'value':.5,'range':[.5,1.5]}},'actions':{}},'studio')
+        self.assertTrue(painter.when('remaining','eq',0))
+        painter.i['inputs']['remaining']['value']=1.2
+        self.assertTrue(painter.when('remaining','ge',.65))
+
     def test_composite_controls_have_distinct_accessible_names(self):
         data=validate_rules(technical_pilot())
         labels={n['action']:n['label'] for n in data['visual']['nodes'] if n.get('action')}

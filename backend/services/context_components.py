@@ -19,8 +19,8 @@ class Painter:
         if 'var' in source:row.setdefault('bindings',[]).append({'property':prop,'var':source['var'],'input':[lo,hi],'output':[a,b]})
         else:row['attrs'][prop]=a+(source['value']-lo)/(hi-lo)*(b-a)
     def when(self,port,op,fraction):
-        source=self.i['inputs'][port];lo,hi=source['range'];threshold=math.ceil(lo+(hi-lo)*fraction)
-        if 'var' in source:return {'op':op,'args':[{'var':source['var']},threshold]}
+        source=self.i['inputs'][port];lo,hi=source['range'];threshold=lo+(hi-lo)*fraction
+        if 'var' in source:return {'op':op,'args':[{'var':source['var']},math.ceil(threshold)]}
         return {'lt':source['value']<threshold,'ge':source['value']>=threshold,'eq':source['value']==threshold}[op]
     def action(self,row,slot):
         if self.i['actions'].get(slot):row['action']=self.i['actions'][slot]
@@ -154,6 +154,7 @@ def draw_context_component(instance,style):
         p.rect('top',18,5,164,17,'#638596',rx=6);p.rect('base',18,229,164,17,'#638596',rx=6)
         p.path('glass','M39 24 H161 Q166 77 115 123 Q166 175 161 225 H39 Q34 175 85 123 Q34 77 39 24 Z','#cce6ed',stroke='#608699',strokeWidth=4)
         sand=p.path('upper','M45 40 H155 Q153 81 100 114 Q47 81 45 40 Z','#a56e25')
+        sand['visibleWhen']={'op':'not','args':[p.when('remaining','eq',0)]}
         sand['states']=[{'when':p.when('remaining','lt',.17),'set':{'d':'M98 112 H102 L100 114 Z'}},
                         {'when':p.when('remaining','lt',.5),'set':{'d':'M75 85 H125 L100 114 Z'}},
                         {'when':p.when('remaining','lt',.84),'set':{'d':'M55 64 H145 Q137 94 100 114 Q63 94 55 64 Z'}}]
