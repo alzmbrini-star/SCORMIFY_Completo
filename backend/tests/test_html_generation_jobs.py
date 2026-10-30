@@ -25,9 +25,11 @@ class Collection:
     def __init__(self): self.docs = {}
 
     def match(self, query):
-        return next((doc for doc in self.docs.values() if all(doc.get(k) == v for k, v in query.items())), None)
+        return next((doc for doc in self.docs.values() if all(
+            (k in doc)==v['$exists'] if isinstance(v,dict) and '$exists' in v else doc.get(k)==v
+            for k,v in query.items())),None)
 
-    async def find_one(self, query):
+    async def find_one(self, query, sort=None):
         doc = self.match(query)
         return dict(doc) if doc else None
 
@@ -144,6 +146,11 @@ class Jobs(unittest.IsolatedAsyncioTestCase):
         public=await self.scope['get_html_job'](job['jobId'],self.user)
         self.assertNotIn('diagnostic',public);self.assertNotIn('attempts',public)
         with self.assertRaises(HttpError):await self.scope['get_html_job'](job['jobId'],{'user_id':'bob'})
+        downloaded=await self.scope['latest_editor_diagnostic']('project',self.user)
+        self.assertEqual(downloaded['diagnostic'],diagnostic)
+        self.assertNotIn('ownerId',downloaded);self.assertNotIn('requestHash',downloaded)
+        with self.assertRaises(HttpError):await self.scope['latest_editor_diagnostic']('project',{'user_id':'bob'})
+        with self.assertRaises(HttpError):await self.scope['latest_editor_diagnostic']('other-project',self.user)
 
     async def test_orphaned_job_after_restart_has_actionable_error(self):
         job = await self.start()

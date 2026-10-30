@@ -182,6 +182,7 @@ export function HtmlDialog({
   aiHtmlPrompt, setAiHtmlPrompt,
   aiHtmlResult, setAiHtmlResult,
   aiHtmlLoading, aiHtmlProgress,
+  handleDownloadHtmlDiagnostic,
   simulatorOptions = { complexity: 'guided', visualStyle: 'illustrated' }, onSimulatorOptionsChange = () => {},
   handleAddHtml, handleGenerateHtmlAI, handleInsertAiHtml,
 }) {
@@ -234,6 +235,10 @@ export function HtmlDialog({
                   </Button>
                 </div>
                 {aiHtmlProgress && <p role="status" className="text-sm text-muted-foreground mt-2">{aiHtmlProgress}</p>}
+                {handleDownloadHtmlDiagnostic && <div className="mt-2 text-xs text-muted-foreground">
+                  <Button type="button" variant="outline" size="sm" disabled={aiHtmlLoading} onClick={handleDownloadHtmlDiagnostic}>Baixar último diagnóstico técnico</Button>
+                  <p className="mt-1">Somente suas gerações deste projeto, por até 24 horas. Contém regras e textos da atividade; revise antes de compartilhar.</p>
+                </div>}
               </div>
               {aiHtmlResult && (
                 <div className="flex flex-col shrink-0 border rounded-lg overflow-hidden">

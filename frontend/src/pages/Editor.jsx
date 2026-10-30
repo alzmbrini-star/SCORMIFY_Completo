@@ -989,6 +989,19 @@ export default function Editor() {
     }
   };
 
+  const handleDownloadHtmlDiagnostic = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/generate-html/jobs/diagnostics/latest`, {
+        params: { projectId: currentProject?.id || projectId || '' }, headers: authHeaders(), withCredentials: true,
+      });
+      const url = URL.createObjectURL(new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' }));
+      const link = document.createElement('a'); link.href = url; link.download = 'scormify-diagnostico-simulador.json';
+      document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Não foi possível baixar o diagnóstico.');
+    }
+  };
+
   // Generate HTML with AI
   const handleGenerateHtmlAI = async (visualSource = '') => {
     if (aiHtmlLoading) return;
@@ -2522,6 +2535,7 @@ export default function Editor() {
           aiHtmlPrompt={aiHtmlPrompt} setAiHtmlPrompt={setAiHtmlPrompt}
           aiHtmlResult={aiHtmlResult} setAiHtmlResult={setAiHtmlResult}
           aiHtmlLoading={aiHtmlLoading} aiHtmlProgress={aiHtmlProgress}
+          handleDownloadHtmlDiagnostic={handleDownloadHtmlDiagnostic}
           simulatorOptions={simulatorOptions} onSimulatorOptionsChange={value => { setSimulatorOptions(value); setAiHtmlProgress('As opções serão aplicadas à próxima geração ou ao refinar o cenário.'); }}
           handleAddHtml={handleAddHtml} handleGenerateHtmlAI={handleGenerateHtmlAI} handleInsertAiHtml={handleInsertAiHtml}
         />

@@ -166,6 +166,15 @@ async def start_html_job(body: HtmlJobRequest, tasks: BackgroundTasks, user: dic
     return _public(job)
 
 
+@router.get('/diagnostics/latest')
+async def latest_editor_diagnostic(projectId: str = '', user: dict = Depends(require_auth)):
+    if len(projectId)>100:raise HTTPException(422,'Projeto inválido')
+    job=await db.html_generation_jobs.find_one({'ownerId':_owner(user),'projectId':projectId,
+        'diagnostic':{'$exists':True}},sort=[('createdAtDate',-1)])
+    if not job:raise HTTPException(404,'Ainda não há diagnóstico salvo para este projeto. Dados antigos não podem ser recuperados.')
+    return {'jobId':job['id'],'status':job['status'],'diagnostic':job['diagnostic']}
+
+
 @router.get('/{job_id}')
 async def get_html_job(job_id: str, user: dict = Depends(require_auth)):
     owner = _owner(user)
