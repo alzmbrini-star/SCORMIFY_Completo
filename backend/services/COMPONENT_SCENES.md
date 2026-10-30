@@ -280,3 +280,12 @@ não como peças já existentes. Sem correspondência, mostra um estado vazio;
 nunca abre silenciosamente toda a biblioteca. Os termos do catálogo são apenas
 metadados de busca, não modelos temáticos nem regras do motor. O filtro não
 faz chamadas de IA, não altera a cena e não invalida uma prévia já validada.
+
+Em demonstrações process-demo-v1 com failure.when literalmente false, a mensagem
+de fracasso pode estar ausente ou vazia: o compilador fornece apenas uma frase
+neutra de reinício. Não inventa reprovação, não muda condições nem efeitos e não
+exige outra chamada de IA por um texto que nunca seria exibido por fracasso.
+Mensagens de sucesso, cenas e fracassos ativos continuam validadas. Erros de
+texto identificam campo, motivo e comprimento para reparo localizado, sem
+repetir conteúdo privado nos metadados do erro. Desafios aplicados/avançados e
+modelos legados sem process-demo-v1 mantêm o contrato de texto anterior.

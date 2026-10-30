@@ -30,6 +30,8 @@ actions:1..18 objetos {id,label:até100,description:até350,requires:PREDICADO,
 unavailable:até220,effects:{idDeVariavel:EXPRESSAO_NUMERICA},feedback:até500},
 scenes:1..10 objetos {id,when:PREDICADO,title:até120,description:até700,facts:1..5 textos até220},
 goal:{when:PREDICADO,message:até700},failure:{when:false,message:até700}}.
+Na demonstração sem fracasso (failure.when=false), message pode ser omitida/vazia;
+o motor fornece uma orientação neutra de reinício, sem inventar reprovação.
 IDs [a-z][a-z0-9_]* até32, únicos em cada grupo. Textos obrigatórios não vazios.
 EXPRESSAO_NUMERICA: inteiro ou {var:"id"} ou {op:"add"|"sub"|"mul"|"min"|"max",args:[expressao,expressao]}.
 PREDICADO: true/false ou {op:"eq"|"ne"|"lt"|"le"|"gt"|"ge",args:[numero,numero]},
@@ -131,9 +133,17 @@ em vez de fingir que os recursos existem. O contexto é referência não instru�
 '''
 
 
-def _text(value, limit):
+class RuleTextError(ValueError):
+    def __init__(self, value, limit, field):
+        reason = 'ausente' if value is None else 'tipo inválido' if not isinstance(value,str) else 'vazio' if not value.strip() else 'muito longo'
+        self.details = {'field':field,'reason':reason,'minLength':1,'maxLength':limit,
+                        'actualLength':len(value) if isinstance(value,str) else None}
+        super().__init__(f'Texto obrigatório em {field}: 1 a {limit} caracteres ({reason}). Corrija somente esse campo, preservando regras e efeitos.')
+
+
+def _text(value, limit, field='texto'):
     if not isinstance(value, str) or not value.strip() or len(value) > limit:
-        raise ValueError(f'Texto obrigatório: 1 a {limit} caracteres')
+        raise RuleTextError(value,limit,field)
     return value.strip()
 
 
@@ -401,10 +411,10 @@ def predicate_bounds(node, variables):
 
 def validate_rules(raw, budget=SEARCH_BUDGET):
     if not isinstance(raw,dict): raise ValueError('Retorne um objeto JSON')
-    if raw.get('unsupported'): raise ValueError('Recurso não representável: '+_text(raw['unsupported'],700))
+    if raw.get('unsupported'): raise ValueError('Recurso não representável: '+_text(raw['unsupported'],700,'unsupported'))
     if raw.get('didacticMode') not in (None,PROCESS_DEMO):raise ValueError('Modo didático inválido')
     demo=raw.get('didacticMode')==PROCESS_DEMO
-    spec = {k:_text(raw.get(k),limit) for k,limit in (
+    spec = {k:_text(raw.get(k),limit,k) for k,limit in (
         ('title',120),('subtitle',240),('mission',500),('briefing',1800),('courseConnection',800),('debrief',800))}
     if raw.get('layout') not in {'workbench','conversation','process'}: raise ValueError('Layout inválido')
     if demo:spec['didacticMode']=PROCESS_DEMO
@@ -417,8 +427,8 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
         key=_id(row.get('id'))
         if key in ids: raise ValueError('ID de variável repetido')
         ids.add(key); low=_int(row.get('min'),-100,100); high=_int(row.get('max'),low+1,min(100,low+100))
-        variables.append({'id':key,'label':_text(row.get('label'),60),'description':_text(row.get('description'),220),
-                          'min':low,'max':high,'initial':_int(row.get('initial'),low,high),'unit':_text(row.get('unit'),24)})
+        variables.append({'id':key,'label':_text(row.get('label'),60,f'variables.{key}.label'),'description':_text(row.get('description'),220,f'variables.{key}.description'),
+                          'min':low,'max':high,'initial':_int(row.get('initial'),low,high),'unit':_text(row.get('unit'),24,f'variables.{key}.unit')})
     spec['variables']=variables
     actions=raw.get('actions')
     if not isinstance(actions,list) or not (1 if demo else 4) <= len(actions) <= 18: raise ValueError('Quantidade de ações inválida')
@@ -426,7 +436,7 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
     observations=[]
     if demo:
         for note in raw.get('observationNotes',[])[:18] if isinstance(raw.get('observationNotes'),list) else []:
-            observations.append(_text(note,650))
+            observations.append(_text(note,650,'observationNotes'))
     for row in actions:
         if not isinstance(row,dict): raise ValueError('Ação inválida')
         key=_id(row.get('id'))
@@ -434,11 +444,11 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
         action_ids.add(key); effects=row.get('effects')
         if not isinstance(effects,dict) or any(k not in ids for k in effects): raise RuleEffectsError(key,effects,ids)
         if demo and not effects:
-            observations.append(_text(row.get('label'),100)+': '+_text(row.get('feedback'),500))
+            observations.append(_text(row.get('label'),100,f'actions.{key}.label')+': '+_text(row.get('feedback'),500,f'actions.{key}.feedback'))
             continue
         if not effects:empty_effects.append(key)
         changed.update(effects)
-        spec['actions'].append({'id':key,**{k:_text(row.get(k),lim) for k,lim in (
+        spec['actions'].append({'id':key,**{k:_text(row.get(k),lim,f'actions.{key}.{k}') for k,lim in (
             ('label',100),('description',350),('unavailable',220),('feedback',500))},
             'requires':_field_expression(row.get('requires'),ids,True,'actions.'+key+'.requires'),
             'effects':{k:_field_expression(v,ids,False,'actions.'+key+'.effects.'+k) for k,v in effects.items()}})
@@ -454,8 +464,8 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
         scene_ids.add(key); facts=row.get('facts')
         if not isinstance(facts,list) or not 1 <= len(facts) <= 5: raise ValueError('Cena precisa de 1 a 5 fatos')
         spec['scenes'].append({'id':key,'when':_field_expression(row.get('when'),ids,True,'scenes.'+key+'.when'),
-            'title':_text(row.get('title'),120),'description':_text(row.get('description'),700),
-            'facts':[_text(f,220) for f in facts]})
+            'title':_text(row.get('title'),120,f'scenes.{key}.title'),'description':_text(row.get('description'),700,f'scenes.{key}.description'),
+            'facts':[_text(f,220,f'scenes.{key}.facts.{i}') for i,f in enumerate(facts)]})
     # Coverage is a compiler responsibility, not an arbitrary reason to reject
     # an otherwise executable model. Unconditional scenes serve only as fallback.
     defaults=[s for s in spec['scenes'] if s['when'] is True]
@@ -469,7 +479,10 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
         row=raw.get(key)
         if demo and key=='failure' and row is None:row={'when':False,'message':'Representação didática simplificada; reinicie para observar novamente.'}
         if not isinstance(row,dict): raise ValueError('Defina objetivo e fracasso')
-        spec[key]={'when':_field_expression(row.get('when'),ids,True,key+'.when'),'message':_text(row.get('message'),700)}
+        message=row.get('message')
+        if demo and key=='failure' and row.get('when') is False and (message is None or isinstance(message,str) and not message.strip()):
+            message='Representação didática simplificada; reinicie para observar novamente.'
+        spec[key]={'when':_field_expression(row.get('when'),ids,True,key+'.when'),'message':_text(message,700,key+'.message')}
     if demo and predicate_bounds(spec['failure']['when'],variables) is False:spec['failure']['when']=False
     influencing=_refs(spec['goal']['when'])
     while True:
