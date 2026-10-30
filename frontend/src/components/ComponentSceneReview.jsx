@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from './ui/button';
 import { getApiUrl } from '../utils/apiUrl';
 import { authHeaders } from '../contexts/AuthContext';
+import { componentLibraryFilter } from '../utils/componentLibraryFilter';
 
 export function sceneModel(html) {
   try {
@@ -51,6 +52,9 @@ function Review({ model, onClose, onApply, sessionId, slideIndex, elementIndex }
   const [catalog, setCatalog] = useState(null), [project, setProject] = useState(() => draftProject(model));
   const [selection, setSelection] = useState(''), [preview, setPreview] = useState(''), [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const [view, setView] = useState('project');
+  const [showAllComponents, setShowAllComponents] = useState(false);
+  const library = useMemo(() => componentLibraryFilter(catalog, model, project, showAllComponents), [catalog, model, project, showAllComponents]);
+  useEffect(() => { if (selection && !library.entries.some(([id]) => id === selection)) setSelection(''); }, [library, selection]);
   const uid = useId();
   useEffect(() => {
     const controller = new AbortController();
@@ -63,7 +67,7 @@ function Review({ model, onClose, onApply, sessionId, slideIndex, elementIndex }
   const rowEdit = (index, patch) => edit(syncLinks({ ...project, instances: project.instances.map((r, i) => i === index ? { ...r, ...patch } : r) }));
   const add = () => {
     const definition = catalog.components[selection];
-    if (!definition || project.instances.length >= 6) return;
+    if (!definition || !library.entries.some(([id]) => id === selection) || project.instances.length >= 6) return;
     let n = 1; while (project.instances.some(r => r.id === `piece${n}`)) n++;
     edit({ ...project, catalogVersion: catalog.version, instances: [...project.instances, { id: `piece${n}`, component: selection, version: definition.version,
       label: definition.description.slice(0, 80), position: { x: 20, y: 20 }, inputs: Object.fromEntries(definition.inputs.map(p => [p, { value: 50, range: [0, 100] }])), actions: {},
@@ -101,8 +105,10 @@ function Review({ model, onClose, onApply, sessionId, slideIndex, elementIndex }
         <div hidden={view !== 'pieces'} className="space-y-4">
         <p className="text-sm">Escolha cenário, personagens e objetos. A ordem define as camadas: o último aparece à frente. A cena usa uma área de 800 × 450.</p>
         <label className="block text-sm" htmlFor={`${uid}-piece`}>Biblioteca de componentes</label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={showAllComponents} onChange={e => setShowAllComponents(e.target.checked)} />Mostrar biblioteca completa</label>
+        <p className="text-xs text-muted-foreground" role="status">Exibindo {library.entries.length} de {library.total} componentes. {library.basis === 'used' ? 'Somente os tipos de peças já usados neste simulador. Peças removidas nesta revisão continuam disponíveis para adicionar novamente.' : library.basis === 'context' ? 'Sugestões relacionadas ao conteúdo deste simulador; ainda não fazem parte da cena.' : library.basis === 'none' ? 'Nenhuma peça da biblioteca foi identificada para este simulador. O desenho personalizado continua preservado; marque a opção acima para procurar outra peça.' : 'Biblioteca completa exibida por sua escolha.'}</p>
         <div className="flex gap-2"><select id={`${uid}-piece`} className="w-full min-w-0 p-2 border rounded bg-background" value={selection} onChange={e => setSelection(e.target.value)}>
-          <option value="">Selecione uma peça…</option>{Object.entries(catalog?.components || {}).map(([id, def]) => <option key={id} value={id}>{def.description}</option>)}
+          <option value="">{library.entries.length ? 'Selecione uma peça…' : 'Nenhuma peça neste filtro'}</option>{library.entries.map(([id, def]) => <option key={id} value={id}>{def.description}</option>)}
         </select><Button type="button" onClick={add} disabled={!selection || project.instances.length >= 6}>Adicionar peça</Button></div>
         <p className="text-sm text-amber-500">Não encontrou uma peça adequada? Não substitua por um objeto sem relação com o tema. Novos componentes e vídeos de transição ainda exigem uma etapa de produção; não são gerados por este seletor.</p>
         {project.instances.map((row, index) => {

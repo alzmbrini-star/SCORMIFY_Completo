@@ -45,10 +45,29 @@ COMPONENTS.update({
 })
 
 
+# Search metadata is only a library UI aid, never simulator/template routing.
+SEARCH_TERMS = {
+    'liquid_vessel':['água','water','líquido','liquid','reservatório','reservatórios','reservoir','tanque','tank','bomba','pump','vazão','flow'],
+    'lift_gate':['comporta','comportas','gate','barreira','barrier','portão'],
+    'floating_carrier':['barco','barcos','boat','navio','embarcação','navegação','navigation'],
+    'status_marker':['risco','risk','alerta','alert','severidade','severity'],
+    'harbor_backdrop':['eclusa','lock','porto','harbor','navegação','navigation','barco','boat'],
+    'lock_channel':['eclusa','lock','comporta','comportas'],
+    'workplace_backdrop':['escritório','office','reunião','meeting','feedback','colaborador','workplace'],
+    'meeting_table':['reunião','meeting','feedback','diálogo','dialogue','negociação'],
+    'conversation_person':['pessoa','person','personagem','colaborador','cliente','vendedor','feedback','conversa','diálogo','dialogue'],
+    'evidence_folder':['evidência','evidências','evidence','documento','documentos','relatório','acordo','agreement','feedback'],
+    'planning_board':['planejamento','planning','cronograma','schedule','projeto','project','tarefas','tasks'],
+    'time_budget':['tempo','time','prazo','deadline','cronograma','schedule','orçamento','budget'],
+}
+
+
 def catalog():
     """Return a detached capability manifest, safe for authoring clients."""
+    components=deepcopy(COMPONENTS)
+    for ident,definition in components.items():definition['searchTerms']=list(SEARCH_TERMS.get(ident,[]))
     return {'version': CATALOG_VERSION, 'renderer': 'svg-v1',
-            'styles': ['blueprint', 'studio'], 'components': deepcopy(COMPONENTS),
+            'styles': ['blueprint', 'studio'], 'components': components,
             'limits': {'instances': 6, 'teachingLinks': 4},
             'limitations': ['Esquemas didáticos, não certificação científica.',
                             'Sem imagens externas, scripts ou efeitos lógicos.',

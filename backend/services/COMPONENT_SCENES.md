@@ -265,3 +265,18 @@ antiga: para obter novos objetos ou uma composição mais detalhada é necessár
 gerar/refinar a atividade. A revisão conceitual e os limites científicos do
 modelo didático continuam obrigatórios; brilho não é usado indiscriminadamente
 como substituto da ilustração contextual.
+
+### Biblioteca contextual na revisão visual
+
+A seleção de peças mostra por padrão apenas os tipos presentes no projeto
+visual salvo ou no rascunho atual. Remover uma instância original não impede
+adicioná-la novamente. A opção explícita “Mostrar biblioteca completa” permite
+compor novas peças sem alterar automaticamente as instâncias existentes.
+
+Quando o simulador usa SVG personalizado e não possui instâncias do catálogo,
+a interface apresenta sugestões por termos do título, objetivo, indicadores,
+ações e objetos da cena. Essas sugestões são identificadas como sugestões,
+não como peças já existentes. Sem correspondência, mostra um estado vazio;
+nunca abre silenciosamente toda a biblioteca. Os termos do catálogo são apenas
+metadados de busca, não modelos temáticos nem regras do motor. O filtro não
+faz chamadas de IA, não altera a cena e não invalida uma prévia já validada.

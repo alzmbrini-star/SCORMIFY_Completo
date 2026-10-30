@@ -24,16 +24,32 @@ test('Editor requires validated preview, invalidates it after edit, cancel does 
   const apply=jest.fn();act(() => root.render(<ComponentSceneReview html={html} onApply={apply}/>));
   await click('Revisar projeto visual');
   expect(host.textContent).toContain('Regras, ações');
+  expect(host.textContent).toContain('Nenhuma peça da biblioteca foi identificada');
+  await act(async () => host.querySelector('input[type="checkbox"]').click());
   await change(host.querySelector('select[id]'),'liquid_vessel');await click('Adicionar peça');
   expect(host.textContent).toContain('1. Recipiente');
   global.fetch.mockResolvedValue({ok:true,json:async () => ({html:'<p>Preview</p>'})});
   await click('Validar e preparar prévia');
   const iframe=host.querySelector('iframe');expect(iframe.getAttribute('sandbox')).toBe('allow-scripts');
   expect([...host.querySelectorAll('button')].find(b=>b.textContent==='Aplicar à prévia do Editor').disabled).toBe(false);
-  await change(host.querySelector('input'),'Outro título');
+  await change(host.querySelector('input:not([type="checkbox"])'),'Outro título');
   expect(host.querySelector('iframe')).toBeNull();
   expect([...host.querySelectorAll('button')].find(b=>b.textContent==='Aplicar à prévia do Editor').disabled).toBe(true);
   await click('Cancelar');expect(apply).not.toHaveBeenCalled();
+});
+
+test('whole library is opt-in and hiding an unrelated selection clears it without editing the scene', async () => {
+  act(() => root.render(<ComponentSceneReview html={html} onApply={jest.fn()}/>));
+  await click('Revisar projeto visual');
+  const toggle=host.querySelector('input[type="checkbox"]');
+  expect(toggle.checked).toBe(false);
+  expect(host.querySelector('select[id]').options).toHaveLength(1);
+  await act(async () => toggle.click());
+  await change(host.querySelector('select[id]'),'liquid_vessel');
+  await act(async () => toggle.click());
+  expect(host.querySelector('select[id]').value).toBe('');
+  expect([...host.querySelectorAll('button')].find(b=>b.textContent==='Adicionar peça').disabled).toBe(true);
+  expect(host.textContent).not.toContain('1. Recipiente');
 });
 test('Agent saves explicit indices, errors retain old presentation', async () => {
   const apply=jest.fn();act(() => root.render(<ComponentSceneReview html={html} onApply={apply} sessionId="session" slideIndex={2} elementIndex={1}/>));
