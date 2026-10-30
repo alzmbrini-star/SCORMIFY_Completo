@@ -345,13 +345,18 @@ async def generate_visual(data,prompt,context,session_id,provider,key,model):
         return await generate_teaching_visual(data,prompt,context,session_id,provider,key,model)
     from emergentintegrations.llm.chat import LlmChat,UserMessage
     from services.simulator_diagnostics import record_attempt
-    source={k:v for k,v in data.items() if k not in {'checks','verification','visual','visualNotice','template','mechanic'}}
+    source={k:v for k,v in data.items() if k not in {'checks','verification','visual','visualNotice','template','mechanic','_refinementVisual'}}
     request={'request':prompt[:4000],'courseContext':context[:5000],'model':source,
              'pedagogicalPlan':data.get('experience'),
              'artDirection':'Execute o ambiente e a abordagem visual do plano pedagógico. illustrated pede cenário contextualizado com acabamento e objetos reconhecíveis; technical pede esquema técnico bem acabado, componentes, conexões e leitura operacional. QUALIDADE GRÁFICA É ALTA EM TODOS OS NÍVEIS; guided não significa boneco geométrico. No guiado, o cenário e as consequências devem explicar a atividade com poucas ações. Não repita o mesmo escritório/barras para todos os temas. As variáveis essenciais já têm indicadores: use mudanças nos próprios objetos. O plano é obrigatório como orientação visual, não cria novas leis físicas ou efeitos.',
              'sceneInstructions':'Prefira lista plana nodes com parent apontando para GROUP, nunca para rect/text/path. x/y dos filhos são LOCAIS ao grupo. Desenhe ilustração vetorial profissional: objetos reconhecíveis com detalhes, pessoas com rosto e roupa quando pertinentes, paleta harmônica com sombras por formas, fundo e elementos de ambiente. Evite bonecos feitos apenas de um retângulo e círculo. As variáveis devem alterar os próprios objetos do ambiente (artefatos, expressão, peças, organização), não apenas três barras de indicadores; indicadores já estão fora da cena. Preserve objetos e textos dentro de 800x450 em todos os estados. Separe rótulos pelo espaço que o texto inteiro ocupa: 12 caracteres em fonte 28 ocupam cerca de 185 unidades, não 50. Use textos curtos, sem sobreposição. Para volumes que crescem para cima, vincule y e height de forma complementar, mantendo a base fixa.'}
     if (data.get('experience') or {}).get('visualStyle')=='illustrated':
         request['finishRequirements']='Planeje 24 a 70 formas úteis (limite 100 nós). Crie pelo menos dois objetos compostos com detalhes internos em grupos próprios: contorno, interior, elementos funcionais e volume por formas. Construa ambiente com profundidade, piso/parede ou estrutura pertinente, materiais e iluminação. Pessoas precisam de rosto, cabelo, roupa e postura quando fizerem parte do cenário. Obras/artefatos não podem ser só retângulos vazios. Não use o mesmo escritório em todo tema. Evite repetir na arte os números já visíveis nos indicadores. Não polua a cena com textos ou minúcias ilegíveis. Isso é acabamento vetorial, não uma exigência de fotografia.'
+    if data.get('_refinementVisual'):
+        request['existingScene']=data['_refinementVisual']
+        request['refinementInstruction']='Refine esta cena validada preservando composição, objetos/IDs pertinentes e significado dos vínculos. Não regenere regras nem recomece a arte sem necessidade.'
+        from services.visual_teaching import binding_guidance
+        request['bindingGuidance']=binding_guidance(data,data['_refinementVisual'])
     for attempt in range(2):
         response=''
         try:

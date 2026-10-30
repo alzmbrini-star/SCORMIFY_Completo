@@ -205,3 +205,23 @@ ciência nem substitui revisão humana do conteúdo. Nenhum código, URL ou scri
 gerado pela IA entra no renderizador. Novos temas dependem de poderem ser
 representados pelos objetos/movimentos 2D disponíveis; limites devem ser
 declarados, não ocultados em uma ilustração que se apresenta como física real.
+
+### Refino visual: referência e reparo quantitativo
+
+O Editor preserva os dados SVG da cena ao extrair o modelo de origem por parsing
+inerte. O backend revalida essa arte antes de usá-la como referência no refino;
+arte inválida não é encaminhada. HTML/JS de origem nunca é executado. A referência
+não altera as regras nem entra no documento final como campo privado.
+
+A geração avançada recebe orientações numéricas dos vínculos: intervalo da
+variável, passos observados, deslocamento projetado e amplitude necessária para
+alcançar o critério de perceptibilidade. Exemplo de teste: passo de 10 numa faixa
+0–100 com amplitude 40 produz 4 pixels; para 8 pixels, a amplitude é 80. Esses
+números são orientações para reparo da arte, não reescala automática nem alteração
+de física/causalidade. Uma comporta não deve ser ligada ao nível da água apenas
+para cumprir movimento. Zoom/representação qualitativa exige explicação.
+
+Falhas de perceptibilidade de vários vínculos são reunidas na mesma revisão, sem
+reduzir os critérios de aprovação. O reparo continua limitado às tentativas já
+existentes; falha final mantém a prévia e apresenta uma mensagem curta, enquanto
+os detalhes técnicos permanecem nos diagnósticos do serviço.

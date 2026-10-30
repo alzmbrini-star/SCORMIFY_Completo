@@ -3,6 +3,7 @@ import asyncio
 import json
 import re
 import logging
+import math
 
 logger=logging.getLogger('server')
 
@@ -49,6 +50,38 @@ def observed_changes(spec):
     return {key:{'initial':initial[key],'observedChanges':pairs} for key,pairs in changes.items() if pairs}
 
 
+def binding_guidance(spec,visual=None):
+    """Quantitative repair hints only: never rescale art or change physical meaning."""
+    observed=observed_changes(spec);variables={v['id']:v for v in spec['variables']};result={}
+    for key,changes in observed.items():
+        pairs=changes['observedChanges'];step=min(abs(b-a) for a,b in pairs)
+        values=[v for pair in pairs for v in pair];span=variables[key]['max']-variables[key]['min']
+        result[key]={'observedRange':[min(values),max(values)],'smallestObservedStep':step,
+            'fullVariableRange':[variables[key]['min'],variables[key]['max']],
+            'minimumOutputSpanForFullRange':{'positionOrSize':round(8*span/step,3),'rotationOrRadius':round(4*span/step,3)}}
+    bindings=[]
+    rows=visual.get('nodes',[]) if isinstance(visual,dict) else []
+    for node in rows if isinstance(rows,list) else []:
+        if not isinstance(node,dict):continue
+        for b in node.get('bindings',[]) if isinstance(node.get('bindings',[]),list) else []:
+            if not isinstance(b,dict) or not isinstance(b.get('var'),str) or b['var'] not in result:continue
+            inputs=b.get('input');outputs=b.get('output')
+            if not all(isinstance(x,list) and len(x)==2 and all(type(n) in (int,float) and math.isfinite(n) for n in x) for x in (inputs,outputs)):continue
+            if inputs[1]<=inputs[0]:continue
+            step=result[b['var']]['smallestObservedStep'];prop=b.get('property')
+            if not isinstance(prop,str) or prop not in {'x','y','width','height','x2','y2','rotation','r','rx','ry','opacity','strokeWidth'}:continue
+            width=inputs[1]-inputs[0]
+            if not math.isfinite(width):continue
+            threshold=.15 if prop=='opacity' else 4 if prop in {'rotation','r','rx','ry'} else 8
+            delta=abs(outputs[1]-outputs[0])*step/width
+            if not math.isfinite(delta):continue
+            bindings.append({'node':node.get('id'),'var':b['var'],'property':prop,'input':inputs,'output':outputs,
+                             'smallestStepProjectedDelta':round(delta,3),'minimumPerceptibleDelta':threshold,
+                             'minimumOutputSpanForThisInput':round(threshold*(inputs[1]-inputs[0])/step,3)})
+    return {'variables':result,'candidateBindings':bindings[:80],
+        'instruction':'Use estes números para corrigir a arte, não as regras. Não amplie um movimento físico sem justificativa: se usar zoom ou representação qualitativa, declare isso em readScene. Não ligue uma comporta ao nível da água só para fazê-la mover; respeite o significado da variável e do objeto. Se a amplitude necessária não couber no canvas, reorganize a composição ou use um estado visual pertinente. Não reduza o critério de perceptibilidade.'}
+
+
 def validate_scene_plan(raw,spec):
     if not isinstance(raw,dict):raise ValueError('Plano de composição deve ser objeto')
     variables={v['id'] for v in spec['variables']}
@@ -74,7 +107,7 @@ def validate_teaching(raw,visual,spec):
     links=raw.get('links')
     if not isinstance(links,list) or not 2<=len(links)<=4:raise ValueError('Inclua 2 a 4 vínculos entre objeto, variável e consequência')
     traces=visual_transitions(spec)
-    result=[];seen=set()
+    result=[];seen=set();imperceptible=[]
     for link in links:
         if not isinstance(link,dict):raise ValueError('Vínculo didático inválido')
         key=link.get('node');var=link.get('var')
@@ -120,12 +153,13 @@ def validate_teaching(raw,visual,spec):
                             deltas.append({'node':ident,'property':attr,'before':round(value,2),'after':round(other,2)})
                 evidence.append({'before':before[var],'after':after[var],'visualDeltas':deltas[:6]})
                 if len(evidence)>=3:break
-            raise ValueError('Não há mudança observável de '+key+' quando '+var+' muda nas trajetórias executadas. '
+            imperceptible.append('Não há mudança observável de '+key+' quando '+var+' muda nas trajetórias executadas. '
                 'Amostras medidas: '+json.dumps(evidence,ensure_ascii=False)+'. Ajuste a amplitude dos vínculos ou os estados '
                 'para as mudanças OBSERVADAS. Movimentos mínimos ou condições nunca atingidas não ensinam a consequência. '
                 'Não altere as regras nem substitua a mudança por texto/números.')
         result.append({'node':key,'var':var,'whatChanges':_text(link.get('whatChanges'),180),
                        'whyItMatters':_text(link.get('whyItMatters'),240)})
+    if imperceptible:raise ValueError(' | '.join(imperceptible))
     if len({link['var'] for link in result})<2:raise ValueError('Vincule pelo menos duas variáveis diferentes ao cenário')
     return {'version':1,'focus':_text(raw.get('focus'),220),'readScene':_text(raw.get('readScene'),700),'links':result}
 
@@ -155,9 +189,13 @@ async def generate_teaching_visual(data,prompt,context,session_id,provider,key,m
         chat=LlmChat(api_key=key,session_id=session_id+suffix,system_message=system).with_model(provider,model).with_params(**params)
         response=await asyncio.wait_for(chat.send_message(UserMessage(text=json.dumps(payload,ensure_ascii=False))),timeout)
         return omit_null_fields(json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',str(response).strip(),flags=re.I)))
-    source={k:v for k,v in data.items() if k not in {'checks','visual','visualNotice','verification','template','mechanic'}}
+    source={k:v for k,v in data.items() if k not in {'checks','visual','visualNotice','verification','template','mechanic','_refinementVisual'}}
     request={'request':prompt[:4000],'courseContext':context[:5000],'model':source,
              'availableVariableIds':[v['id'] for v in data['variables']],'executedVariableChanges':observed_changes(data)}
+    request['bindingGuidance']=binding_guidance(data,data.get('_refinementVisual'))
+    if data.get('_refinementVisual'):
+        request['existingScene']=data['_refinementVisual']
+        request['refinementInstruction']='Esta é a cena anterior já validada. Refine-a a partir de sua composição e dos vínculos existentes, preservando os objetos/IDs pertinentes. Não recomece o cenário inteiro nem troque o significado dos objetos. As opções do autor orientam somente o acabamento visual.'
     plan_prompt='''Planeje a COMPOSIÇÃO VISUAL DIDÁTICA, não as regras já comprovadas. JSON apenas:
 {setting:até600,focus:até220,composition:até800,artDirection:até1000,
  mechanisms:[{var:ID existente,object:até100,change:até180,meaning:até240}]}.
@@ -225,4 +263,5 @@ approved=true somente com issues=[]; em problema global nodes pode ser [].'''
             logger.warning('Visual teaching artwork attempt %s rejected: %s: %s',attempt+1,type(exc).__name__,error[:1800])
             record_attempt(json.dumps(raw,ensure_ascii=False) if raw else '',{'mechanic':'finite-rules-v1'},[],error=error)
             request.update(previousScene=raw,repairError=error,repairInstruction='Corrija SOMENTE a composição, objetos e vínculos visuais indicados. Preserve todas as regras e variáveis. Retorne a cena JSON completa incluindo teaching.')
+            request['bindingGuidance']=binding_guidance(data,raw)
     return None,'A composição visual não passou na revisão didática. '+public_error+'. Regras preservadas.'

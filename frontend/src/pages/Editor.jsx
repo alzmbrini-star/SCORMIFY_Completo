@@ -6,6 +6,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { authHeaders } from '../contexts/AuthContext';
 import { resolveAssetUrls } from '../utils/htmlUtils';
 import { isSlideSimulator, upgradeSimulatorSlide } from '../utils/simulatorSlide';
+import { refinementModel } from '../utils/refinementModel';
 import { generateHtmlJob } from '../utils/htmlGenerationJob';
 import { getApiUrl } from '../utils/apiUrl';
 import { Button } from '../components/ui/button';
@@ -995,11 +996,7 @@ export default function Editor() {
     let sourceSimulator = '';
     if (refining) {
       try {
-        const document = new DOMParser().parseFromString(visualSource, 'text/html');
-        if (document.body.getAttribute('data-sim-engine') !== 'finite-rules-v1') throw new Error('unsupported');
-        const model = JSON.parse(document.getElementById('scormify-simulator-plan').textContent);
-        delete model.visual; delete model.visualNotice;
-        sourceSimulator = JSON.stringify(model);
+        sourceSimulator = refinementModel(visualSource);
       } catch {
         toast.error('O refino visual está disponível para simuladores do motor de regras. O HTML original não foi alterado.');
         return;
