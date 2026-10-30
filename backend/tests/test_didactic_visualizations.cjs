@@ -17,5 +17,7 @@ button('labels').click();assert.equal(d.querySelector('[aria-label="Núcleo"]').
 button('speed').value='2';button('play').click();step(0);step(100);assert.match(button('progress').textContent,/6,2 s/);
 button('reset').click();assert.equal(callbacks.size,0);assert.match(button('progress').textContent,/0,0 s/);assert.match(electron.getAttribute('transform'),/translate\(240 0\)/);
 button('time').value=1000;button('time').dispatchEvent(new dom.window.Event('input'));button('play').click();step(0);assert.match(button('progress').textContent,/0,0 s/);
-dom.window.dispatchEvent(new dom.window.Event('pagehide'));assert.equal(callbacks.size,0);assert.deepEqual(errors,[]);dom.window.close();
+dom.window.dispatchEvent(new dom.window.Event('pagehide'));assert.equal(callbacks.size,0);
+dom.window.dispatchEvent(new dom.window.Event('pageshow'));button('play').click();step(0);assert.equal(callbacks.size,1);button('reset').click();assert.equal(callbacks.size,0);
+assert.deepEqual(errors,[]);dom.window.close();
 console.log('PASS visualization: no autoplay, play/pause, speed, scrub, keyboard explanation, labels, reset, single RAF lifecycle, no points');
