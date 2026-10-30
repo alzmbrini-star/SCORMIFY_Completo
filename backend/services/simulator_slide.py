@@ -25,6 +25,9 @@ def upgrade_simulator_slide(document):
             return '__B64__:'+base64.b64encode(updated.encode()).decode() if updated!=source else document
         except (ValueError,UnicodeError):
             return document
+    if re.search(r'data-sim-engine=["\']didactic-visualization-v1["\']',document):
+        from services.didactic_visualizations import upgrade_presentation
+        return upgrade_presentation(document)
     if not ENGINE.search(document) or 'id="scormify-simulator-plan"' not in document:
         return document
     from services.rule_visuals import upgrade_visual_document
@@ -46,6 +49,11 @@ def refresh_simulator_slides(project):
                 if not isinstance(updated,str):continue
                 try: source=base64.b64decode(updated[8:]).decode() if updated.startswith('__B64__:') else updated
                 except (ValueError,UnicodeError):continue
+                from services.didactic_visualizations import FINISH_MARKER
+                didactic=re.search(r'data-sim-engine=["\']didactic-visualization-v1["\']',source) and FINISH_MARKER in source
+                if didactic:
+                    element['htmlContent']=updated
+                    continue  # Appearance upgrade never moves or resizes authored elements.
                 if not ENGINE.search(source) or f'id="{MARKER}"' not in source:continue
                 element.update(htmlContent=updated,x=0,y=0,width=slide.get('width') or course.get('width') or 960,
                                height=slide.get('height') or course.get('height') or 540,htmlDisplayMode='page',objectFit='cover')

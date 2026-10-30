@@ -2,7 +2,10 @@ import { isSlideSimulator, upgradeSimulatorSlide } from './simulatorSlide';
 
 test('didactic animation is full-slide but never upgraded into a scored simulator',()=>{
   const html='<html><body data-sim-engine="didactic-visualization-v1"><script id="scormify-visualization-plan" type="application/json">{}</script></body></html>';
-  expect(isSlideSimulator(html)).toBe(true);expect(upgradeSimulatorSlide(html)).toBe(html);
+  expect(isSlideSimulator(html)).toBe(true);
+  const updated=upgradeSimulatorSlide(html);
+  expect(updated).toContain('id="scormify-visualization-finish-v1"');expect(updated).not.toContain('scormify-simulator-slide-v3');
+  expect(upgradeSimulatorSlide(updated)).toBe(updated);
 });
 import { wrapInteractiveFullbleed } from './htmlUtils';
 

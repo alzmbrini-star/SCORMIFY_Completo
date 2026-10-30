@@ -242,3 +242,26 @@ reunidos, com centro, amplitude, envelope e amplitudes máximas possíveis naque
 centro. O reparo da geração recebe esses dados estruturados em vez de somente
 um nome de objeto. Não existe regra especial para átomos: a origem explícita
 vale para qualquer órbita ilustrativa suportada pelo contrato 2D.
+
+### Acabamento das visualizações didáticas
+
+O acabamento é uma camada de apresentação compartilhada, não um catálogo de
+simuladores por tema. Novas gerações escolhem paleta (midnight/daylight/warm),
+atmosfera (studio/technical/natural) e materiais por objeto (flat/matte/metal/
+glass/liquid/emissive), usando somente enums e cores hexadecimais validados.
+Gradientes, sombras e iluminação são produzidos por código confiável; o modelo
+não fornece filtros SVG, CSS, URLs ou JavaScript. Os cenários e suas geometrias
+continuam sendo planejados para o conteúdo de cada atividade.
+
+Editor, leitura e exportação também acrescentam esse acabamento aos documentos
+legados identificados por didactic-visualization-v1 e pelo plano JSON embutido.
+A atualização é idempotente e preserva plano, movimentos, posição e dimensões
+dos elementos já editados. Não há migração em massa do banco nem nova chamada
+de IA para atualizar a apresentação. HTML arbitrário sem esses metadados não é
+alterado. Pacotes HTML/SCORM já distribuídos precisam ser exportados novamente.
+
+Melhorar materiais e contraste não inventa detalhes que não existem na geometria
+antiga: para obter novos objetos ou uma composição mais detalhada é necessário
+gerar/refinar a atividade. A revisão conceitual e os limites científicos do
+modelo didático continuam obrigatórios; brilho não é usado indiscriminadamente
+como substituto da ilustração contextual.

@@ -1,5 +1,6 @@
 import { simulatorSlideRuntime } from '../components/games/simulatorSlideRuntime';
 import { ruleVisualRuntime } from '../components/games/ruleVisualRuntime';
+import { visualizationFinishRuntime } from '../components/games/visualizationFinishRuntime';
 
 export function isSlideSimulator(html) {
   if (typeof html === 'string' && html.startsWith('__B64__:')) {
@@ -19,6 +20,11 @@ export function upgradeSimulatorSlide(html) {
     } catch (_) { return html; }
   }
   if (!isSlideSimulator(html)) return html;
+  if (/data-sim-engine=["']didactic-visualization-v1["']/.test(html)) {
+    if (html.includes('scormify-visualization-finish-v1') || !/id=["']scormify-visualization-plan["']/.test(html)) return html;
+    const finish = '<script id="scormify-visualization-finish-v1">(' + visualizationFinishRuntime.toString() + ')();</script>';
+    return /<\/body>/i.test(html) ? html.replace(/<\/body>/i, finish + '</body>') : html;
+  }
   if (!html.includes('id="scormify-simulator-plan"')) return html;
   if (html.includes('data-sim-engine="finite-rules-v1"') && !html.includes('id="scormify-rule-visual-v1"') && html.includes('function render(view){')) {
     const bridge = "var bridge=document.getElementById('scormify-rule-view');if(!bridge){bridge=document.createElement('script');bridge.id='scormify-rule-view';bridge.type='application/json';document.body.appendChild(bridge);}bridge.textContent=JSON.stringify(view);document.dispatchEvent(new CustomEvent('scormify:rules-state',{detail:view}));";
