@@ -782,6 +782,10 @@ async def _generate_visual_simulator(prompt, context="", session_id="visual-simu
     provider, key, model = simulator_generation_config()
     if not key:
         raise RuntimeError(f"Configure {provider.upper()}_API_KEY para gerar simuladores")
+    from services.simulator_experience import activity_type
+    if activity_type(context)=='visualization':
+        from services.didactic_visualizations import generate_visualization
+        return await generate_visualization(prompt,context,session_id,provider,key,model)
     return await generate_rule_simulator(prompt, context, session_id, provider, key, model)
 
 

@@ -247,7 +247,7 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
         </Card>
 
         <SimulatorExperienceOptions complexity={config.simulatorComplexity || 'guided'} visualStyle={config.simulatorVisualStyle || 'illustrated'} disabled={loading}
-          onChange={({ complexity, visualStyle }) => setConfig(previous => ({ ...previous, simulatorComplexity: complexity, simulatorVisualStyle: visualStyle }))} />
+          activityType={config.simulatorActivityType || 'simulation'} onChange={({ complexity, visualStyle, activityType }) => setConfig(previous => ({ ...previous, simulatorComplexity: complexity, simulatorVisualStyle: visualStyle, simulatorActivityType: activityType }))} />
 
         {/* Resource Balance Config */}
         <Card className="bg-slate-900/50 border-slate-800" data-testid="resource-balance-card">

@@ -2405,7 +2405,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 }}
                                 // Full documents are page viewports by default. Fixed
                                 // 960x540 simulations may explicitly request fit mode.
-                                if (wrappedHtml.indexOf('__stage') === -1) {{
+                                if (wrappedHtml.indexOf('__stage') === -1 && wrappedHtml.indexOf('data-sim-engine="didactic-visualization-v1"') === -1) {{
                                     var documentSnippet;
                                     var insertTag;
                                     if ((elem.htmlDisplayMode || 'page') === 'fit' && wrappedHtml.indexOf('data-sim-engine="finite-rules-v1"') === -1 && wrappedHtml.indexOf('data-sim-engine="entity-planning-v1"') === -1) {{

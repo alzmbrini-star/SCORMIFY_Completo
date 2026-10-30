@@ -183,7 +183,7 @@ export const isGeneratedGameHtml = (html) => {
 
 export const fitGameElementToSlide = (element, slideWidth = 960, slideHeight = 540) => {
   if (!element || element.type !== 'html') return element;
-  if (element.assessmentConfig || /id=["']assessment-data["']|data-case-study-version=["']2["']|data-human-simulator-version=["']1["']|data-sim-engine=["'](?:entity-planning-v1|finite-rules-v1)["']/.test(element.htmlContent || '')) {
+  if (element.assessmentConfig || /id=["']assessment-data["']|data-case-study-version=["']2["']|data-human-simulator-version=["']1["']|data-sim-engine=["'](?:entity-planning-v1|finite-rules-v1|didactic-visualization-v1)["']/.test(element.htmlContent || '')) {
     return { ...element, x: 0, y: 0, width: slideWidth, height: slideHeight, objectFit: 'cover', htmlDisplayMode: 'fit' };
   }
   const isGame = element.interactiveType === 'game' || element.gameType || element.gameConfig
@@ -205,7 +205,7 @@ export const fitGameElementToSlide = (element, slideWidth = 960, slideHeight = 5
 export const wrapInteractiveFullbleed = (html, mode = 'page') => {
   if (!html || typeof html !== 'string') return html;
   html = upgradeSimulatorSlide(html);
-  if (/data-case-study-version=["']2["']|data-human-simulator-version=["']1["']|data-sim-engine=["'](?:entity-planning-v1|finite-rules-v1)["']/.test(html)) return html;
+  if (/data-case-study-version=["']2["']|data-human-simulator-version=["']1["']|data-sim-engine=["'](?:entity-planning-v1|finite-rules-v1|didactic-visualization-v1)["']/.test(html)) return html;
   if (/id=["']assessment-data["']/.test(html)) {
     return injectDocumentSnippet(html, '<style id="assessment-viewport">' + assessmentLayout + '</style>');
   }

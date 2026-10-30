@@ -21,7 +21,8 @@ def simulator_request(source, content, config):
     return (json.dumps(source, ensure_ascii=False), json.dumps({
         'course': {key: config[key] for key in ('title', 'targetAudience', 'audience', 'depth', 'learningObjectives', 'objectives') if key in config},
         'module': source.get('moduleName'), 'objective': source.get('purpose'), 'reference': content[:6000],
-        'simulatorOptions':options(config.get('simulatorComplexity'),config.get('simulatorVisualStyle'))}, ensure_ascii=False))
+        'simulatorOptions':{**options(config.get('simulatorComplexity'),config.get('simulatorVisualStyle')),
+                            **({'activityType':'visualization'} if config.get('simulatorActivityType')=='visualization' else {})}}, ensure_ascii=False))
 
 
 def simulator_sources(session):

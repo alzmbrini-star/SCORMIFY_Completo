@@ -5,7 +5,7 @@ export function isSlideSimulator(html) {
   if (typeof html === 'string' && html.startsWith('__B64__:')) {
     try { return isSlideSimulator(atob(html.slice(8))); } catch (_) { return false; }
   }
-  return typeof html === 'string' && /<body\b[^>]*\bdata-sim-engine=["'](?:finite-rules-v1|entity-planning-v1)["']/i.test(html);
+  return typeof html === 'string' && /<body\b[^>]*\bdata-sim-engine=["'](?:finite-rules-v1|entity-planning-v1|didactic-visualization-v1)["']/i.test(html);
 }
 
 export function upgradeSimulatorSlide(html) {

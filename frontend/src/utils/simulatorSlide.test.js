@@ -1,4 +1,9 @@
 import { isSlideSimulator, upgradeSimulatorSlide } from './simulatorSlide';
+
+test('didactic animation is full-slide but never upgraded into a scored simulator',()=>{
+  const html='<html><body data-sim-engine="didactic-visualization-v1"><script id="scormify-visualization-plan" type="application/json">{}</script></body></html>';
+  expect(isSlideSimulator(html)).toBe(true);expect(upgradeSimulatorSlide(html)).toBe(html);
+});
 import { wrapInteractiveFullbleed } from './htmlUtils';
 
 test.each(['finite-rules-v1','entity-planning-v1'])('upgrades existing %s data only once without the fixed-stage shrinker',engine=>{

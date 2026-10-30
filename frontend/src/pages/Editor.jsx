@@ -1039,6 +1039,7 @@ export default function Editor() {
       const html = await generateHtmlJob(API_URL, {
         prompt: aiHtmlPrompt.trim() || 'Refine apenas a composição visual didática deste simulador, preservando todas as regras e o tema descrito no modelo.', courseContext, projectId: currentProject?.id || projectId || '',
         simulatorComplexity: simulatorOptions.complexity, simulatorVisualStyle: simulatorOptions.visualStyle,
+        simulatorActivityType: simulatorOptions.activityType || 'simulation',
         ...(refining ? { sourceSimulator } : {}),
       }, authHeaders({ 'Content-Type': 'application/json' }), { onProgress: setAiHtmlProgress });
       setAiHtmlResult(html);

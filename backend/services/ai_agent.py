@@ -2524,6 +2524,7 @@ def _wrap_interactive_fullbleed(html_content: str) -> str:
     """Inject the auto-fit snippet into interactive HTML (idempotent)."""
     from services.simulator_slide import upgrade_simulator_slide
     html_content = upgrade_simulator_slide(html_content)
+    if 'data-sim-engine="didactic-visualization-v1"' in html_content:return html_content
     if 'data-case-study-version="2"' in html_content or 'data-human-simulator-version="1"' in html_content or 'data-sim-engine="entity-planning-v1"' in html_content or 'data-sim-engine="finite-rules-v1"' in html_content:
         return html_content
     if "__scormify_fit_v3" in html_content:
@@ -4634,6 +4635,7 @@ Retorne JSON com os slides a atualizar:
                             "courseContent": slides_content}, ensure_ascii=False)[:8000],
                 f"agent-edit-simulator-{session_id}",
                 preferences={'complexity':project.get('agentConfig',{}).get('simulatorComplexity','guided'),
+                             'activityType':project.get('agentConfig',{}).get('simulatorActivityType','simulation'),
                              'visualStyle':project.get('agentConfig',{}).get('simulatorVisualStyle','illustrated')},
             )
             slide["type"] = "simulator"

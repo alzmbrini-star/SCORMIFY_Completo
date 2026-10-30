@@ -91,6 +91,7 @@ class GenerateHtmlRequest(BaseModel):
     courseContext: Optional[str] = Field(default=None, max_length=8000)
     simulatorComplexity: Literal['guided','applied','advanced'] = 'guided'
     simulatorVisualStyle: Literal['illustrated','technical'] = 'illustrated'
+    simulatorActivityType: Literal['simulation','visualization'] = 'simulation'
 
 class AgentConfigUpdate(BaseModel):
     model_config = PydanticConfigDict(extra="allow")
@@ -98,6 +99,7 @@ class AgentConfigUpdate(BaseModel):
     depth: Optional[str] = "intermediario"
     simulatorComplexity: Literal['guided','applied','advanced'] = 'guided'
     simulatorVisualStyle: Literal['illustrated','technical'] = 'illustrated'
+    simulatorActivityType: Literal['simulation','visualization'] = 'simulation'
     duration: Optional[int] = 30
     modules: Optional[int] = 3
     interactivity: Optional[str] = "media"
@@ -315,8 +317,9 @@ async def generate_html_with_ai(
 
     api_key, model = _html_generation_credentials()
     provider = "openai"
-    is_case_study = bool(re.search(r"estudo[s]?\s+de\s+caso|an[aá]lise\s+de\s+caso|case\s+stud(?:y|ies)", body.prompt, re.IGNORECASE))
-    is_simulator = not is_case_study and bool(re.search(r"\bsimul(?:ador(?:es)?|a[cç][aã]o|ations?|ators?)\b", body.prompt, re.IGNORECASE))
+    is_visualization = getattr(body, 'simulatorActivityType', 'simulation') == 'visualization'
+    is_case_study = not is_visualization and bool(re.search(r"estudo[s]?\s+de\s+caso|an[aá]lise\s+de\s+caso|case\s+stud(?:y|ies)", body.prompt, re.IGNORECASE))
+    is_simulator = is_visualization or (not is_case_study and bool(re.search(r"\bsimul(?:ador(?:es)?|a[cç][aã]o|ations?|ators?)\b", body.prompt, re.IGNORECASE)))
     if is_simulator:
         from services.llm_config import simulator_generation_config
         try:
@@ -374,9 +377,9 @@ Retorne APENAS o código HTML completo, começando com <div> ou <!DOCTYPE html>.
             from services.visual_simulators import generate_visual_simulator
             generated = await generate_visual_simulator(
                 body.prompt, body.courseContext or "", f"html-simulator-{uuid.uuid4().hex[:8]}",
-                preferences={'complexity':getattr(body,'simulatorComplexity','guided'),'visualStyle':getattr(body,'simulatorVisualStyle','illustrated')}
+                preferences={'complexity':getattr(body,'simulatorComplexity','guided'),'visualStyle':getattr(body,'simulatorVisualStyle','illustrated'), 'activityType':getattr(body,'simulatorActivityType','simulation')}
             )
-            if generated.get('spec', {}).get('mechanic') in {'entity-planning-v1', 'finite-rules-v1'}:
+            if generated.get('spec', {}).get('mechanic') in {'entity-planning-v1', 'finite-rules-v1', 'didactic-visualization-v1'}:
                 # This HTML is compiled from validated data and our own assets,
                 # not AI-authored code. Topic text may legitimately mention API
                 # names such as fetch/localStorage without invoking those APIs.

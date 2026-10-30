@@ -176,3 +176,32 @@ planejamento antes da geração inicial, produção de componentes ausentes,
 regeneração pontual, importação de imagens/vetores e clipes de transição Kling
 ainda não estão integrados. A biblioteca declara suas limitações; não há
 substituição automática de um objeto desconhecido por outro fora do contexto.
+
+## Visualização didática (modalidade separada)
+
+`simulatorActivityType` aceita `simulation` (padrão legado) ou `visualization`.
+Editor e configuração do Agente expõem a seleção antes de gerar. A seleção é
+preservada no job, no contexto e na chave de cache; o despacho explícito não
+depende da palavra “simulador” no prompt. Os slides simulator do Agente usam a
+modalidade escolhida; a opção não converte automaticamente atividades salvas.
+
+`didactic_visualizations.py` compila o contrato `didactic-visualization-v1`:
+formas vetoriais planas e movimentos de órbita ilustrativa, translação senoidal,
+rotação e pulsação. Não é integração física, simulação quântica, modelo 3D ou
+gerador de vídeos. Não exige estados de sucesso/fracasso, prova de solução,
+pontuação ou decisões. O núcleo finite-rules-v1 permanece inalterado.
+
+O resultado funciona offline: iniciar/pausar, velocidade 0,5/1/2×, linha do tempo,
+reinício e legendas, com explicações acessíveis dos objetos. Começa parado;
+pausa ao ocultar a página e cancela o único requestAnimationFrame ao sair ou
+reiniciar. Não escreve resultados no LMS nem envia eventos de pontuação.
+Conclusão do curso continua seguindo a configuração normal do pacote.
+
+A geração faz planejamento JSON limitado e revisão conceitual em outra chamada
+ao mesmo provedor/modelo configurado. Isso consome geração de IA ao usar o
+recurso, mas não exige API externa adicional. A revisão pede correção de falsas
+premissas e identificação de simplificações em scientificNote; não certifica
+ciência nem substitui revisão humana do conteúdo. Nenhum código, URL ou script
+gerado pela IA entra no renderizador. Novos temas dependem de poderem ser
+representados pelos objetos/movimentos 2D disponíveis; limites devem ser
+declarados, não ocultados em uma ilustração que se apresenta como física real.
