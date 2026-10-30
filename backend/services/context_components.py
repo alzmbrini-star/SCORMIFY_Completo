@@ -71,6 +71,7 @@ def draw_context_component(instance,style):
         p.rect('low_line',0,180,215,5,'#b7f4fc');p.rect('high_line',520,90,240,5,'#b7f4fc')
         for port,x,slot in [('entry',214,'entry'),('exit',495,'exit')]:
             gate=p.node(port,'group',dict(x=x,y=0));p.action(gate,slot);parent=gate['id']
+            gate['label']='Comporta de entrada' if port=='entry' else 'Comporta de saída'
             p.rect(port+'_track',0,35,22,195,'#8b9ca0',parent,rx=3)
             blade=p.rect(port+'_blade',4,45,14,185,'#ffce73',parent,stroke='#b38536',strokeWidth=2)
             p.bind(blade,'height',port,185,30)

@@ -7,6 +7,11 @@ from component_pilots import pilots,technical_pilot,feedback_pilot
 
 
 class ContextComponentTests(unittest.TestCase):
+    def test_composite_controls_have_distinct_accessible_names(self):
+        data=validate_rules(technical_pilot())
+        labels={n['action']:n['label'] for n in data['visual']['nodes'] if n.get('action')}
+        self.assertEqual(labels,{'abrir_entrada':'Comporta de entrada','abrir_saida':'Comporta de saída'})
+
     def test_key_text_and_meaningful_shape_contrasts(self):
         def luminance(color):
             channels=[int(color[i:i+2],16)/255 for i in (1,3,5)]
