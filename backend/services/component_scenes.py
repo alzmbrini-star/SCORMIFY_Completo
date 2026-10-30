@@ -3,7 +3,7 @@ import copy
 import json
 import math
 import re
-from services.component_catalog import COMPONENTS,CATALOG_VERSION,draw_component
+from services.component_catalog import COMPONENTS,SUPPORTED_CATALOGS,V1_COMPONENTS,draw_component
 
 VERSION=1
 
@@ -19,17 +19,22 @@ def project_schema():
                      obj({'value':{'type':'number','minimum':-100,'maximum':100},'range':span})]}
     variants=[]
     for kind,definition in COMPONENTS.items():
-        variants.append(obj({'id':ident,'component':{'const':kind},'version':{'type':'integer','const':definition['version']},
+        properties={'id':ident,'component':{'const':kind},'version':{'type':'integer','const':definition['version']},
             'label':text(80),'position':obj({'x':{'type':'number','minimum':20,'maximum':780-definition['size'][0]},
                                             'y':{'type':'number','minimum':20,'maximum':430-definition['size'][1]}}),
             'inputs':obj({port:source for port in definition['inputs']}),
-            'actions':obj({port:{'type':'string','pattern':'^[a-z][a-z0-9_]{0,31}$'} for port in definition['actions']},[])}))
+            'actions':obj({port:{'type':'string','pattern':'^[a-z][a-z0-9_]{0,31}$'} for port in definition['actions']},[])}
+        required=list(properties)
+        if definition.get('variants'):properties['variant']={'enum':definition['variants']}
+        variants.append(obj(properties,required))
     link=obj({'instance':ident,'input':text(32),'whatChanges':text(180),'whyItMatters':text(240)})
-    result=obj({'version':{'type':'integer','const':VERSION},'catalogVersion':{'type':'integer','const':CATALOG_VERSION},
+    result=obj({'version':{'type':'integer','const':VERSION},'catalogVersion':{'type':'integer','enum':list(SUPPORTED_CATALOGS)},
         'renderer':{'const':'svg-v1'},'title':text(100),'description':text(600),'style':{'enum':['blueprint','studio']},
         'instances':{'type':'array','items':{'oneOf':variants},'minItems':2,'maxItems':6},
         'teaching':obj({'focus':text(220),'readScene':text(700),'links':{'type':'array','items':link,'minItems':2,'maxItems':4}})})
     result['$schema']='http://json-schema.org/draft-07/schema#'
+    result['allOf']=[{'if':{'properties':{'catalogVersion':{'const':1}}},
+                     'then':{'properties':{'instances':{'items':{'properties':{'component':{'enum':sorted(V1_COMPONENTS)}}}}}}}]
     return result
 
 
@@ -67,7 +72,7 @@ def compile_project(raw,spec):
         raise ValueError('Projeto de componentes inválido ou maior que 24 KB')
     _object(raw,{'version','catalogVersion','renderer','title','description','style','instances','teaching'},
             {'version','catalogVersion','renderer','title','description','style','instances','teaching'})
-    if type(raw['version']) is not int or raw['version']!=VERSION or type(raw['catalogVersion']) is not int or raw['catalogVersion']!=CATALOG_VERSION or raw['renderer']!='svg-v1':
+    if type(raw['version']) is not int or raw['version']!=VERSION or type(raw['catalogVersion']) is not int or raw['catalogVersion'] not in SUPPORTED_CATALOGS or raw['renderer']!='svg-v1':
         raise ValueError('Versão de projeto, catálogo ou renderizador não suportada')
     if not isinstance(raw['style'],str) or raw['style'] not in {'blueprint','studio'}:raise ValueError('Estilo de componentes não registrado')
     variables={v['id']:v for v in spec['variables']};actions={a['id'] for a in spec['actions']}
@@ -75,12 +80,15 @@ def compile_project(raw,spec):
     if not isinstance(rows,list) or not 2<=len(rows)<=6:raise ValueError('Use de 2 a 6 instâncias de componentes')
     instances=[];seen=set();nodes=[];targets={};changes={}
     for row in rows:
-        _object(row,{'id','component','version','label','position','inputs','actions'},
+        _object(row,{'id','component','version','label','position','inputs','actions','variant'},
                 {'id','component','version','label','position','inputs','actions'})
         ident=_id(row['id']);kind=row['component']
         if ident in seen:raise ValueError('ID de instância duplicado')
         if not isinstance(kind,str) or kind not in COMPONENTS:raise ValueError('Componente não registrado; extensão explícita necessária')
         definition=COMPONENTS[kind]
+        if definition.get('introducedIn',1)>raw['catalogVersion']:raise ValueError('Componente exige catálogo de versão mais recente')
+        if 'variant' in row and (not isinstance(row['variant'],str) or row['variant'] not in definition.get('variants',[])):
+            raise ValueError('Variante de componente não registrada')
         if type(row['version']) is not int or row['version']!=definition['version']:raise ValueError('Versão do componente não suportada')
         seen.add(ident);_object(row['position'],{'x','y'},{'x','y'})
         x=_number(row['position']['x'],20,780-definition['size'][0]);y=_number(row['position']['y'],20,430-definition['size'][1])
@@ -102,8 +110,15 @@ def compile_project(raw,spec):
             else:inputs[port]={'value':_number(source['value'],lo,hi),'range':[lo,hi]}
         _object(row['actions'],definition['actions'],set())
         if any(not isinstance(a,str) or a not in actions for a in row['actions'].values()):raise ValueError('Ação de componente inexistente')
+        for slot,action_id in row['actions'].items():
+            ports=definition.get('actionInputs',{}).get(slot,[])
+            if ports:
+                effects=next(a for a in spec['actions'] if a['id']==action_id)['effects']
+                if not any(inputs[port].get('var') in effects for port in ports):
+                    raise ValueError('Ação da peça não altera a entrada esperada: '+ident+'/'+slot)
         instance={'id':ident,'component':kind,'version':row['version'],'label':_text(row['label'],80),
                   'position':{'x':x,'y':y},'inputs':inputs,'actions':copy.deepcopy(row['actions'])}
+        if 'variant' in row:instance['variant']=row['variant']
         instances.append(instance);new,ports=draw_component(instance,raw['style']);nodes.extend(new)
         targets[ident]=ports;changes[ident]=inputs
     teaching=raw['teaching'];_object(teaching,{'focus','readScene','links'},{'focus','readScene','links'})

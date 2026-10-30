@@ -5,7 +5,8 @@ or a constant; component actions only name an existing interpreter action.
 """
 from copy import deepcopy
 
-CATALOG_VERSION = 1
+CATALOG_VERSION = 2
+SUPPORTED_CATALOGS = (1, 2)
 COMPONENTS = {
     'liquid_vessel': {'version': 1, 'size': [220, 250],
         'description': 'Recipiente com superfície e volume de líquido.',
@@ -20,6 +21,28 @@ COMPONENTS = {
         'description': 'Sinal visual de condição do modelo, sem unidade física.',
         'inputs': ['severity'], 'actions': [], 'representation': 'symbolic'},
 }
+V1_COMPONENTS = frozenset(COMPONENTS)
+COMPONENTS.update({
+    'harbor_backdrop': {'version':1,'introducedIn':2,'size':[760,410],'inputs':[],'actions':[],
+        'description':'Ambiente de navegação com margens, relevo e infraestrutura.','representation':'contextual'},
+    'lock_channel': {'version':1,'introducedIn':2,'size':[760,300],'inputs':['level','entry','exit','position','risk'],'actions':['entry','exit'],
+        'actionInputs':{'entry':['entry'],'exit':['exit']},
+        'description':'Câmara, bacias, embarcação e comportas integradas; esquema discreto.','representation':'schematic'},
+    'workplace_backdrop': {'version':1,'introducedIn':2,'size':[760,410],'inputs':[],'actions':[],
+        'description':'Sala de trabalho com janela, cidade, mobiliário e mesa em perspectiva.','representation':'contextual'},
+    'meeting_table': {'version':1,'introducedIn':2,'size':[650,105],'inputs':[],'actions':[],
+        'description':'Mesa de reunião em primeiro plano para composição com personagens.','representation':'contextual'},
+    'conversation_person': {'version':1,'introducedIn':2,'size':[220,300],'inputs':['engagement'],'actions':[],
+        'variants':['short_hair','long_hair'],'description':'Pessoa com gestos e expressão em três estados qualitativos.','representation':'illustrative'},
+    'evidence_folder': {'version':1,'introducedIn':2,'size':[230,160],'inputs':['review','agreement'],'actions':['inspect'],
+        'actionInputs':{'inspect':['review']},
+        'description':'Documentos consultados e registro de acordo visível.','representation':'symbolic'},
+    'planning_board': {'version':1,'introducedIn':2,'size':[460,280],'inputs':['stage','quality'],'actions':['plan','execute','review'],
+        'actionInputs':{'plan':['stage'],'execute':['stage'],'review':['stage']},
+        'description':'Três etapas com cartões que avançam e registro de revisão.','representation':'symbolic'},
+    'time_budget': {'version':1,'introducedIn':2,'size':[200,260],'inputs':['remaining'],'actions':[],
+        'description':'Ampulheta de orçamento de tempo, sem cronômetro independente.','representation':'symbolic'},
+})
 
 
 def catalog():
@@ -29,11 +52,14 @@ def catalog():
             'limits': {'instances': 6, 'teachingLinks': 4},
             'limitations': ['Esquemas didáticos, não certificação científica.',
                             'Sem imagens externas, scripts ou efeitos lógicos.',
-                            'A biblioteca inicial é uma prova de conceito, não a biblioteca completa.']}
+                            'A seleção automática de componentes ainda não está ativada.']}
 
 
 def draw_component(instance, style):
     """Pure compiler to the existing safe SVG graph. No renderer dependency."""
+    if instance['component'] not in V1_COMPONENTS:
+        from services.context_components import draw_context_component
+        return draw_context_component(instance,style)
     ident=instance['id'];kind=instance['component'];pos=instance['position']
     ink='#dceafb' if style=='blueprint' else '#193b54'
     surface='#193b54' if style=='blueprint' else '#f8fbff'

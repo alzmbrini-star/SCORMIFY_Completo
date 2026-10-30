@@ -64,7 +64,7 @@ class ComponentSceneTests(unittest.TestCase):
     def test_rejects_code_unknown_references_versions_and_oversized_inputs(self):
         good=component_fixture();logic=copy.deepcopy(good);logic.pop('visualProject');spec=validate_rules(logic)
         for mutate in [lambda p:p.update(script='alert(1)'),lambda p:p.update(version=True),
-                       lambda p:p.update(renderer='remote'),lambda p:p.update(catalogVersion=2),
+                       lambda p:p.update(renderer='remote'),lambda p:p.update(catalogVersion=99),
                        lambda p:p['instances'][0].update(component='unknown'),
                        lambda p:p['instances'][0].update(version=2),
                        lambda p:p['instances'][0].update(effects={'nivel':2}),
