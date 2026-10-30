@@ -14,7 +14,7 @@ export default function SimulatorExperienceOptions({ complexity = 'guided', visu
     <div className="grid gap-3 sm:grid-cols-2">
       <label htmlFor={`${id}-complexity`} className="text-sm">Complexidade da interação
         <select id={`${id}-complexity`} disabled={activityType === 'visualization'} className="block w-full mt-1 rounded border border-slate-500 bg-slate-900 text-slate-100 p-2" value={complexity} onChange={e => onChange({ complexity: e.target.value, visualStyle, activityType })}>
-          <option value="guided">Guiado — cenário e poucas escolhas</option>
+          <option value="guided">Guiado — demonstração geral do processo</option>
           <option value="applied">Aplicado — experimentação e consequências</option>
           <option value="advanced">Avançado — instrumentos e parâmetros</option>
         </select>
@@ -26,6 +26,6 @@ export default function SimulatorExperienceOptions({ complexity = 'guided', visu
         </select>
       </label>
     </div>
-    <p className="text-xs leading-relaxed">O nível muda a orientação e os controles expostos, não a qualidade da arte nem o nível do curso. Cenários devem ser bem acabados em todos os níveis. Aplica-se às novas gerações de simuladores; não altera atividades já inseridas.</p>
+    <p className="text-xs leading-relaxed">Guiado prioriza a demonstração visual simplificada, sem exigir precisão científica, fracasso ou número artificial de decisões. Aplicado e Avançado mantêm desafios e consequências mais completos. Todos os níveis devem ter cenários bem acabados. Aplica-se às novas gerações; não altera atividades já inseridas.</p>
   </fieldset>;
 }

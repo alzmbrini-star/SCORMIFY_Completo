@@ -39,7 +39,7 @@ class DependencyRepair(unittest.TestCase):
                 return json.dumps(missing_writer() if len(messages)==1 else fixtures()[0])
         with patch('emergentintegrations.llm.chat.LlmChat',Chat),patch(
                 'services.rule_visuals.generate_visual',AsyncMock(return_value=(None,''))):
-            result=asyncio.run(generate_rule_simulator('Tema arbitrário','Curso','qa','openai','fake','model'))
+            result=asyncio.run(generate_rule_simulator('Tema arbitrário',json.dumps({'simulatorOptions':{'complexity':'applied'}}),'qa','openai','fake','model'))
         self.assertEqual(len(messages),2)
         self.assertEqual(messages[1]['repairDetails']['goalDependenciesWithoutEffects'],['confianca'])
         self.assertTrue(result['spec']['verification']['solutionVerified'])

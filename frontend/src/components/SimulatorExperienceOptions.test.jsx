@@ -11,7 +11,7 @@ test('author can choose level and visual approach independently, with accessible
   expect(change).toHaveBeenLastCalledWith({complexity:'advanced',visualStyle:'technical',activityType:'simulation'});
   act(()=>root.render(<SimulatorExperienceOptions complexity="advanced" visualStyle="technical" onChange={change} disabled/>));
   expect(host.querySelector('fieldset').disabled).toBe(true);
-  expect(fields[1].value).toBe('advanced');expect(host.textContent).toContain('não a qualidade');
+  expect(fields[1].value).toBe('advanced');expect(host.textContent).toContain('sem exigir precisão científica');
   act(()=>root.render(<SimulatorExperienceOptions activityType="visualization" onChange={change}/>));
   expect(host.querySelectorAll('select')[1].disabled).toBe(true);expect(host.textContent).toContain('Sem pontuação');
   act(()=>root.unmount());host.remove();

@@ -12,7 +12,7 @@ import re
 
 _scope = ContextVar('simulator_diagnostic_scope', default=None)
 _record = ContextVar('simulator_diagnostic_record', default=None)
-VERSION = 18
+VERSION = 19
 MAX_DOCUMENT = 1000000
 
 
@@ -143,7 +143,8 @@ an earlier approval: all JSON passes the current proof and quality policy again.
                     logic=dict(raw);logic.pop('visual');logic.pop('visualNotice',None)
                     data=validate_rules(logic)
                     data['verification']['visualRevalidationRequired']=True
-                if single_action_shortcuts(data): continue
+                demo=data.get('didacticMode')=='process-demo-v1'
+                if not demo and single_action_shortcuts(data): continue
                 from services.simulator_experience import from_context,normalize_experience,has_options
                 selected=from_context(context)
                 if has_options(context) and data.get('experience') and any(data['experience'].get(k)!=selected[k] for k in selected):continue
@@ -172,7 +173,7 @@ an earlier approval: all JSON passes the current proof and quality policy again.
                             data.pop('visualNotice',None)
                             break
                         except (ValueError,TypeError,KeyError,RecursionError):continue
-                data['verification'].update(noSingleActionShortcut=True,revalidatedFromVersion=version)
+                data['verification'].update(noSingleActionShortcut=not demo,revalidatedFromVersion=version)
                 return {'html':render_rules(data),'spec':dict(data,template='custom',mechanic=ENGINE)}
             except (ValueError,TypeError,KeyError,RecursionError):
                 continue

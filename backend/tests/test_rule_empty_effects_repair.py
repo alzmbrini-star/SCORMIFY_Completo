@@ -75,7 +75,7 @@ class EmptyEffectsRepair(unittest.TestCase):
             async def send_message(self,message):
                 messages.append(json.loads(message.text));return json.dumps(diagnosed_plan() if len(messages)==1 else three_levels())
         with patch('emergentintegrations.llm.chat.LlmChat',Chat),patch('services.rule_visuals.generate_visual',AsyncMock(return_value=(None,''))) as draw:
-            result=asyncio.run(generate_rule_simulator('Processo em três níveis','Curso','qa','openai','fake','model'))
+            result=asyncio.run(generate_rule_simulator('Processo em três níveis',json.dumps({'simulatorOptions':{'complexity':'applied'}}),'qa','openai','fake','model'))
         self.assertEqual(len(messages),2);draw.assert_awaited_once()
         details=messages[1]['repairDetails']
         self.assertEqual(details['emptyEffectActions'],['verificar_niveis'])

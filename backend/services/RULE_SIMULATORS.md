@@ -7,6 +7,36 @@ existentes não são regenerados ou substituídos automaticamente.
 
 ## Contrato executável
 
+### Guiado: demonstração qualitativa do processo
+
+Por escolha do autor, novas gerações Guiadas usam didacticMode=process-demo-v1.
+O Agente e o Editor selecionam um prompt próprio para demonstrações, sem as regras
+contraditórias do desafio estrito. Uma variável de etapa, uma ação de avanço, uma
+cena e um caminho curto são suficientes. Não se exige trajetória negativa, três
+decisões, dois indicadores causais ou proibição de repetir um controle de avanço.
+Fracasso ausente ou impossível nos limites é representado por false; um fracasso
+possível pode continuar existindo, mas não é requisito para aprovar uma demonstração.
+Consultas com effects:{} são conservadas como observationNotes e retiradas das
+intervenções, sem inventar efeitos de estado. O briefing inclui as informações de
+apoio e o aviso de representação simplificada, sem precisão de engenharia.
+
+Continuam obrigatórios: dados tipados, referências existentes, limites de execução,
+estado inicial utilizável, objetivo alcançável e controles funcionais. A busca para
+aprovar a demonstração termina ao provar uma solução; não procura um fracasso fictício.
+O campo de modo permanece no JSON para exportação/refino/revalidação; não se aceita
+HTML/JS gerado. O modelo não pode impor esse modo quando o autor escolhe Aplicado ou
+Avançado, cujos critérios de desafio permanecem. Dados legados sem o campo mantêm a
+validação anterior; não há reescrita automática de cursos ou pacotes distribuídos.
+
+O cenário da demonstração pode ser vinculado a uma única etapa, sem inventar métricas.
+Novas cenas ilustradas ganham gradientes suaves de superfície, volume e sombras por
+código SVG confiável, sem mudar geometria, ações ou equações. Backgrounds, textos,
+traços técnicos e documentos legados não recebem esse tratamento indiscriminadamente.
+O plano visual pede objetos reconhecíveis, proporções plausíveis e detalhes úteis,
+não fidelidade fotográfica ou cálculos de engenharia. Uma nota visível identifica a
+representação simplificada. Isso é uma política genérica de demonstração para qualquer
+tema representável pelo contrato, não um modelo pronto de eclusa ou outro assunto.
+
 A IA retorna exclusivamente dados JSON: variáveis inteiras limitadas, predicados,
 ações com efeitos atômicos, cenas condicionais, objetivo e fracasso. O próprio
 motor deriva os testes de trajetórias com os estados realmente calculados, sem

@@ -207,7 +207,8 @@ def validate_visual(raw, spec):
             if row['action'] not in {a['id'] for a in spec['actions']}:raise ValueError('Ação visual inexistente')
             node['action']=row['action']
         seen[key]=kind;result['nodes'].append(node)
-    if len(dynamic)<2 or not geometric:raise ValueError('Cena deve alterar formas/posições por estado e representar pelo menos duas variáveis causais; não apenas texto ou números')
+    minimum=1 if spec.get('didacticMode')=='process-demo-v1' else 2
+    if len(dynamic)<minimum or not geometric:raise ValueError('Cena deve alterar formas/posições por estado e representar variáveis causais do processo; não apenas texto ou números')
     if (spec.get('experience') or {}).get('visualStyle')=='illustrated':
         def descendants(key):
             children=[n for n in result['nodes'] if n.get('parent')==key]
@@ -340,7 +341,7 @@ def illustration_detail_issues(visual,spec):
 
 
 async def generate_visual(data,prompt,context,session_id,provider,key,model):
-    if (data.get('experience') or {}).get('complexity')=='advanced':
+    if (data.get('experience') or {}).get('complexity')=='advanced' and data.get('didacticMode')!='process-demo-v1':
         from services.visual_teaching import generate_teaching_visual
         return await generate_teaching_visual(data,prompt,context,session_id,provider,key,model)
     from emergentintegrations.llm.chat import LlmChat,UserMessage
@@ -357,10 +358,14 @@ async def generate_visual(data,prompt,context,session_id,provider,key,model):
         request['refinementInstruction']='Refine esta cena validada preservando composição, objetos/IDs pertinentes e significado dos vínculos. Não regenere regras nem recomece a arte sem necessidade.'
         from services.visual_teaching import binding_guidance
         request['bindingGuidance']=binding_guidance(data,data['_refinementVisual'])
+    visual_prompt=VISUAL_PROMPT
+    if data.get('didacticMode')=='process-demo-v1':
+        visual_prompt=VISUAL_PROMPT.replace('Representar >=2 variáveis afetadas por ações','Representar >=1 variável/etapa do processo afetada pelas ações').replace('A cena deve mudar tanto na trajetória de sucesso quanto negativa.','A cena deve acompanhar as etapas demonstradas; uma trajetória negativa não é obrigatória.')
+        request['processDemonstration']='Foco no processo geral e realismo ilustrativo, não precisão científica. Use objetos reconhecíveis, proporções visuais plausíveis, camadas de ambiente, contornos, materiais e luz/sombra suaves. Preserve as etapas pedidas e sua legibilidade. Não invente métricas nem exija equações, medições, tolerâncias de engenharia ou calibração física. Um só estado de etapa pode controlar várias peças por predicados/visibilidade.'
     for attempt in range(2):
         response=''
         try:
-            chat=LlmChat(api_key=key,session_id=session_id+f'-scene-{attempt}',system_message=VISUAL_PROMPT).with_model(provider,model).with_params(temperature=0.35,max_tokens=11000)
+            chat=LlmChat(api_key=key,session_id=session_id+f'-scene-{attempt}',system_message=visual_prompt).with_model(provider,model).with_params(temperature=0.35,max_tokens=11000)
             response=await asyncio.wait_for(chat.send_message(UserMessage(text=json.dumps(request,ensure_ascii=False))),timeout=150)
             raw=json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',str(response).strip(),flags=re.I))
             visual=validate_visual(raw,data)

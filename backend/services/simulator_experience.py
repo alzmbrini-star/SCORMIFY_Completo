@@ -87,6 +87,9 @@ EXPERIENCE_PROMPT='''Antes de desenhar, planeje a experiência didática em expe
 Use a complexidade e o estilo escolhidos pelo AUTOR em simulatorOptions.
 Guiado: cena predominante, orientação contextual, poucas escolhas relevantes a cada momento,
 até 2 indicadores essenciais; não simplifique a arte nem invente travas para criar um quiz.
+No Guiado, demonstre o processo geral de forma qualitativa: uma variável de etapa
+e um controle de avanço podem bastar. Não invente precisão científica, métricas,
+fracasso ou operações extras para satisfazer um desafio. Detalhe a arte, não a burocracia.
 Aplicado: experimentação com consequências, até 3 indicadores centrais e detalhes sob demanda.
 Avançado: parâmetros/alternativas e restrições mais ricos, instrumentos e comparação opcionais.
 Não confunda quantidade de campos visíveis com dificuldade conceitual ou qualidade gráfica.

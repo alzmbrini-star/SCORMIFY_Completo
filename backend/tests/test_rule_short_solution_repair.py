@@ -64,7 +64,7 @@ class ShortSolutionRepair(unittest.TestCase):
                 return json.dumps(shortcut(good) if len(messages)<3 else good)
         with patch('emergentintegrations.llm.chat.LlmChat',Chat),patch(
                 'services.rule_visuals.generate_visual',AsyncMock(return_value=(None,''))) as draw:
-            result=asyncio.run(generate_rule_simulator('Eclusa com 3 níveis','Curso','qa','openai','fake','model'))
+            result=asyncio.run(generate_rule_simulator('Eclusa com 3 níveis',json.dumps({'simulatorOptions':{'complexity':'applied'}}),'qa','openai','fake','model'))
         self.assertEqual(len(messages),3);draw.assert_awaited_once()
         self.assertEqual(messages[1]['repairDetails']['steps'][0]['action'],'skip_dependencies')
         self.assertEqual(len(messages[2]['repairHistory']),2)
@@ -82,7 +82,7 @@ class ShortSolutionRepair(unittest.TestCase):
         with patch('emergentintegrations.llm.chat.LlmChat',Chat),patch(
                 'services.rule_visuals.generate_visual',AsyncMock()) as draw:
             with self.assertRaisesRegex(ValueError,'plano gerado ainda contém inconsistências') as caught:
-                asyncio.run(generate_rule_simulator('Eclusa','Curso','qa','openai','fake','model'))
+                asyncio.run(generate_rule_simulator('Eclusa',json.dumps({'simulatorOptions':{'complexity':'applied'}}),'qa','openai','fake','model'))
         draw.assert_not_awaited();self.assertNotIn('recursos suportados',str(caught.exception))
 
 
