@@ -185,6 +185,25 @@ as regras existentes do curso continuam responsáveis pela aprovação. Compara�
 
 ## Verificação
 
+### Reparo de conclusões curtas
+
+A busca considera o caminho de sucesso mais curto, e não a sequência proposta
+pelo modelo. Quando ele tem menos de três intervenções, ShortSolutionError
+devolve um contraexemplo estruturado: estado inicial, requisitos e efeitos de
+cada ação executada, estados antes/depois e objetivo satisfeito. O gerador recebe
+esses dados em repairDetails, além do histórico limitado às três tentativas, para
+não repetir correções já rejeitadas. Isso é genérico e não escolhe uma receita de
+simulação por tema nem modifica automaticamente a lógica produzida.
+
+As instruções exigem corrigir dependências causais do processo, não acrescentar
+contadores de cliques, esperas ou confirmações artificiais. O verificador continua
+rejeitando atalhos de uma ou duas ações, repetição vencedora de um único controle,
+objetivos inalcançáveis e regras inseguras. Somente regras aprovadas seguem para
+a composição visual/biblioteca. Elementos visuais disponíveis não substituem a
+prova de que o novo plano é executável. Esgotar reparos é reportado como defeito
+do plano gerado; somente unsupported explícito é reportado como recurso não
+representável. Os testes usam respostas simuladas, sem chamadas pagas de IA.
+
 `test_rule_simulators.py`: validação, busca, limites, segurança, integração canônica
 Agente/Editor, exportação e correção de dados. `test_rule_engine.cjs`: os mesmos
 cinco modelos com topologias distintas executados em Python e JS, comparando

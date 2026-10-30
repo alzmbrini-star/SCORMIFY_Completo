@@ -60,6 +60,11 @@ controles disponíveis enquanto os limites permitirem: não invente travas só p
 transformar todo experimento em conversa ou sequência obrigatória.
 Objetivo precisa depender direta OU indiretamente de >=2 variáveis afetadas pelas ações e só ser alcançável
 após >=3 ações. A condição inicial não pode ser sucesso nem fracasso.
+O requisito vale para o CAMINHO MAIS CURTO, não somente para a sequência que você
+imaginou. Examine todos os controles disponíveis: nenhum pode saltar operações
+causais, definir de uma vez todas as condições finais ou concluir antes das
+dependências reais do processo. Modele essas dependências com requisitos e
+efeitos explícitos, sem contador artificial de cliques ou confirmação decorativa.
 O motor calcula os caminhos e os estados esperados; não invente resultados de testes.
 Não dê a solução nos textos do aluno. Estados terminais
 não permitem novas ações. Ao atingir maxSteps sem objetivo o motor encerra sem sucesso.
@@ -270,6 +275,28 @@ locks. Real parameter experiments may combine/repeat two or more interventions.
     return shortcuts
 
 
+class ShortSolutionError(ValueError):
+    """A generated planning defect, with a measured counterexample for repair."""
+    def __init__(self, spec, path):
+        state={v['id']:v['initial'] for v in spec['variables']}
+        initial=dict(state);steps=[];actions={a['id']:a for a in spec['actions']}
+        for ident in path:
+            action=actions[ident];updated=transition(spec,state,action)
+            steps.append({'action':ident,'label':action['label'],'before':dict(state),
+                          'requires':action['requires'],'effects':action['effects'],'after':dict(updated)})
+            state=updated
+        self.details={'code':'shortest_success_too_short','minimumDecisions':3,
+                      'observedDecisions':len(path),'initialState':initial,'steps':steps,
+                      'finalState':state,'goal':spec['goal']['when'],
+                      'goalSatisfied':evaluate(spec['goal']['when'],state),
+                      'instruction':'Corrija o atalho comprovado nos requisitos/efeitos e nas condições reais do objetivo. '
+                      'Represente as operações e dependências pedidas antes de concluir, sem omitir níveis/etapas. '
+                      'Não acrescente contador de cliques, espera ou confirmação decorativa. '
+                      'Não basta propor outra sequência longa: elimine também este caminho curto e prove uma solução válida.'}
+        super().__init__('Conclusão trivial: exija pelo menos três decisões. O plano gerado permite concluir em '
+                         +str(len(path))+' ação(ões); o reparo deve corrigir esse atalho causal.')
+
+
 def validate_rules(raw, budget=SEARCH_BUDGET):
     if not isinstance(raw,dict): raise ValueError('Retorne um objeto JSON')
     if raw.get('unsupported'): raise ValueError('Recurso não representável: '+_text(raw['unsupported'],700))
@@ -354,7 +381,7 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
             'das ações. Corrija a inconsistência preservando o desafio e as premissas do pedido; não marque sucesso constante. '
             'Faixas observadas em busca com orçamento esgotado são parciais e não provam impossibilidade.')
     if proof['failure'] is None: raise ValueError('Não foi comprovada uma trajetória negativa. Inclua custos e condições de fracasso executáveis, não decorativos. Ação fora de min/max é desabilitada e não altera o estado; escolha um limiar de fracasso dentro dos limites e alcançável por ações habilitadas. Se houver avaliação, permita avaliar também uma preparação insuficiente, sem exigir os critérios de sucesso para habilitá-la. O limite de decisões não substitui failure.when. Verifique a sequência negativa ação por ação antes de retornar as regras.')
-    if len(proof['success']) < 3: raise ValueError('Conclusão trivial: exija pelo menos três decisões')
+    if len(proof['success']) < 3: raise ShortSolutionError(spec,proof['success'])
     state=dict(initial); visited_scenes=set(); scene_trace=[]
     for key in proof['success']:
         scene=next(s['id'] for s in spec['scenes'] if evaluate(s['when'],state))
@@ -410,7 +437,7 @@ async def generate_rule_simulator(prompt, context, session_id, provider, key, mo
     from services.simulator_experience import EXPERIENCE_PROMPT,from_context,normalize_experience
     selected=from_context(context)
     original={'request':prompt[:7000],'courseContext':context[:10000],'simulatorOptions':selected}; request=json.dumps(original,ensure_ascii=False)
-    error=''
+    error='';repair_history=[];unsupported=False
     for attempt in range(3):
         raw=None
         # Fresh planning history prevents a failed candidate anchoring all repairs.
@@ -437,8 +464,13 @@ async def generate_rule_simulator(prompt, context, session_id, provider, key, mo
             return {'html':document,'spec':spec}
         except (ValueError,TypeError,KeyError) as exc:
             error=str(exc)
-            record_attempt(str(response),{'mechanic':ENGINE},[{'issue':error,'context':'Contrato de estados e regras','action':'Corrigir dados e testar trajetórias sem reduzir o desafio.'}],error=error)
-            if isinstance(raw,dict) and raw.get('unsupported'): break
+            details=getattr(exc,'details',None)
+            repair_history.append({'error':error,**({'details':details} if details else {})})
+            record_attempt(str(response),{'mechanic':ENGINE},[{'issue':error,'context':json.dumps(details,ensure_ascii=False) if details else 'Contrato de estados e regras','action':'Corrigir dados e testar trajetórias sem reduzir o desafio.'}],error=error)
+            if isinstance(raw,dict) and raw.get('unsupported'):
+                unsupported=True;break
             request=json.dumps(dict(original,previousResponse=str(response)[:65000],repairError=error,
+                repairDetails=details,repairHistory=repair_history,
                 repairInstruction='Reconstrua as regras JSON completas corrigindo TODOS os erros apontados. O motor calculará os caminhos e testes. Preserve tema, decisões e consequências; não gere código nem presuma efeitos implícitos.'),ensure_ascii=False)
-    raise ValueError('Não foi possível comprovar uma simulação executável com os recursos suportados. '+error)
+    if unsupported:raise ValueError('Não foi possível representar o pedido com os recursos suportados. '+error)
+    raise ValueError('O plano gerado ainda contém inconsistências após as tentativas de correção. '+error)
