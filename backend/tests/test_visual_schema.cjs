@@ -13,7 +13,7 @@ visual=copy.deepcopy(raw['visual'])
 for n in visual['nodes']:
  definition=schema['$defs']['node_'+n['type']]['properties']
  n['attrs']={key:n['attrs'].get(key) for key in definition['attrs']['properties']}
- n.setdefault('bindings',[]);n.setdefault('states',[]);n.setdefault('parent',None);n.setdefault('visibleWhen',None);n.setdefault('action',None)
+ n.setdefault('bindings',[]);n.setdefault('states',[]);n.setdefault('parent',None);n.setdefault('visibleWhen',None);n.setdefault('action',None);n.setdefault('explanation',None)
  for state in n['states']:
   state['set']={key:state['set'].get(key) for key in definition['states']['items']['properties']['set']['properties']}
 assert validate_visual(omit_null_fields(visual),data)==data['visual']
@@ -22,6 +22,7 @@ assert format_for_stage('openai','gpt-4o','-composition',data,{})['json_schema']
 print(json.dumps({'schema':schema,'visual':visual,'planSchema':plan_schema(ids),'plan':scene_plan(),'reviewSchema':review_schema([n['id'] for n in visual['nodes']])}))`],{cwd:backend,env:{...process.env,PYTHONPATH:backend},maxBuffer:5000000}));
 const ajv=new Ajv({strict:false,allErrors:true}),check=ajv.compile(packet.schema);
 assert.ok(check(packet.visual),JSON.stringify(check.errors));
+const explained=JSON.parse(JSON.stringify(packet.visual));explained.nodes[0].explanation='Objeto do mecanismo.';assert.ok(check(explained));explained.nodes[0].explanation='x'.repeat(351);assert.equal(check(explained),false);
 for(const mutate of [v=>{v.nodes[5].bindings[0].property='fill';},v=>{v.nodes[5].bindings[0].var='invented';},v=>{v.nodes[5].attrs.script='alert(1)';}]){
  const visual=JSON.parse(JSON.stringify(packet.visual));mutate(visual);assert.equal(check(visual),false);
 }
