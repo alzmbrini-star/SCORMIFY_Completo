@@ -394,3 +394,16 @@ nem altera estado lógico, histórico ou SCORM. Reset limpa seleção e destaque
 Visualizações didáticas mantêm sua lista existente e ganham o rótulo associado.
 Reabrir e salvar atualiza explicitamente runtimes reconhecidos, preservando o
 plano original. HTML arbitrário sem metadados não ganha nomes inventados.
+
+Guiado/process-demo: revisão editorial é orientação, não veto. Após a tentativa
+de melhoria, conserva-se uma cena que passou no contrato técnico, mesmo se a
+revisão semântica continuar apontando problemas ou estiver indisponível. A prévia
+leva visualNotice explícito, consultável na cena, e NÃO é marcada como certificada.
+Um reparo inválido não elimina a última candidata tecnicamente válida. Sem nenhuma
+candidata válida, o diagrama temporário continua identificado como não ilustrativo.
+Referências, tipos, limites, renderização finita e reação aos controles continuam
+obrigatórios. Demonstrações não exigem composição em grupos nem seis formas.
+Desafios Aplicado/Avançado mantêm seus critérios existentes.
+Demonstrações com até dois controles usam palco aberto e comandos inferiores,
+inclusive ao reabrir preferências antigas scene-led, sem reescrever o modelo.
+As ilustrações continuam autoradas para cada assunto, não roteadas por templates.

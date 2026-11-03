@@ -84,10 +84,24 @@ class VisualFidelity(unittest.TestCase):
         self.assertTrue(review['json_schema']['strict'])
         self.assertIsNone(format_for_stage('other','model','-scene',data,{}))
 
-    def test_failed_review_is_never_silently_approved_as_an_illustration(self):
+    def test_editorial_rejection_keeps_a_technical_preview_with_explicit_warning(self):
         (visual,notice),calls=self.run_generation([scene(False),rejection(),scene(False),rejection()])
-        self.assertIsNone(visual);self.assertIn('diagrama conceitual',notice)
+        self.assertIsNotNone(visual);self.assertIn('não certificada',notice);self.assertIn('Círculos lisos',notice)
         self.assertEqual(len(calls),4)
+
+    def test_valid_first_preview_survives_broken_repair_but_invalid_art_never_passes(self):
+        (visual,notice),_=self.run_generation([scene(True),rejection(),'invalid json'])
+        self.assertIsNotNone(visual);self.assertIn('revisão do autor',notice)
+        (visual,notice),_=self.run_generation(['invalid json','invalid json'])
+        self.assertIsNone(visual);self.assertIn('tecnicamente válida',notice)
+
+    def test_one_recognizable_shape_can_demonstrate_a_guided_process(self):
+        raw={'version':1,'title':'Mudança ilustrativa','description':'Observe o deslocamento.','background':'#edf4fa',
+             'nodes':[{'id':'body','type':'path','label':'Peça em deslocamento','attrs':{'d':'M0 0 L40 0 L20 30 Z','fill':'#398bd5'},
+                       'parent':'moving'}, {'id':'moving','type':'group','label':'Movimento','attrs':{'x':100,'y':100},
+                       'bindings':[{'property':'x','var':'etapa','input':[0,2],'output':[100,300]}]}]}
+        raw['nodes'].reverse()
+        self.assertEqual(len(validate_visual(raw,validate_rules(process_demo()))['nodes']),2)
 
     def test_artwork_fixture_has_supported_geometry_without_new_theme_primitives(self):
         visual=validate_visual(scene(True),validate_rules(process_demo()))

@@ -24,6 +24,7 @@ export function ruleVisualRuntime() {
   var title=svg('title'),desc=svg('desc');title.textContent=authored?visual.title:'Mapa visual dos estados';desc.textContent=authored?visual.description:((data.visualNotice||'')+' Diagrama conceitual: as formas mostram os estados reais e suas mudanças. Não é uma representação física do ambiente.').trim();picture.appendChild(title);picture.appendChild(desc);picture.setAttribute('aria-label',title.textContent);figure.dataset.visualDescription=desc.textContent;
   picture.style.background=authored?color(visual.background):'#102a43';picture.style.fontFamily='system-ui,sans-serif';figure.appendChild(picture);
   var caption=node('figcaption');caption.className='sim-visual-caption';figure.appendChild(caption);anchor.parentNode.insertBefore(figure,anchor);
+  if(data.visualNotice){var warning=node('details');warning.className='sim-visual-warning';warning.style.cssText='flex-shrink:0;font:13px/1.4 system-ui,sans-serif;color:#10243b;background:#fff4d6;border:1px solid #b88c34;border-radius:6px;padding:4px 8px;margin:4px 0';warning.appendChild(node('summary',authored?'Prévia com observações para o autor':'Ilustração indisponível — ver motivo'));warning.appendChild(node('p',data.visualNotice));figure.appendChild(warning);}
   var teaching=authored&&visual.teaching&&visual.teaching.version===1?visual.teaching:null;
   var explanation=null,guide=null,previousState=null;
   if(teaching){

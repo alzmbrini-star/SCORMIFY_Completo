@@ -82,5 +82,23 @@ class DemoVisualRefinement(unittest.TestCase):
         self.assertEqual(len(messages),2);self.assertIn('processDemonstration',messages[0])
         self.assertIn('não a uma cota artificial',messages[0]['finishRequirements'])
 
+    def test_editorial_observations_do_not_block_refinement_of_safe_demo(self):
+        from services.simulator_visual_refinement import refine_visual
+        from services.component_authoring import stored_model
+        model=pump_model()
+        class Chat:
+            def __init__(self,**kwargs):self.system=kwargs['system_message']
+            def with_model(self,*args):return self
+            def with_params(self,**kwargs):return self
+            async def send_message(self,message):
+                if 'FIDELIDADE VISUAL' in self.system:return json.dumps({'approved':False,'summary':'Melhorar a composição.','issues':[{'nodes':['reservoir1'],'problem':'Detalhes ilustrativos ainda simples.','correction':'Melhorar o contorno.'}]})
+                return json.dumps(pump_scene())
+        with patch('services.llm_config.simulator_generation_config',return_value=('openai','test','model')),patch('emergentintegrations.llm.chat.LlmChat',Chat):
+            result=asyncio.run(refine_visual(json.dumps(model),'Refinar paisagem','Curso','guided','illustrated'))
+        final=stored_model(result['html'])
+        self.assertIn('não certificada',final['visualNotice'])
+        self.assertIn('sim-visual-warning',result['html'])
+        for field in ('variables','actions','goal','failure'):self.assertEqual(final[field],model[field])
+
 
 if __name__=='__main__':unittest.main()

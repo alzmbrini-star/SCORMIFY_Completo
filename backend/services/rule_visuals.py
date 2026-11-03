@@ -133,9 +133,9 @@ def validate_visual(raw, spec):
     result={'version':VERSION,'title':_text(raw.get('title'),100),'description':_text(raw.get('description'),600),
             'background':_color(raw.get('background')),'nodes':[]}
     if result['background']=='none':raise ValueError('Defina fundo opaco para contraste')
-    rows=raw.get('nodes')
-    if not isinstance(rows,list) or not 6<=len(rows)<=100:raise ValueError('Cena precisa de 6 a 100 formas/objetos')
     demo=spec.get('didacticMode')=='process-demo-v1'
+    rows=raw.get('nodes')
+    if not isinstance(rows,list) or not (1 if demo else 6)<=len(rows)<=100:raise ValueError('Cena precisa de 1 a 100 formas/objetos' if demo else 'Cena precisa de 6 a 100 formas/objetos')
     variables={v['id']:v for v in spec['variables']};ids=set(variables);seen={};dynamic=set();geometric=0;appearance=0
     changed=set().union(*(set(a['effects']) for a in spec['actions']))
     # Report independent schema faults together before charging an art repair.
@@ -229,7 +229,7 @@ def validate_visual(raw, spec):
             return sum((1 if n['type'] not in {'group','text'} else 0)+(descendants(n['id']) if n['type']=='group' else 0) for n in children)
         assembled=any(n['type']=='group' and descendants(n['id'])>=3 for n in result['nodes'])
         detailed_path=any(n['type']=='path' and len(re.findall(r'[-+]?(?:\d*\.)?\d+',n['attrs']['d']))>=30 for n in result['nodes'])
-        if not assembled and not detailed_path:
+        if not demo and not assembled and not detailed_path:
             raise ValueError('Ilustração contextualizada precisa de objetos reconhecíveis e compostos, não boneco feito só de retângulo/círculo. Desenvolva o cenário do plano pedagógico; mantenha os controles e a lógica.')
         reactive=[]
         for n in result['nodes']:
@@ -440,6 +440,7 @@ async def generate_visual(data,prompt,context,session_id,provider,key,model):
         visual_prompt=visual_prompt.replace('Use 15..70 formas,','Use apenas as formas necessárias para representar os objetos pedidos com clareza,')
         request['processDemonstration']='Foco no processo geral e realismo ilustrativo, não precisão científica. Use objetos reconhecíveis, proporções visuais plausíveis, camadas de ambiente, contornos, materiais e luz/sombra suaves. Preserve as etapas pedidas e sua legibilidade. Não invente métricas nem exija equações, medições, tolerâncias de engenharia ou calibração física. Um só estado de etapa pode controlar várias peças por predicados/visibilidade.'
         if 'finishRequirements' in request:request['finishRequirements']='Componha objetos reconhecíveis com detalhes funcionais e ambiente pertinente. Use materiais, contornos, volume e iluminação suaves. A quantidade de formas deve servir ao desenho, não a uma cota artificial de peças ou grupos. Não substitua equipamentos por cartões de métricas nem acrescente decoração inútil. Simplificação científica não significa arte inacabada.'
+    candidate=None;editorial_note=''
     for attempt in range(2):
         response=''
         try:
@@ -453,6 +454,9 @@ async def generate_visual(data,prompt,context,session_id,provider,key,model):
             issues=illustration_detail_issues(visual,data)
             if issues:raise ValueError('; '.join(issues))
             if data.get('didacticMode')=='process-demo-v1':
+                # Structural validation already guarantees a bounded, executable
+                # scene. Editorial judgement may improve it, not erase it.
+                candidate=visual
                 # Review identity/relationships, not arbitrary shape counts or
                 # engineering accuracy. Labels alone cannot prove the geometry.
                 from services.visual_teaching import validate_review
@@ -472,6 +476,7 @@ async def generate_visual(data,prompt,context,session_id,provider,key,model):
                 review_raw=json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',str(review_response).strip(),flags=re.I))
                 review=validate_review(review_raw,visual)
                 if not review['approved']:
+                    editorial_note='; '.join(issue['problem'] for issue in review['issues'])
                     raise ValueError('Fidelidade visual ao pedido: '+json.dumps(review['issues'],ensure_ascii=False))
             return visual,''
         except Exception as exc:
@@ -479,7 +484,9 @@ async def generate_visual(data,prompt,context,session_id,provider,key,model):
             record_attempt(str(response),dict(data,mechanic='finite-rules-v1'),[{'issue':error,'context':'Cena visual; lógica preservada','action':'Corrigir apenas as formas e os vínculos visuais'}],error=error)
             request.update(previousScene=str(response)[:35000],repairError=error,
                            repairInstruction='Corrija concretamente os objetos/atributos identificados no erro, não repita a cena anterior sem mudar. Retorne a cena JSON completa preservando os IDs das variáveis do modelo.')
-    return None,'A cena ilustrada não pôde ser validada. Exibindo diagrama conceitual dos estados; regras preservadas.'
+    if candidate is not None:
+        return candidate,('Prévia ilustrativa disponível para revisão do autor; não certificada pela revisão editorial. '+(editorial_note or 'A revisão editorial não pôde ser concluída.'))[:500]
+    return None,'Não foi possível obter uma cena tecnicamente válida; diagrama conceitual temporário, não é a ilustração solicitada. Regras preservadas.'
 
 
 def upgrade_visual_document(document):

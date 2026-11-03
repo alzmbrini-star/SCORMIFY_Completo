@@ -31,4 +31,5 @@ async def refine_visual(source,prompt,context,complexity='advanced',visual_style
         raise ValueError('O refino visual não foi aprovado. '+reason+' As regras e a prévia anterior foram preservadas. Nenhuma substituição foi aplicada.')
     data.pop('_refinementVisual',None)
     data['visual']=visual
+    if notice:data['visualNotice']=notice
     return {'html':render_rules(data)}

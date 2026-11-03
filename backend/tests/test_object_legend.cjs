@@ -6,10 +6,12 @@ from tests.test_visual_fidelity import scene
 from services.rule_simulators import validate_rules,render_rules
 from services.simulator_experience import normalize_experience,options
 p=validate_rules(process_demo());p['visual']=scene(True);p['visual']['nodes'][0]['label']='Peça principal';p['visual']['nodes'][0]['explanation']='Recebe o movimento ilustrativo.'
-p['experience']=normalize_experience({},p,options());print(render_rules(p))`],{cwd:backend,env:{...process.env,PYTHONIOENCODING:'utf-8',PYTHONPATH:backend+';'+path.join(backend,'tests')},maxBuffer:5000000}).toString();
+p['experience']=normalize_experience({},p,options());p['experience']['composition']='scene-led';print(render_rules(p))`],{cwd:backend,env:{...process.env,PYTHONIOENCODING:'utf-8',PYTHONPATH:backend+';'+path.join(backend,'tests')},maxBuffer:5000000}).toString();
 async function main(){const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(String(e)));
  const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,virtualConsole:vc,beforeParse(w){w.matchMedia=()=>({matches:true});}}),d=dom.window.document;
  await new Promise(r=>setTimeout(r,40));const state=d.getElementById('scormify-rule-view').textContent;
+ assert.ok(d.body.classList.contains('sim-comp-immersive'),'simple legacy demos are not locked into a side panel');
+ assert.equal(JSON.parse(d.getElementById('scormify-simulator-plan').textContent).experience.composition,'scene-led','presentation never rewrites model preferences');
  const trigger=[...d.querySelectorAll('button')].find(b=>b.textContent==='Objetos e legendas');assert.ok(trigger);trigger.click();
  const panel=d.querySelector('.sim-object-legend');assert.equal(panel.hidden,false);
  assert.equal(panel.closest('#sim-slide-sources'),null,'legend survives slide-shell source relocation');

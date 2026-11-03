@@ -52,7 +52,7 @@ def scene_schema(ids,actions,demo=False):
     link=obj({'node':string(),'var':{'type':'string','enum':ids},'whatChanges':string(180),'whyItMatters':string(240)})
     teaching=obj({'version':{'type':'integer','enum':[1]},'focus':string(220),'readScene':string(700),'links':array(link,2,4)})
     result=obj({'version':{'type':'integer','enum':[1]},'title':string(100),'description':string(600),
-        'background':{'type':'string','pattern':'^#[0-9a-fA-F]{6}$'},'nodes':array({'anyOf':variants},6,100),'teaching':{'type':'null'} if demo else teaching})
+        'background':{'type':'string','pattern':'^#[0-9a-fA-F]{6}$'},'nodes':array({'anyOf':variants},1 if demo else 6,100),'teaching':{'type':'null'} if demo else teaching})
     if demo:
         motion=obj({'node':string(32),'kind':{'type':'string','enum':['orbit','rotate','translate']},
                     'cx':{'type':'number','minimum':-800,'maximum':1600},'cy':{'type':'number','minimum':-450,'maximum':900},
