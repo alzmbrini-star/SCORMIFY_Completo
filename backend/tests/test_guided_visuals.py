@@ -66,6 +66,19 @@ class GuidedVisuals(unittest.TestCase):
         result=merge_repair(old,proposed,['subject'])
         self.assertEqual(result['nodes'][0],old['nodes'][0]);self.assertEqual(result['nodes'][1]['attrs']['fill'],'#ff0000')
 
+    def test_environment_can_precede_subject_and_background_need_not_differ_from_canvas(self):
+        p=plan(self.samples)
+        p['objects'].append(dict(id='sky',label='Ambiente',layer='background',features=['Fundo'],explanation='Contexto.',alwaysVisible=True))
+        p['moments'][0]['visibleObjects']=['sky']
+        for m in p['moments'][1:]:m['visibleObjects'].append('sky')
+        scene=art();scene['nodes'][0]['visibleWhen']={'op':'gt','args':[{'var':'etapa'},0]}
+        scene['nodes'].insert(0,dict(id='sky',type='rect',label='Ambiente',attrs=dict(x=0,y=0,width=800,height=450,fill=scene['background'])))
+        self.assertEqual(validate_plan(p,self.samples),p)
+        report,_=inspect_frames(validate_visual(scene,self.data),p,self.samples)
+        self.assertTrue(has_observable_scene(report,p))
+        self.assertFalse(any('sky' in issue['nodes'] for issue in report['issues']))
+        self.assertFalse(any('subject' in issue['nodes'] for issue in report['issues']))
+
     def run_pipeline(self,responses,prompt='Assunto inédito'):
         calls=[];data=copy.deepcopy(self.data)
         class Chat:
@@ -88,6 +101,21 @@ class GuidedVisuals(unittest.TestCase):
             self.assertIn('PLANO VISUAL GUIADO',calls[0]['system']);self.assertEqual(calls[1]['payload']['compositionPlan']['setting'],title)
             self.assertIsNotNone(calls[2]['message'].file_contents);self.assertGreater(len(calls[2]['message'].file_contents[0].data),1000)
             self.assertEqual(len(calls[2]['payload']['executedSamples']),3)
+
+    def test_refinement_planner_receives_existing_art_before_assigning_object_ids(self):
+        self.data['_refinementVisual']=validate_visual(art(),self.data)
+        (_,notice),calls=self.run_pipeline([plan(self.samples),art(),{'approved':True,'summary':'Cena contextual.','issues':[]}])
+        self.assertFalse(notice)
+        self.assertEqual(calls[0]['payload']['existingScene'],self.data['_refinementVisual'])
+
+    def test_equivalent_object_ids_do_not_overrule_approved_image_review(self):
+        p=plan(self.samples)
+        p['objects'].append(dict(id='water',label='Água',layer='background',features=['Superfície'],explanation='Contexto visual.',alwaysVisible=True))
+        for m in p['moments']:m['visibleObjects'].append('water')
+        scene=art();scene['nodes'].insert(0,dict(id='water_body',type='rect',label='Corpo de água',attrs=dict(x=0,y=350,width=800,height=100,fill='#258bcb')))
+        (visual,notice),calls=self.run_pipeline([p,scene,{'approved':True,'summary':'Água e objeto visíveis.','issues':[]}])
+        self.assertIsNotNone(visual);self.assertFalse(notice);self.assertEqual(len(calls),3)
+        self.assertTrue(calls[2]['payload']['pixelReport']['issues'][0]['advisory'])
 
     def test_empty_stage_is_repaired_before_review_not_accepted_with_warning(self):
         broken=art();broken['nodes'][0]['attrs']['opacity']=0

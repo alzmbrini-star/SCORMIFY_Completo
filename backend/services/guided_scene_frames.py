@@ -82,11 +82,12 @@ def _different(a,b):
 def has_observable_scene(report,plan):
     """A missing detail is repair advice, not grounds to throw away a scene.
 
-    Keep an actual main object in every sampled frame. A named but invisible
-    subject, background-only composition or empty stage is still not usable.
+    A process may start with its environment before its subject appears.
+    Require an observable illustration and subject somewhere in the sequence,
+    not every object in every frame. Editorial details are handled by review.
     """
     subjects={o['id'] for o in plan['objects'] if o['layer']=='subject'}
-    return bool(report.get('samples')) and all(
+    return bool(report.get('samples')) and any(
         any(row.get('visiblePixels',{}).get(key,0)>=12 for key in subjects)
         for row in report['samples'])
 
@@ -96,25 +97,27 @@ def inspect_frames(visual,plan,samples):
     definitions={n['id']:n for n in visual['nodes']};issues=[];reports=[];frames=[]
     objects={o['id']:o for o in plan['objects']}
     for key in objects:
-        if key not in definitions:issues.append({'nodes':[],'problem':'Objeto planejado ausente: '+key,'correction':'Inclua o objeto com este ID e suas características previstas.'})
+        if key not in definitions:issues.append({'nodes':[],'advisory':True,'problem':'ID do plano sem correspondência exata: '+key,'correction':'Confira na imagem se já há um objeto equivalente com outro ID antes de pedir alterações na arte.'})
     moments={m['sampleIndex']:m for m in plan['moments']}
     for sample in samples:
         i=sample['sampleIndex'];moment=moments[i];full=raster(visual,sample['state']);frames.append((i,full))
         contributions={}
-        expected=set(moment['visibleObjects'])|{o['id'] for o in plan['objects'] if o['alwaysVisible']}
+        # Explicit moments take precedence over contradictory AI-generated
+        # "alwaysVisible" flags (e.g. a cloud before condensation starts).
+        expected=set(moment['visibleObjects'])
         for key in expected:
             if key not in definitions:continue
             pixels=_different(full,raster(visual,sample['state'],omit=key));contributions[key]=pixels
-            if pixels<12:issues.append({'nodes':[key],'problem':f'Objeto essencial {key} não aparece de forma perceptível na amostra {i} ({pixels} pixels úteis).','correction':'Corrija visibilidade, tamanho, contraste, posição ou oclusão nesta etapa; preserve as regras.'})
+            if pixels<12 and objects[key]['layer']!='background':issues.append({'nodes':[key],'problem':f'Objeto previsto {key} não aparece de forma perceptível na amostra {i} ({pixels} pixels úteis).','correction':'Revise se o objeto deve aparecer nesta etapa e melhore a ilustração quando pertinente; preserve as regras.'})
         reports.append({'sampleIndex':i,'state':sample['state'],'visiblePixels':contributions})
     # Also inspect authored continuous motion phases, without advancing rules.
     if visual.get('motions'):
         for sec in (3,6):
             full=raster(visual,samples[0]['state'],seconds=sec);frames.append(('movimento '+str(sec)+'s',full));contributions={}
             for key,o in objects.items():
-                if not o['alwaysVisible'] or key not in definitions:continue
+                if not o['alwaysVisible'] or key not in definitions or key not in moments[0]['visibleObjects']:continue
                 pixels=_different(full,raster(visual,samples[0]['state'],seconds=sec,omit=key));contributions[key]=pixels
-                if pixels<12:issues.append({'nodes':[key],'problem':f'Objeto permanente {key} desaparece no movimento em {sec}s.','correction':'Ajuste trajetória, pivô, posição ou contraste sem alterar as regras.'})
+                if pixels<12 and o['layer']!='background':issues.append({'nodes':[key],'problem':f'Objeto permanente {key} desaparece no movimento em {sec}s.','correction':'Ajuste trajetória, pivô, posição ou contraste sem alterar as regras.'})
             reports.append({'sampleIndex':0,'timeSeconds':sec,'state':samples[0]['state'],'visiblePixels':contributions})
     if not issues and len(frames)>1 and not any(_different(frames[0][1],im)>=20 for _,im in frames[1:]):
         issues.append({'nodes':[],'problem':'As etapas e movimentos renderizados são visualmente indistinguíveis.','correction':'Mostre a mudança do processo nos objetos, não só no texto ou em números.'})

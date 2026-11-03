@@ -21,6 +21,10 @@ representar uma fase. Os objetos da camada subject precisam ser grandes e legív
 Simplifique ciência/medidas; não invente números, efeitos, variáveis ou controles.
 Um fenômeno que ainda não começou pode não estar visível, mas o ambiente e os
 objetos que o explicam precisam estar. Não imponha fracasso nem precisão física.'''
+PLAN_PROMPT+='''\nNo refino, existingScene contém a arte já existente: reutilize seus IDs para os
+mesmos objetos em vez de inventar sinônimos (um ID não prova nem nega a aparência).
+alwaysVisible só é true se o objeto aparecer em TODOS os moments; fenômenos podem
+surgir mais tarde. A abertura pode mostrar o ambiente antes do fenômeno principal.'''
 
 
 def plan_schema(samples):
@@ -60,9 +64,6 @@ def validate_plan(raw,samples):
         if type(index) is not int or index not in range(len(samples)) or index in seen:raise ValueError('Amostra visual repetida ou inexistente')
         if not isinstance(visible,list) or not visible or any(not isinstance(k,str) or k not in ids for k in visible):raise ValueError('Momento cita objeto não planejado')
         seen.add(index);result['moments'].append(dict(sampleIndex=index,visibleObjects=list(dict.fromkeys(visible)),change=text(row['change'],300)))
-    initial=next(m for m in result['moments'] if m['sampleIndex']==0)
-    if not any(o['layer']=='subject' and (o['alwaysVisible'] or o['id'] in initial['visibleObjects']) for o in result['objects']):
-        raise ValueError('A cena inicial precisa apresentar um objeto principal, não apenas o fundo')
     return result
 
 
@@ -117,12 +118,13 @@ async def generate_guided_visual(data,prompt,context,session_id,provider,key,mod
     source={k:v for k,v in data.items() if k not in {'checks','verification','visual','visualProject','visualNotice','template','mechanic','_refinementVisual'}}
     samples=sample_states(data)
     request={'request':prompt[:4000],'courseContext':context[:5000],'model':source,'executedSamples':samples}
+    if data.get('_refinementVisual'):request['existingScene']=data['_refinementVisual']
     try:plan=await plan_scene(ask,request,samples)
     except Exception as exc:
         record_attempt('',dict(data,mechanic='finite-rules-v1'),[],error=str(exc))
         return None,'O planejamento da ilustração não foi concluído. Regras preservadas; nenhuma arte nova foi certificada.'
     request['compositionPlan']=plan
-    request['sceneInstructions']='Desenhe cada objeto planejado com seu MESMO id, como group ou forma não textual. Respeite a ordem de camadas; detalhes podem ter IDs próprios. Construa as características visuais previstas, ambiente e materiais, não uma lista de elipses sem relação. O renderizador testará a contribuição visível de cada objeto em cada amostra. Nunca esconda o cenário inteiro. Preserve todos os estados e regras do modelo. O plano não autoriza precisão científica inventada.'
+    request['sceneInstructions']='Priorize a qualidade da ilustração e a compreensão visual do mecanismo: cenário contextual, silhuetas reconhecíveis, profundidade, materiais e luz coerentes. Não reduza o cenário a fundo chapado e elipses quando o assunto pede formas compostas. Reutilize os IDs existentes dos mesmos objetos no refino; detalhes podem ter IDs próprios. Os momentos orientam o processo, não exigem todos os objetos ao mesmo tempo. O renderizador fornece imagens para revisão do acabamento. Nunca esconda o cenário inteiro. Preserve todos os estados e regras do modelo. O plano não autoriza precisão científica inventada.'
     request['geometryBudget']='Canvas800x450, até100 nós, path até1600 caracteres, polygon até40 pontos. Camadas com parent de group e coordenadas locais. Textos curtos; explicações ficam fora da arte. Arte original para este assunto, não template. O acabamento deve ser ilustrativo e bem composto, não fotográfico.'
     if data.get('_refinementVisual'):request['existingScene']=data['_refinementVisual']
     art_prompt=VISUAL_PROMPT.replace('Representar >=2 variáveis afetadas por ações, com >=1 alteração de geometria/movimento.','Uma etapa/variável pode controlar várias partes por estados, movimento, aparência ou visibilidade.').replace('A cena deve mudar tanto na trajetória de sucesso quanto negativa.','Demonstre o processo sem exigir fracasso nem física exata.').replace('Use 15..70 formas,','Use as formas úteis ao plano,')
@@ -134,7 +136,12 @@ legítima de um fenômeno numa etapa inicial com defeito; consulte visibleObject
 O mosaico mostra SVG projetado antes do acabamento cosmético de volume do navegador,
 não a interface de botões nem uma certificação científica. Reprove fundo vazio,
 objetos ocultos ou arte incompatível com as características planejadas. Corrija
-IDs concretos; nodes=[] significa composição global, não erro no motor lógico.'''
+IDs concretos; nodes=[] significa composição global, não erro no motor lógico.
+Priorize clareza visual, qualidade da composição e reconhecimento do mecanismo.
+Diferenças de IDs entre plano e arte são observações administrativas: se o objeto
+equivalente é visível nas imagens, não reprove nem peça redesenho por seu nome.
+O ambiente pode aparecer antes das nuvens, chuva ou outros fenômenos. Não imponha
+precisão científica, números ou presença simultânea de todas as fases.'''
     candidate=None;last_report=None;targets=[];previous=None;note='';last_error=''
     for attempt in range(2):
         raw=None;picture=None;report=None
@@ -156,7 +163,9 @@ IDs concretos; nodes=[] significa composição global, não erro no motor lógic
             review=validate_review(await ask('-guided-review-'+str(attempt),review_prompt,
                 {'request':prompt[:4000],'compositionPlan':plan,'scene':visual,'model':source,'executedSamples':projections,'pixelReport':report},
                 2800,75,picture=picture),visual)
-            issues=report['issues']+review['issues']
+            # Art/teaching review drives the repair, rather than exact planner
+            # identifiers or per-frame pixel counts dominating its direction.
+            issues=review['issues']+[i for i in report['issues'] if not i.get('advisory')]
             if issues or not review['approved']:
                 note='; '.join(i['problem'] for i in issues)
                 targets=list(dict.fromkeys(n for issue in issues for n in issue['nodes']))
