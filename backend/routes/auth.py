@@ -339,6 +339,7 @@ async def google_auth(request: Request, response: Response):
             "picture": picture,
             "companyId": None,  # No company until assigned
             "role": "editor",  # Default role
+            "permissions": {"createSimulators": False},
             "isActive": True,
             "createdAt": now_utc(),
             "updatedAt": now_utc()

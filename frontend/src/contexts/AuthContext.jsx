@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getApiUrl } from '../utils/apiUrl';
+import { canCreateSimulators } from '../utils/simulatorPermission';
 
 const API_URL = getApiUrl();
 const TOKEN_KEY = 'scormify_auth_token';
@@ -195,6 +196,7 @@ export function AuthProvider({ children }) {
     hasPermission,
     hasRole,
     checkAuth,
+    canCreateSimulators: canCreateSimulators(user),
     isAuthenticated: !!user,
     isSuperAdmin: (user?.roles || [user?.role]).includes('super_admin'),
     isCompanyAdmin: (user?.roles || [user?.role]).includes('company_admin') || (user?.roles || [user?.role]).includes('super_admin'),

@@ -44,6 +44,8 @@ async def component_catalog(user: dict = Depends(require_auth)):
 
 @router.post('/components/preview')
 async def preview_components(body: 'ComponentRequest', user: dict = Depends(require_auth)):
+    from services.simulator_permissions import require_simulators
+    require_simulators(user)
     from services.component_authoring import compose
     try:
         return await asyncio.to_thread(compose, body.sourceSimulator, body.visualProject)
@@ -53,6 +55,8 @@ async def preview_components(body: 'ComponentRequest', user: dict = Depends(requ
 
 @router.post('/components/sessions/{session_id}')
 async def save_components(session_id: str, body: 'SaveComponentRequest', user: dict = Depends(require_auth)):
+    from services.simulator_permissions import require_simulators
+    require_simulators(user)
     from services.component_authoring import read_model, stored_model, same_rules, compose
     owner = _owner(user)
     session = await db.agent_sessions.find_one({'id': session_id, 'userId': owner})
@@ -94,6 +98,8 @@ def _public(job):
 
 
 async def _generate_with_diagnostics(request, user, diagnostic):
+    from services.simulator_permissions import simulator_request,require_simulators
+    if simulator_request(request):require_simulators(user)
     from services.simulator_diagnostics import editor_attempts
     with editor_attempts(diagnostic):
         if request.get('sourceSimulator'):
@@ -143,6 +149,8 @@ async def _run(job_id, owner, request, user):
 
 @router.post('', status_code=202)
 async def start_html_job(body: HtmlJobRequest, tasks: BackgroundTasks, user: dict = Depends(require_auth)):
+    from services.simulator_permissions import simulator_request,require_simulators
+    if simulator_request(body.model_dump()):require_simulators(user)
     owner = _owner(user)
     if body.projectId:
         await load_authorized_project(body.projectId, user)

@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useProject } from '../contexts/ProjectContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { authHeaders } from '../contexts/AuthContext';
+import { authHeaders, useAuth } from '../contexts/AuthContext';
+import { isSimulatorRequest } from '../utils/simulatorPermission';
 import { resolveAssetUrls } from '../utils/htmlUtils';
 import { isSlideSimulator, upgradeSimulatorSlide } from '../utils/simulatorSlide';
 import { refreshSimulatorPresentation, simulatorEditPatch, simulatorPreferences } from '../utils/simulatorEditing';
@@ -162,6 +163,7 @@ import {
 } from './Editor/dialogs';
 
 export default function Editor() {
+  const { canCreateSimulators } = useAuth();
   const { projectId } = useParams();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
@@ -999,6 +1001,9 @@ export default function Editor() {
     } catch(err) { toast.error(err.message || 'Não foi possível abrir o HTML. O original foi preservado.'); }
   };
   const handleAddHtml = async () => {
+    if (!canCreateSimulators && !simulatorEditTarget && isSlideSimulator(htmlConfig.content)) {
+      toast.error('A criação de simuladores não está habilitada para seu usuário.');return;
+    }
     if (!htmlConfig.content) {
       toast.error('Por favor, insira o código HTML');
       return;
@@ -1041,6 +1046,10 @@ export default function Editor() {
   // Generate HTML with AI
   const handleGenerateHtmlAI = async (visualSource = '') => {
     if (aiHtmlLoading) return;
+    if (!canCreateSimulators && isSimulatorRequest(aiHtmlPrompt, simulatorOptions.activityType, typeof visualSource === 'string' ? visualSource : '')) {
+      toast.error('A criação de simuladores não está habilitada para seu usuário. Solicite à Administração.');
+      return;
+    }
     const refining = typeof visualSource === 'string' && !!visualSource.trim();
     let sourceSimulator = '';
     if (refining) {
@@ -1101,6 +1110,9 @@ export default function Editor() {
 
   // Insert AI-generated HTML
   const handleInsertAiHtml = async () => {
+    if (!canCreateSimulators && !simulatorEditTarget && isSlideSimulator(aiHtmlResult)) {
+      toast.error('A criação de simuladores não está habilitada para seu usuário.');return;
+    }
     if (!aiHtmlResult) {
       toast.error('Nenhum HTML gerado para inserir');
       return;
@@ -2568,6 +2580,7 @@ export default function Editor() {
         />
 
         <HtmlDialog
+          canCreateSimulators={canCreateSimulators}
           open={showHtmlDialog} onOpenChange={open => { if (!aiHtmlLoading) setShowHtmlDialog(open); }}
           editingSimulator={!!simulatorEditTarget} onDownloadHtml={downloadSimulatorHtml} onLoadHtml={loadSimulatorHtml}
           htmlConfig={htmlConfig} setHtmlConfig={setHtmlConfig}

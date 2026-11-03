@@ -641,6 +641,7 @@ class User(BaseModel):
     
     # Role within company: 'super_admin', 'company_admin', 'editor', 'aprovador'
     role: str = "editor"
+    permissions: Dict[str, bool] = Field(default_factory=lambda: {"createSimulators": True})
     
     # Password hash (for email/password auth)
     passwordHash: Optional[str] = None
@@ -657,12 +658,14 @@ class UserCreate(BaseModel):
     password: Optional[str] = None  # Optional for Google OAuth users
     companyId: str
     role: str = "editor"  # 'company_admin' or 'editor'
+    permissions: Dict[str, bool] = Field(default_factory=lambda: {"createSimulators": False})
 
 class UserUpdate(BaseModel):
     """Update user"""
     name: Optional[str] = None
     role: Optional[str] = None
     isActive: Optional[bool] = None
+    permissions: Optional[Dict[str, bool]] = None
 
 class UserSession(BaseModel):
     """User session for auth"""

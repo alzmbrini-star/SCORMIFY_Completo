@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { getApiUrl } from '../../../utils/apiUrl';
-import { authHeaders } from '../../../contexts/AuthContext';
+import { authHeaders, useAuth } from '../../../contexts/AuthContext';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Textarea } from '../../../components/ui/textarea';
@@ -36,6 +36,10 @@ const TEMPLATE_ICONS = {
 };
 
 export default function ConfigPanel({ config, setConfig, analysis, loading, onGenerate, templates, selectedTemplate, setSelectedTemplate, designTemplates, selectedDesignTemplate, setSelectedDesignTemplate }) {
+  const { canCreateSimulators } = useAuth();
+  useEffect(() => {
+    if (!canCreateSimulators && config.enabledResources?.simulator) setConfig(previous => ({...previous, enabledResources: {...previous.enabledResources, simulator: false}}));
+  }, [canCreateSimulators, config.enabledResources?.simulator, setConfig]);
   const update = (k, v) => setConfig(prev => ({ ...prev, [k]: v }));
   const [elVoices, setElVoices] = useState([]);
   const [loadingVoices, setLoadingVoices] = useState(false);
@@ -246,8 +250,8 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
           </CardContent>
         </Card>
 
-        <SimulatorExperienceOptions complexity={config.simulatorComplexity || 'guided'} visualStyle={config.simulatorVisualStyle || 'illustrated'} disabled={loading}
-          activityType={config.simulatorActivityType || 'simulation'} onChange={({ complexity, visualStyle, activityType }) => setConfig(previous => ({ ...previous, simulatorComplexity: complexity, simulatorVisualStyle: visualStyle, simulatorActivityType: activityType }))} />
+        {canCreateSimulators ? <SimulatorExperienceOptions complexity={config.simulatorComplexity || 'guided'} visualStyle={config.simulatorVisualStyle || 'illustrated'} disabled={loading}
+          activityType={config.simulatorActivityType || 'simulation'} onChange={({ complexity, visualStyle, activityType }) => setConfig(previous => ({ ...previous, simulatorComplexity: complexity, simulatorVisualStyle: visualStyle, simulatorActivityType: activityType }))} /> : <p role="note" className="text-sm text-amber-400">Criação de simuladores desabilitada pela Administração para seu usuário.</p>}
 
         {/* Resource Balance Config */}
         <Card className="bg-slate-900/50 border-slate-800" data-testid="resource-balance-card">
@@ -281,7 +285,7 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
                           alta: { quiz: true, game: true, simulator: true, scenario: true, avatar_scene: true, infographic: true, flashcard: true, timeline: true, case_study: true },
                           maxima: { quiz: true, game: true, simulator: true, scenario: true, avatar_scene: true, infographic: true, flashcard: true, timeline: true, case_study: true },
                         };
-                        update('enabledResources', presets[level.id]);
+                        update('enabledResources', {...presets[level.id], simulator: canCreateSimulators && presets[level.id].simulator});
                       }}
                       className={`p-2.5 rounded-lg border text-center transition-all ${
                         selected
@@ -313,11 +317,14 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
                   { id: 'case_study', label: 'Estudos de Caso', icon: BriefcaseBusiness, desc: 'Casos reais com analise', color: 'text-orange-400' },
                   { id: 'avatar_scene', label: 'Cenas com Avatar', icon: UserCircle, desc: 'Avatar IA apresentando', color: 'text-pink-400' },
                 ].map(res => {
-                  const enabled = config.enabledResources?.[res.id] ?? false;
+                  const blocked = res.id === 'simulator' && !canCreateSimulators;
+                  const enabled = !blocked && (config.enabledResources?.[res.id] ?? false);
                   const Icon = res.icon;
                   return (
                     <button
                       key={res.id}
+                      disabled={blocked}
+                      title={blocked ? 'Solicite a permissão Criar simuladores à Administração' : undefined}
                       onClick={() => {
                         const updated = { ...config.enabledResources, [res.id]: !enabled };
                         update('enabledResources', updated);

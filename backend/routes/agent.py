@@ -323,6 +323,8 @@ async def generate_html_with_ai(
     is_case_study = activity == 'case-study'
     is_simulator = activity in {'simulation','visualization'}
     if is_simulator:
+        from services.simulator_permissions import require_simulators
+        require_simulators(_user)
         from services.llm_config import simulator_generation_config
         try:
             provider, api_key, model = simulator_generation_config()
@@ -812,13 +814,15 @@ async def agent_analyze(session_id: str, background_tasks: BackgroundTasks, forc
     return {"status": "processing", "message": "Analise iniciada em segundo plano..."}
 
 @router.post("/agent/sessions/{session_id}/configure")
-async def agent_configure(session_id: str, data: AgentConfigUpdate):
+async def agent_configure(session_id: str, data: AgentConfigUpdate, user: dict = Depends(require_agent_access)):
     """Set course configuration parameters."""
-    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    s = await _owned_diagnostic_session(session_id,user)
     if not s:
         raise HTTPException(404, "Session not found")
 
     config = data.model_dump(exclude_unset=True)
+    from services.simulator_permissions import restrict_config
+    config=restrict_config(config,user)
     await db.agent_sessions.update_one(
         {"id": session_id},
         {"$set": {"config": config, "step": "configured", "updatedAt": datetime.now(timezone.utc).isoformat()}}
@@ -826,9 +830,11 @@ async def agent_configure(session_id: str, data: AgentConfigUpdate):
     return {"status": "ok", "config": config}
 
 @router.post("/agent/sessions/{session_id}/generate-structure")
-async def agent_generate_structure(session_id: str, request: Request):
+async def agent_generate_structure(session_id: str, request: Request, user: dict = Depends(require_agent_access)):
     """Step 2: Generate course structure (async background to avoid 504 timeout)."""
-    s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
+    s = await _owned_diagnostic_session(session_id,user)
+    from services.simulator_permissions import restrict_config,restrict_structure
+    s['config']=restrict_config(s.get('config'),user)
     if not s:
         raise HTTPException(404, "Session not found")
 
@@ -845,7 +851,7 @@ async def agent_generate_structure(session_id: str, request: Request):
     # If already structured, return cached result (unless forced redo).
     if (not force and s.get("structure")
             and s.get("step") in ("structured", "storyboarded", "generated")):
-        return s["structure"]
+        return restrict_structure(s["structure"],user)
 
     # If already generating, check if stuck (> 3 min)
     if s.get("step") == "structuring":
@@ -886,6 +892,7 @@ async def agent_generate_structure(session_id: str, request: Request):
                     generate_structure(session_id, s["contentText"], s.get("config", {}))
                 )
 
+            structure=restrict_structure(structure,user)
             _bgdb = _get_bg_db()
             _bgdb.agent_sessions.update_one(
                 {"id": session_id},
@@ -911,6 +918,9 @@ async def agent_generate_structure(session_id: str, request: Request):
 async def agent_generate_storyboard(session_id: str, background_tasks: BackgroundTasks, force: bool = False, user: dict = Depends(require_agent_access)):
     """Step 3: Generate detailed storyboard (runs in thread pool to avoid blocking event loop)."""
     s = await _owned_diagnostic_session(session_id, user)
+    from services.simulator_permissions import restrict_config,restrict_structure
+    s['config']=restrict_config(s.get('config'),user)
+    s['structure']=restrict_structure(s.get('structure') or {},user)
     if not s:
         raise HTTPException(404, "Session not found")
     if not s.get("structure"):
@@ -1052,6 +1062,8 @@ class SimulatorDiagnosticRetry(BaseModel):
 
 @router.post('/agent/sessions/{session_id}/simulator-diagnostics/retry', status_code=202)
 async def retry_simulator_diagnostic(session_id: str, body: SimulatorDiagnosticRetry, user: dict = Depends(require_agent_access)):
+    from services.simulator_permissions import require_simulators
+    require_simulators(user)
     from services.simulator_diagnostics import simulator_sources
     session = await _owned_diagnostic_session(session_id, user)
     source = dict(simulator_sources(session)).get(body.slideIndex)

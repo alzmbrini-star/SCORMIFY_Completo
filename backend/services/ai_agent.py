@@ -677,6 +677,7 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
     if illustrated_journey:
         for required_type in ("game", "simulator", "scenario", "infographic", "quiz"):
             enabled[required_type] = True
+    if config.get('simulatorsAllowed') is False:enabled['simulator']=False
     enabled_types = [kind for kind in _PREMIUM_EXPERIENCE_SEQUENCE if enabled.get(kind, False)]
     if not enabled_types or balance == "baixa":
         enabled_types = [kind for kind in ("infographic", "quiz") if enabled.get(kind, False)]
@@ -787,6 +788,9 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
     structure["totalSlides"] = sum(
         len(module.get("slides", []) or []) for module in structure.get("modules", []) or []
     )
+    if config.get('simulatorsAllowed') is False:
+        from services.simulator_permissions import restrict_structure
+        structure=restrict_structure(structure,{'permissions':{'createSimulators':False}})
     return structure
 
 
@@ -801,6 +805,7 @@ async def generate_structure(session_id: str, content_text: str, config: dict) -
     if config.get('visualCourseMode') == 'illustrated_journey':
         for required_type in ('game', 'simulator', 'scenario', 'infographic', 'quiz'):
             enabled_resources[required_type] = True
+    if config.get('simulatorsAllowed') is False:enabled_resources['simulator']=False
 
     # Build the list of allowed types
     all_types = ['content', 'title', 'summary']  # always present
@@ -952,6 +957,9 @@ REGRAS GERAIS:
 
 async def generate_storyboard(session_id: str, content_text: str, structure: dict, config: dict, progress_callback=None) -> dict:
     """Step 3: Generate detailed storyboard - processes slides in batches to avoid timeouts."""
+    if config.get('simulatorsAllowed') is False:
+        from services.simulator_permissions import restrict_structure
+        structure=restrict_structure(structure,{'permissions':{'createSimulators':False}})
     all_slides = []
     illustrated_journey = config.get("visualCourseMode") == "illustrated_journey"
     story_bible = structure.get("visualStoryBible") or (

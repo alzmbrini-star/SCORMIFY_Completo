@@ -53,6 +53,9 @@ async def create_user(request: Request, user: Dict = Depends(require_company_adm
     - Company Admin: Can create users only in their company with 'editor' role
     """
     body = await request.json()
+    from services.simulator_permissions import permission_patch
+    try:permission_patch(body)
+    except ValueError as exc:raise HTTPException(400,str(exc))
     
     email = body.get("email", "").lower().strip()
     name = body.get("name", "").strip()
@@ -105,6 +108,7 @@ async def create_user(request: Request, user: Dict = Depends(require_company_adm
         "companyId": company_id,
         "role": role,
         "roles": roles,
+        "permissions": {"createSimulators": (body.get('permissions') or {}).get('createSimulators',False)},
         "isActive": True,
         "createdAt": now_utc(),
         "updatedAt": now_utc()
@@ -164,11 +168,15 @@ async def update_user(user_id: str, request: Request, user: Dict = Depends(requi
         raise HTTPException(status_code=404, detail="User not found")
     
     update_data = {"updatedAt": now_utc()}
+    from services.simulator_permissions import permission_patch
+    try:simulator_permissions=permission_patch(body)
+    except ValueError as exc:raise HTTPException(400,str(exc))
     
     # Determine what can be updated based on role
     from routes.auth import has_role
     if has_role(user, "super_admin"):
         # Super admin can update anything
+        update_data.update(simulator_permissions)
         if "name" in body:
             update_data["name"] = body["name"]
         if "roles" in body:
@@ -189,6 +197,9 @@ async def update_user(user_id: str, request: Request, user: Dict = Depends(requi
         # Company admin can update users in their company
         if target_user.get("companyId") != user.get("companyId"):
             raise HTTPException(status_code=403, detail="Access denied")
+        if simulator_permissions:
+            if has_role(target_user,'super_admin'):raise HTTPException(403,'Sem permissão para alterar um Super Admin')
+            update_data.update(simulator_permissions)
         
         if "name" in body:
             update_data["name"] = body["name"]
@@ -209,6 +220,7 @@ async def update_user(user_id: str, request: Request, user: Dict = Depends(requi
             update_data["passwordHash"] = hash_password(body["password"])
     else:
         # Regular users can only update themselves
+        if simulator_permissions:raise HTTPException(403,'Somente a Administração pode alterar permissões')
         if target_user["user_id"] != user["user_id"]:
             raise HTTPException(status_code=403, detail="Access denied")
         

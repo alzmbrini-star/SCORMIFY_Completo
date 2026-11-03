@@ -65,7 +65,7 @@ export default function Admin() {
   
   // Form states
   const [companyForm, setCompanyForm] = useState({ name: '', slug: '', maxUsers: 10, maxProjects: 100 });
-  const [userForm, setUserForm] = useState({ name: '', email: '', password: '', roles: ['editor'], companyId: '' });
+  const [userForm, setUserForm] = useState({ name: '', email: '', password: '', roles: ['editor'], companyId: '', permissions: { createSimulators: false } });
   
   // Tutor states
   const [tutorSettings, setTutorSettings] = useState({
@@ -306,7 +306,7 @@ export default function Admin() {
         : `${API_URL}/api/users`;
       
       const body = editingUser 
-        ? { name: userForm.name, roles: userForm.roles, ...(userForm.password ? { password: userForm.password } : {}) }
+        ? { name: userForm.name, roles: userForm.roles, permissions: userForm.permissions, ...(userForm.password ? { password: userForm.password } : {}) }
         : userForm;
 
       const res = await fetch(url, {
@@ -333,7 +333,7 @@ export default function Admin() {
       toast.success(editingUser ? 'Usuario atualizado!' : 'Usuario criado!');
       setShowUserModal(false);
       setEditingUser(null);
-      setUserForm({ name: '', email: '', password: '', roles: ['editor'], companyId: user?.companyId || '' });
+      setUserForm({ name: '', email: '', password: '', roles: ['editor'], companyId: user?.companyId || '', permissions: { createSimulators: false } });
       fetchData();
     } catch (error) {
       toast.error(error.message);
@@ -382,6 +382,7 @@ export default function Admin() {
       email: targetUser.email,
       password: '',
       roles: targetUser.roles || [targetUser.role || 'editor'],
+      permissions: { createSimulators: targetUser.permissions?.createSimulators === undefined || targetUser.permissions.createSimulators === true },
       companyId: targetUser.companyId
     });
     setShowUserModal(true);
@@ -394,6 +395,7 @@ export default function Admin() {
       email: '',
       password: '',
       roles: ['editor'],
+      permissions: { createSimulators: false },
       companyId: isSuperAdmin ? (companies[0]?.id || '') : user?.companyId
     });
     setShowUserModal(true);
@@ -1242,7 +1244,7 @@ export default function Admin() {
       {/* User Modal */}
       {showUserModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-slate-800 rounded-lg p-6 w-full max-w-md border border-slate-700">
+          <div className="bg-slate-800 rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto border border-slate-700">
             <h3 className="text-xl font-bold text-white mb-4">
               {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
             </h3>
@@ -1333,6 +1335,12 @@ export default function Admin() {
               </div>
             </div>
 
+            <label className="flex items-start gap-3 mt-4 p-3 rounded border border-slate-600">
+              <input type="checkbox" data-testid="user-create-simulators" checked={userForm.roles.includes('super_admin') || userForm.permissions?.createSimulators === true}
+                disabled={userForm.roles.includes('super_admin')}
+                onChange={e => setUserForm({ ...userForm, permissions: { createSimulators: e.target.checked } })} />
+              <span><span className="text-sm font-medium">Permitir criar simuladores</span><span className="block text-xs text-slate-400">Autoriza gerar e refinar simuladores e visualizações didáticas pelo Agente e pelo Editor. Não altera atividades já existentes. Super Admin possui acesso integral.</span></span>
+            </label>
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="outline" onClick={() => setShowUserModal(false)}>Cancelar</Button>
               <Button onClick={handleSaveUser}>Salvar</Button>

@@ -185,7 +185,7 @@ export function HtmlDialog({
   handleDownloadHtmlDiagnostic,
   simulatorOptions = { complexity: 'guided', visualStyle: 'illustrated' }, onSimulatorOptionsChange = () => {},
   handleAddHtml, handleGenerateHtmlAI, handleInsertAiHtml,
-  editingSimulator = false, onDownloadHtml, onLoadHtml,
+  editingSimulator = false, onDownloadHtml, onLoadHtml, canCreateSimulators = true,
 }) {
   return (
     <Dialog open={open} onOpenChange={(o) => {
@@ -219,7 +219,7 @@ export function HtmlDialog({
           </TabsContent>
           <TabsContent value="ai" className="flex flex-col mt-4">
             <div className="flex flex-col gap-3">
-              <SimulatorExperienceOptions {...simulatorOptions} onChange={onSimulatorOptionsChange} disabled={aiHtmlLoading} />
+              {canCreateSimulators ? <SimulatorExperienceOptions {...simulatorOptions} onChange={onSimulatorOptionsChange} disabled={aiHtmlLoading} /> : <p role="note" className="text-sm text-amber-400">Criação e refino de simuladores desabilitados pela Administração. Outros conteúdos HTML continuam disponíveis.</p>}
               <div>
                 <label className="text-sm font-medium mb-1 block">Descreva o que deseja criar</label>
                 <textarea className="w-full h-24 p-3 rounded-md border bg-background text-sm resize-none"
@@ -265,7 +265,7 @@ export function HtmlDialog({
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
               <ComponentSceneReview html={aiHtmlResult} disabled={aiHtmlLoading} onApply={setAiHtmlResult} />
-              {aiHtmlResult.includes('finite-rules-v1') && <Button variant="outline" disabled={aiHtmlLoading} onClick={() => handleGenerateHtmlAI(aiHtmlResult)} data-testid="ai-html-refine-visual-btn">Refinar cenário</Button>}
+              {canCreateSimulators && aiHtmlResult.includes('finite-rules-v1') && <Button variant="outline" disabled={aiHtmlLoading} onClick={() => handleGenerateHtmlAI(aiHtmlResult)} data-testid="ai-html-refine-visual-btn">Refinar cenário</Button>}
               {aiHtmlResult && onDownloadHtml && <Button variant="outline" onClick={() => onDownloadHtml(aiHtmlResult)}>Baixar HTML</Button>}
               {aiHtmlResult && <Button onClick={handleInsertAiHtml} disabled={aiHtmlLoading} data-testid="ai-html-insert-btn">{editingSimulator?'Salvar alterações':'Inserir no Slide'}</Button>}
             </DialogFooter>
