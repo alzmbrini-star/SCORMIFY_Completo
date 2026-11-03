@@ -317,9 +317,11 @@ async def generate_html_with_ai(
 
     api_key, model = _html_generation_credentials()
     provider = "openai"
-    is_visualization = getattr(body, 'simulatorActivityType', 'simulation') == 'visualization'
-    is_case_study = not is_visualization and bool(re.search(r"estudo[s]?\s+de\s+caso|an[aá]lise\s+de\s+caso|case\s+stud(?:y|ies)", body.prompt, re.IGNORECASE))
-    is_simulator = is_visualization or (not is_case_study and bool(re.search(r"\bsimul(?:ador(?:es)?|a[cç][aã]o|ations?|ators?)\b", body.prompt, re.IGNORECASE)))
+    from services.html_activity_intent import html_activity_kind
+    activity = html_activity_kind(body.prompt, getattr(body, 'simulatorActivityType', 'simulation'))
+    is_visualization = activity == 'visualization'
+    is_case_study = activity == 'case-study'
+    is_simulator = activity in {'simulation','visualization'}
     if is_simulator:
         from services.llm_config import simulator_generation_config
         try:
