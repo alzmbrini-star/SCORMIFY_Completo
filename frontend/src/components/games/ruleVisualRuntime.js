@@ -120,8 +120,8 @@ export function ruleVisualRuntime() {
     if(declaredMotions.length&&motionPlaying){declaredMotions.forEach(function(m){var e=entries.find(function(e){return e.definition.id===m.node;});if(!e.rendered||e.el.style.display==='none')return;
       var a=Object.assign({},e.rendered),angle=2*Math.PI*m.cycles*motionTime/12+m.phase*Math.PI/180;
       if(m.kind==='orbit'){a.x=m.cx+m.dx*Math.cos(angle);a.y=m.cy+m.dy*Math.sin(angle);}
-      else if(m.kind==='translate'){a.x=(Number(a.x)||0)+m.dx*Math.sin(angle);a.y=(Number(a.y)||0)+m.dy*Math.sin(angle);}
       apply(e,a);
+      if(m.kind==='translate')e.el.setAttribute('transform','translate('+(m.dx*Math.sin(angle))+' '+(m.dy*Math.sin(angle))+') '+e.el.getAttribute('transform'));
       if(m.kind==='rotate')e.el.setAttribute('transform',(e.definition.type==='group'?'translate('+(Number(a.x)||0)+' '+(Number(a.y)||0)+') ':'')+'rotate('+((Number(a.rotation)||0)+angle*180/Math.PI)+' '+m.cx+' '+m.cy+')');
     });}
     if(demonstration.length&&motionPlaying){

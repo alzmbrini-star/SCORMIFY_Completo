@@ -10,6 +10,8 @@ if '${mode}'=='rotation':
  for n in p['visual']['nodes']:
   for b in n.get('bindings',[]):b['output']=[0,360 if b['output'][1]>0 else -360]
 if '${mode}'=='declared':p['visual']['motions']=[dict(node='part_0',kind='translate',cx=0,cy=0,dx=40,dy=20,cycles=1,phase=0)]
+if '${mode}'=='polygon':p['visual']['motions']=[dict(node='part_0_body',kind='translate',cx=0,cy=0,dx=40,dy=20,cycles=1,phase=0)]
+if '${mode}'=='orbit':p['visual']['motions']=[dict(node='part_0',kind='orbit',cx=120,cy=225,dx=50,dy=30,cycles=1,phase=0)]
 if '${mode}'=='branched':p['actions'].append(dict(p['actions'][0],id='alternative',effects={'etapa':2}))
 p['experience']=normalize_experience({},p,options());print(render_rules(p))`],{cwd:backend,env:{...process.env,PYTHONIOENCODING:'utf-8',PYTHONPATH:backend+';'+path.join(backend,'tests')},maxBuffer:5000000}).toString();}
 async function check(reduced,mode='rotation'){
@@ -18,7 +20,7 @@ async function check(reduced,mode='rotation'){
  const dom=new JSDOM(render(mode),{runScripts:'dangerously',pretendToBeVisual:true,virtualConsole:vc,beforeParse(w){w.matchMedia=()=>({matches:reduced});w.requestAnimationFrame=fn=>{frames.set(++sequence,fn);return sequence;};w.cancelAnimationFrame=id=>frames.delete(id);}});
  const d=dom.window.document;await new Promise(r=>setTimeout(r,0));
  function advance(){clock+=100;const pending=[...frames.values()];frames.clear();pending.forEach(fn=>fn(clock));}
- advance();const piece=d.querySelector('[data-visual-node="part_0"]');
+ advance();const piece=d.querySelector('[data-visual-node="'+(mode==='polygon'?'part_0_body':'part_0')+'"]');
  if(mode==='branched'){assert.equal(d.querySelector('.sim-motion-tools'),null,'never choose a learner decision automatically');dom.window.close();return;}
  const initial=piece.getAttribute('transform'),state=d.getElementById('scormify-rule-view').textContent;
  for(let i=0;i<47;i++)advance();
@@ -32,4 +34,4 @@ async function check(reduced,mode='rotation'){
  dom.window.dispatchEvent(new dom.window.Event('pagehide'));assert.equal(frames.size,0);
  assert.deepEqual(errors,[]);dom.window.close();
 }
-check(false).then(()=>check(true)).then(()=>check(false,'timeline')).then(()=>check(false,'declared')).then(()=>check(false,'branched')).then(()=>process.stdout.write('PASS continuous illustration: rotation, click-authored replay and declared motion, no logical changes or automatic decisions, pause/reset, reduced motion and cleanup\n')).catch(e=>{console.error(e);process.exitCode=1});
+check(false).then(()=>check(true)).then(()=>check(false,'timeline')).then(()=>check(false,'declared')).then(()=>check(false,'polygon')).then(()=>check(false,'orbit')).then(()=>check(false,'branched')).then(()=>process.stdout.write('PASS continuous illustration: rotation, click-authored replay, orbital and whole-shape translation, no logical changes or automatic decisions, pause/reset, reduced motion and cleanup\n')).catch(e=>{console.error(e);process.exitCode=1});
