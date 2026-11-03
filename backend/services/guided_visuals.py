@@ -101,7 +101,7 @@ async def generate_guided_visual(data,prompt,context,session_id,provider,key,mod
     from services.rule_visuals import VISUAL_PROMPT,FIDELITY_REVIEW_PROMPT,validate_visual,visual_state
     from services.visual_schema import format_for_stage,omit_null_fields
     from services.visual_teaching import validate_review
-    from services.guided_scene_frames import sample_states,inspect_frames
+    from services.guided_scene_frames import sample_states,inspect_frames,has_observable_scene
     from services.simulator_diagnostics import record_attempt
     async def ask(suffix,system,payload,tokens,timeout,schema=None,picture=None):
         params={'temperature':.25,'max_tokens':tokens}
@@ -143,23 +143,26 @@ IDs concretos; nodes=[] significa composição global, não erro no motor lógic
             if previous:raw=merge_repair(previous,raw,targets)
             visual=validate_visual(raw,data)
             report,picture=await asyncio.wait_for(asyncio.to_thread(inspect_frames,visual,plan,samples),timeout=45)
-            if report['issues']:
+            if not has_observable_scene(report,plan):
                 targets=list(dict.fromkeys(n for issue in report['issues'] for n in issue['nodes']))
                 if any(not issue['nodes'] for issue in report['issues']):targets=[]
                 previous=visual
                 raise ValueError('Execução visual: '+json.dumps(report['issues'],ensure_ascii=False))
-            # Keep only candidates with observable objects, never an empty scene.
+            # Retain a usable illustration even if a detail needs improvement.
+            # Send its actual frames to review; do not replace all the artwork
+            # with a data panel because one transient detail missed one stage.
             candidate=visual;last_report=report
             projections=[dict(s,objects=visual_state(visual,s['state'])) for s in samples]
             review=validate_review(await ask('-guided-review-'+str(attempt),review_prompt,
                 {'request':prompt[:4000],'compositionPlan':plan,'scene':visual,'model':source,'executedSamples':projections,'pixelReport':report},
                 2800,75,picture=picture),visual)
-            if not review['approved']:
-                note='; '.join(i['problem'] for i in review['issues'])
-                targets=list(dict.fromkeys(n for issue in review['issues'] for n in issue['nodes']))
-                if any(not issue['nodes'] for issue in review['issues']):targets=[]
+            issues=report['issues']+review['issues']
+            if issues or not review['approved']:
+                note='; '.join(i['problem'] for i in issues)
+                targets=list(dict.fromkeys(n for issue in issues for n in issue['nodes']))
+                if any(not issue['nodes'] for issue in issues):targets=[]
                 previous=visual
-                raise ValueError('Fidelidade visual ao pedido: '+json.dumps(review['issues'],ensure_ascii=False))
+                raise ValueError('Fidelidade visual ao pedido: '+json.dumps(issues,ensure_ascii=False))
             record_attempt(json.dumps(visual,ensure_ascii=False),dict(data,mechanic='finite-rules-v1'),[],review=json.dumps({'compositionPlan':plan,'execution':report,'summary':review['summary']},ensure_ascii=False))
             return visual,''
         except Exception as exc:
@@ -169,5 +172,5 @@ IDs concretos; nodes=[] significa composição global, não erro no motor lógic
             request.update(previousScene=previous or raw,repairError=last_error,repairTargets=targets,
                            repairInstruction='Repare os objetos apontados e seus descendentes; não repita a cena sem mudança. Preserve IDs e demais camadas. nodes vazio exige correção global da composição. Não altere lógica, variáveis ou ações. Retorne a cena completa.')
     if candidate is not None:
-        return candidate,('Prévia para revisão do autor, não certificada pela revisão visual por imagens. Objetos observáveis nas amostras. '+(note or 'A revisão visual por imagens não foi concluída.'))[:500]
+        return candidate,('Cena preservada para revisão do autor, não certificada pela revisão visual por imagens. '+(note or 'A revisão visual por imagens não foi concluída.'))[:500]
     return None,'A arte não passou na execução visual das etapas. Regras preservadas; não substituímos a cena por uma ilustração vazia. Consulte o diagnóstico técnico.'

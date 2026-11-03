@@ -4,7 +4,7 @@ from unittest.mock import patch
 from PIL import Image
 from services.rule_simulators import validate_rules
 from services.rule_visuals import validate_visual,generate_visual
-from services.guided_scene_frames import sample_states,inspect_frames,frame_svg
+from services.guided_scene_frames import sample_states,inspect_frames,frame_svg,has_observable_scene
 from services.guided_visuals import validate_plan,merge_repair,plan_schema
 from test_process_demo import process_demo
 
@@ -97,6 +97,23 @@ class GuidedVisuals(unittest.TestCase):
         self.assertIn('Execução visual',calls[2]['payload']['repairError']);self.assertEqual(calls[2]['payload']['repairTargets'],['subject'])
         (v,notice),calls=self.run_pipeline([p,broken,broken])
         self.assertIsNone(v);self.assertIn('execução visual',notice);self.assertEqual(len(calls),3)
+
+    def test_missing_transient_detail_does_not_discard_usable_scene_or_skip_image_review(self):
+        p=plan(self.samples)
+        p['objects'].append(dict(id='detail',label='Detalhe transitório',layer='detail',features=['Linha visível'],explanation='Ajuda a observar a fase.',alwaysVisible=False))
+        for m in p['moments']:m['visibleObjects'].append('detail')
+        scene=art();scene['nodes'].append(dict(id='detail',type='line',label='Detalhe',attrs=dict(x=40,y=40,x2=90,y2=90,stroke='#004488',strokeWidth=4),visibleWhen={'op':'eq','args':[{'var':'etapa'},0]}))
+        report,_=inspect_frames(validate_visual(scene,self.data),p,self.samples)
+        self.assertTrue(report['issues']);self.assertTrue(has_observable_scene(report,p))
+        approved={'approved':True,'summary':'Composição compreensível.','issues':[]}
+        (visual,notice),calls=self.run_pipeline([p,scene,approved,scene,approved])
+        self.assertIsNotNone(visual);self.assertIn('Cena preservada',notice);self.assertIn('detail',notice)
+        self.assertEqual(len(calls),5);self.assertIsNotNone(calls[2]['message'].file_contents)
+        self.assertEqual(calls[3]['payload']['repairTargets'],['detail'])
+        self.assertTrue(calls[2]['payload']['pixelReport']['issues'])
+        broken=copy.deepcopy(scene);broken['nodes'][0]['attrs']['opacity']=0
+        report,_=inspect_frames(validate_visual(broken,self.data),p,self.samples)
+        self.assertFalse(has_observable_scene(report,p))
 
 
 if __name__=='__main__':unittest.main()

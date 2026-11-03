@@ -79,6 +79,18 @@ def _different(a,b):
     return sum(mask.histogram()[1:])
 
 
+def has_observable_scene(report,plan):
+    """A missing detail is repair advice, not grounds to throw away a scene.
+
+    Keep an actual main object in every sampled frame. A named but invisible
+    subject, background-only composition or empty stage is still not usable.
+    """
+    subjects={o['id'] for o in plan['objects'] if o['layer']=='subject'}
+    return bool(report.get('samples')) and all(
+        any(row.get('visiblePixels',{}).get(key,0)>=12 for key in subjects)
+        for row in report['samples'])
+
+
 def inspect_frames(visual,plan,samples):
     from PIL import Image,ImageDraw
     definitions={n['id']:n for n in visual['nodes']};issues=[];reports=[];frames=[]
