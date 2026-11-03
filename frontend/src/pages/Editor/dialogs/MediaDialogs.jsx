@@ -185,6 +185,7 @@ export function HtmlDialog({
   handleDownloadHtmlDiagnostic,
   simulatorOptions = { complexity: 'guided', visualStyle: 'illustrated' }, onSimulatorOptionsChange = () => {},
   handleAddHtml, handleGenerateHtmlAI, handleInsertAiHtml,
+  editingSimulator = false, onDownloadHtml,
 }) {
   return (
     <Dialog open={open} onOpenChange={(o) => {
@@ -193,7 +194,8 @@ export function HtmlDialog({
       if (!o && !aiHtmlLoading) { setHtmlDialogTab('paste'); }
     }}>
       <DialogContent className="sm:max-w-6xl max-h-[92vh] flex flex-col overflow-y-auto">
-        <DialogHeader><DialogTitle>Adicionar HTML Personalizado</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{editingSimulator?'Editar simulador':'Adicionar HTML Personalizado'}</DialogTitle></DialogHeader>
+        {editingSimulator && <p className="text-sm text-muted-foreground">As alterações serão salvas no simulador original, sem criar outro elemento. Cancelar preserva o slide.</p>}
         <Tabs value={htmlDialogTab} onValueChange={setHtmlDialogTab} className="flex flex-col shrink-0">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="paste" data-testid="html-tab-paste"><Code className="w-4 h-4 mr-2" />Colar HTML</TabsTrigger>
@@ -210,7 +212,8 @@ export function HtmlDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
               <ComponentSceneReview html={htmlConfig.content} disabled={aiHtmlLoading} onApply={content => setHtmlConfig({ ...htmlConfig, content })} />
               {htmlConfig.content.includes('finite-rules-v1') && <Button variant="outline" disabled={aiHtmlLoading} onClick={() => { setAiHtmlResult(htmlConfig.content); setHtmlDialogTab('ai'); }}>Preparar refino visual</Button>}
-              <Button onClick={handleAddHtml} data-testid="confirm-add-html">Adicionar HTML</Button>
+              {onDownloadHtml && htmlConfig.content && <Button variant="outline" onClick={() => onDownloadHtml(htmlConfig.content)}>Baixar HTML</Button>}
+              <Button onClick={handleAddHtml} data-testid="confirm-add-html">{editingSimulator?'Salvar alterações':'Adicionar HTML'}</Button>
             </DialogFooter>
           </TabsContent>
           <TabsContent value="ai" className="flex flex-col mt-4">
@@ -262,7 +265,8 @@ export function HtmlDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
               <ComponentSceneReview html={aiHtmlResult} disabled={aiHtmlLoading} onApply={setAiHtmlResult} />
               {aiHtmlResult.includes('finite-rules-v1') && <Button variant="outline" disabled={aiHtmlLoading} onClick={() => handleGenerateHtmlAI(aiHtmlResult)} data-testid="ai-html-refine-visual-btn">Refinar cenário</Button>}
-              {aiHtmlResult && <Button onClick={handleInsertAiHtml} disabled={aiHtmlLoading} data-testid="ai-html-insert-btn">Inserir no Slide</Button>}
+              {aiHtmlResult && onDownloadHtml && <Button variant="outline" onClick={() => onDownloadHtml(aiHtmlResult)}>Baixar HTML</Button>}
+              {aiHtmlResult && <Button onClick={handleInsertAiHtml} disabled={aiHtmlLoading} data-testid="ai-html-insert-btn">{editingSimulator?'Salvar alterações':'Inserir no Slide'}</Button>}
             </DialogFooter>
           </TabsContent>
         </Tabs>

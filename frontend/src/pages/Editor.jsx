@@ -6,6 +6,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { authHeaders } from '../contexts/AuthContext';
 import { resolveAssetUrls } from '../utils/htmlUtils';
 import { isSlideSimulator, upgradeSimulatorSlide } from '../utils/simulatorSlide';
+import { refreshSimulatorPresentation, simulatorEditPatch, simulatorPreferences } from '../utils/simulatorEditing';
 import { refinementModel } from '../utils/refinementModel';
 import { generateHtmlJob } from '../utils/htmlGenerationJob';
 import { fetchHtmlDiagnostic } from '../utils/htmlDiagnostic';
@@ -319,6 +320,7 @@ export default function Editor() {
     text: 'Clique aqui', url: '', icon: '', style: 'primary', openInNewTab: true,
   });
   const [htmlConfig, setHtmlConfig] = useState({ content: '' });
+  const [simulatorEditTarget, setSimulatorEditTarget] = useState(null);
   const [aiHtmlPrompt, setAiHtmlPrompt] = useState('');
   const [simulatorOptions, setSimulatorOptions] = useState({ complexity: 'guided', visualStyle: 'illustrated' });
   const [aiHtmlResult, setAiHtmlResult] = useState('');
@@ -962,12 +964,38 @@ export default function Editor() {
   };
 
   // Add HTML element
+  const openSimulatorEdit = element => {
+    if (aiHtmlLoading) return;
+    if (!isSlideSimulator(element?.htmlContent)) { handleEditHtmlElement(element); return; }
+    try {
+      const html=refreshSimulatorPresentation(element.htmlContent);
+      setSimulatorOptions(simulatorPreferences(html));
+      setSimulatorEditTarget({slideId:currentSlide.id,elementId:element.id,source:element.htmlContent});
+      setHtmlConfig({content:html});setAiHtmlResult(html);setAiHtmlPrompt('');setAiHtmlProgress('Edição do simulador existente. Confira a prévia; só Salvar alterações modifica o slide.');
+      setHtmlDialogTab('ai');setShowHtmlDialog(true);
+    } catch(err) { toast.error(err.message); }
+  };
+  const saveSimulatorEdit = async html => {
+    try {
+      const patch=simulatorEditPatch(currentProject,simulatorEditTarget,html);
+      await updateElement(simulatorEditTarget.slideId,simulatorEditTarget.elementId,patch);
+      setShowHtmlDialog(false);setSimulatorEditTarget(null);setAiHtmlResult('');setHtmlConfig({content:''});
+      toast.success('Simulador atualizado no mesmo elemento; posição e tamanho preservados.');
+    } catch(err) { toast.error(err.message || 'Falha ao salvar. O rascunho continua aberto.'); }
+  };
+  const downloadSimulatorHtml = content => {
+    const html=content || aiHtmlResult || htmlConfig.content;
+    if (!html) return;
+    const url=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));
+    const link=document.createElement('a');link.href=url;link.download='simulador.html';link.click();setTimeout(()=>URL.revokeObjectURL(url),0);
+  };
   const handleAddHtml = async () => {
     if (!htmlConfig.content) {
       toast.error('Por favor, insira o código HTML');
       return;
     }
 
+    if (simulatorEditTarget) { await saveSimulatorEdit(htmlConfig.content); return; }
     try {
       await addElement(currentSlide.id, {
         type: 'html',
@@ -1068,6 +1096,7 @@ export default function Editor() {
       toast.error('Nenhum HTML gerado para inserir');
       return;
     }
+    if (simulatorEditTarget) { await saveSimulatorEdit(aiHtmlResult); return; }
     setHtmlConfig({ content: aiHtmlResult });
     try {
       await addElement(currentSlide.id, {
@@ -1676,7 +1705,8 @@ export default function Editor() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    onClick={() => setShowHtmlDialog(true)}
+                    onClick={() => { setSimulatorEditTarget(null);setShowHtmlDialog(true); }}
+                    disabled={aiHtmlLoading}
                     data-testid="add-html-btn"
                   >
                     <Code className="w-4 h-4" />
@@ -1684,6 +1714,7 @@ export default function Editor() {
                 </TooltipTrigger>
                 <TooltipContent>Adicionar HTML</TooltipContent>
               </Tooltip>
+              {isSlideSimulator(selectedElement?.htmlContent) && <Button variant="outline" size="sm" disabled={aiHtmlLoading} onClick={() => openSimulatorEdit(selectedElement)} data-testid="edit-simulator-btn">Editar simulador</Button>}
 
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -2024,7 +2055,7 @@ export default function Editor() {
                 annotationStrokeWidth={annotationStrokeWidth}
                 timelineTime={timelineTime}
                 timelineIsPlaying={timelineIsPlaying}
-                onEditHtmlElement={handleEditHtmlElement}
+                onEditHtmlElement={openSimulatorEdit}
               />
             </div>
 
@@ -2528,7 +2559,8 @@ export default function Editor() {
         />
 
         <HtmlDialog
-          open={showHtmlDialog} onOpenChange={setShowHtmlDialog}
+          open={showHtmlDialog} onOpenChange={open => { if (!aiHtmlLoading) setShowHtmlDialog(open); }}
+          editingSimulator={!!simulatorEditTarget} onDownloadHtml={downloadSimulatorHtml}
           htmlConfig={htmlConfig} setHtmlConfig={setHtmlConfig}
           htmlDialogTab={htmlDialogTab} setHtmlDialogTab={setHtmlDialogTab}
           aiHtmlPrompt={aiHtmlPrompt} setAiHtmlPrompt={setAiHtmlPrompt}

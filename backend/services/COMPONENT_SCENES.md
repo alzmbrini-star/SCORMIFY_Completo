@@ -344,3 +344,25 @@ objetos reconhecíveis e coerência básica, sem exigir relações físicas exat
 Não se aceita conteúdo sem relação com o pedido ou premissas falsas como fatos.
 Nenhuma geração de IA é necessária para migrar dados: esta versão não reescreve
 atividades já inseridas. Para estas, gerar/refinar explicitamente e conferir a prévia.
+
+### Proporção, movimento contínuo e reedição explícita
+
+A cena SVG fica numa área de ajuste 16:9 centralizada, sem esticar unidades do
+desenho. Em slides muito largos e baixos, a composição immersive realoca os
+controles para uma lateral compacta; em outros formatos mantém a faixa inferior.
+O redimensionamento não altera geometrias, regras ou tamanho do elemento no curso.
+
+Demonstrações guiadas com rotação declarada de volta completa (amplitude >=300°)
+podem manter esse movimento ilustrativo em um relógio visual separado. Há pausa,
+velocidade, respeito a prefers-reduced-motion, reinício da fase e cancelamento ao
+sair/ocultar. Não consome ações, tempo lógico ou pontuação, e não inventa movimento
+para translações/operações não cíclicas. É rotação qualitativa, não simulação física.
+
+O Editor oferece Editar simulador no elemento selecionado e pelo duplo clique.
+Reabre HTML completo, prévia e preferências; Baixar HTML não requer geração de IA.
+Abrir prepara runtimes de apresentação atualizados apenas no rascunho. Salvar
+altera somente htmlContent do mesmo elemento/slide, preservando sua posição e
+dimensões. Se o original foi removido ou mudou, recusa sobrescrita em vez de criar
+uma cópia silenciosa. Cancelar não modifica o curso. O botão de refino segue
+explícito e usa IA somente se acionado pelo autor. HTML comum mantém o editor
+anterior; a reedição especializada exige um motor de simulador identificado.

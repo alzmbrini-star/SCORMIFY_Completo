@@ -35,8 +35,15 @@ export function ruleVisualRuntime() {
   var style=node('style');style.id='rule-visual-style';style.textContent='.sim-rule-visual{margin:0;display:flex;flex-direction:column;min-width:0;min-height:0;flex:1;overflow:hidden}.sim-rule-visual>svg{display:block;width:100%;flex:1;min-height:0;border:1px solid #59768f;border-radius:10px}.sim-dialog-body .sim-rule-visual{height:min(65vh,520px);min-height:200px}.sim-visual-caption{font:calc(14px * var(--sim-ui,1))/1.35 system-ui,sans-serif;color:#dceafb;padding-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.sim-rule-visual [role="button"]{cursor:pointer}.sim-rule-visual [aria-disabled="true"]{cursor:not-allowed}.sim-rule-visual [role="button"]:focus-visible{outline:3px solid #fbbf24;outline-offset:4px}.sim-rule-visual [data-visual-changed="true"]{filter:drop-shadow(0 0 5px #7dd3fc)}';document.head.appendChild(style);
   var entries=[],elements=Object.create(null),frame=null,initial=true,lastStep=0;
   var demo=data.didacticMode==='process-demo-v1';
+  // Fit the scene itself, not a wide background strip. Never stretch SVG units.
+  var stage=node('div');stage.className='sim-visual-stage';figure.insertBefore(stage,picture);stage.appendChild(picture);
+  stage.style.cssText='flex:1;min-height:0;min-width:0;display:flex;align-items:center;justify-content:center;overflow:hidden';
+  picture.style.flex='none';picture.style.maxWidth='100%';picture.style.maxHeight='100%';picture.style.border='1px solid #59768f';picture.style.borderRadius='10px';
+  function fitScene(){var box=stage.getBoundingClientRect();if(!box.width||!box.height)return;var w=Math.min(box.width,box.height*800/450);picture.style.width=w+'px';picture.style.height=(w*450/800)+'px';}
+  var sceneObserver=typeof ResizeObserver==='function'?new ResizeObserver(fitScene):null;
+  if(sceneObserver)sceneObserver.observe(stage);window.addEventListener('resize',fitScene);window.requestAnimationFrame(fitScene);
   if(demo&&authored&&teaching)anchor.hidden=true; // The same guidance remains in the scene caption/guide; reserve room for the illustration.
-  if(demo){var simplified=node('div','Demonstração didática simplificada · foco no processo, sem precisão de engenharia.');simplified.setAttribute('role','note');simplified.style.cssText='flex-shrink:0;font:12px/1.3 system-ui,sans-serif;color:#d7eef3;background:#183b4a;padding:5px 8px;border-left:3px solid #6ed9c4;border-radius:5px;margin-bottom:5px';figure.insertBefore(simplified,picture);}
+  if(demo){var simplified=node('div','Demonstração didática simplificada · foco no processo, sem precisão de engenharia.');simplified.setAttribute('role','note');simplified.style.cssText='flex-shrink:0;font:12px/1.3 system-ui,sans-serif;color:#d7eef3;background:#183b4a;padding:5px 8px;border-left:3px solid #6ed9c4;border-radius:5px;margin-bottom:5px';figure.insertBefore(simplified,stage);}
   var finish=demo&&authored&&(data.experience||{}).visualStyle==='illustrated',paints=Object.create(null),defs;
   function mix(a,b,t){return '#'+[1,3,5].map(function(i){return Math.round(parseInt(a.slice(i,i+2),16)*(1-t)+parseInt(b.slice(i,i+2),16)*t).toString(16).padStart(2,'0');}).join('');}
   function effect(tag,attrs,parent){var e=svg(tag);Object.keys(attrs).forEach(function(k){e.setAttribute(k,attrs[k]);});parent.appendChild(e);return e;}
@@ -86,6 +93,22 @@ export function ruleVisualRuntime() {
       addShape({id:'bar_'+i,type:'rect',label:'Variação de '+v.label,attrs:{x:x+12,y:y+ch-28,width:0,height:8,rx:4,fill:'#62daca'},bindings:[{property:'width',var:v.id,input:[v.min,v.max],output:[0,cw-38]}]});
     });
   }
+  // A declared full rotational cycle can keep demonstrating between decisions.
+  // This clock paints only; it never advances the rule engine or its score.
+  var cycles=demo?entries.filter(function(e){return(e.definition.bindings||[]).some(function(b){return b.property==='rotation'&&b.output&&Math.abs(b.output[1]-b.output[0])>=300;});}):[];
+  var motionFrame=null,motionTime=0,motionStamp=null,motionSpeed=1,motionPlaying=false,motionButton=null;
+  function spin(){cycles.forEach(function(e){if(!e.rendered||e.el.style.display==='none')return;var b=e.definition.bindings.find(function(b){return b.property==='rotation';}),a=e.rendered,rotation=(Number(a.rotation)||0)+(b.output[1]>=b.output[0]?1:-1)*motionTime*30;
+    e.el.setAttribute('transform',(e.definition.type==='group'?'translate('+(Number(a.x)||0)+' '+(Number(a.y)||0)+') ':'')+'rotate('+rotation+')');});}
+  function queueMotion(){if(motionFrame===null&&motionPlaying&&!document.hidden)motionFrame=window.requestAnimationFrame(tickMotion);}
+  function tickMotion(now){motionFrame=null;if(!motionPlaying||document.hidden){motionStamp=null;return;}if(motionStamp!==null)motionTime+=Math.min(.1,(now-motionStamp)/1000)*motionSpeed;motionStamp=now;spin();queueMotion();}
+  function setMotion(playing){motionPlaying=playing;motionStamp=null;if(motionFrame!==null){window.cancelAnimationFrame(motionFrame);motionFrame=null;}if(motionButton){motionButton.textContent=playing?'Pausar movimento':'Reproduzir movimento';motionButton.setAttribute('aria-pressed',String(playing));}queueMotion();}
+  if(cycles.length){
+    var motionTools=node('div');motionTools.className='sim-motion-tools';motionTools.style.cssText='display:flex;align-items:center;gap:8px;flex-shrink:0;padding:4px 0';
+    motionButton=node('button');motionButton.type='button';motionButton.addEventListener('click',function(){setMotion(!motionPlaying);});motionTools.appendChild(motionButton);
+    var speedLabel=node('label','Velocidade '),speedControl=node('select');speedControl.setAttribute('aria-label','Velocidade do movimento');[.5,1,2].forEach(function(value){var option=node('option',value+'×');option.value=value;speedControl.appendChild(option);});speedControl.value='1';speedControl.addEventListener('change',function(){motionSpeed=Number(speedControl.value)||1;});speedLabel.appendChild(speedControl);motionTools.appendChild(speedLabel);figure.insertBefore(motionTools,caption);
+    setMotion(!(typeof window.matchMedia==='function'&&window.matchMedia('(prefers-reduced-motion: reduce)').matches));
+  }
+  document.addEventListener('visibilitychange',function(){motionStamp=null;if(document.hidden&&motionFrame!==null){window.cancelAnimationFrame(motionFrame);motionFrame=null;}else queueMotion();});
   function projected(entry,state){var def=entry.definition,attrs=Object.assign({},def.attrs||{});(def.bindings||[]).forEach(function(b){if(numeric.indexOf(b.property)!==-1&&b.input&&b.output)attrs[b.property]=interpolate(b,state);});var matched=(def.states||[]).find(function(s){return evalExpr(s.when,state);});if(matched)Object.assign(attrs,matched.set);return{attrs:attrs,visible:def.visibleWhen===undefined||!!evalExpr(def.visibleWhen,state)};}
   function apply(entry,attrs){
     var el=entry.el,kind=entry.definition.type,allowed=permitted[kind];
@@ -108,13 +131,14 @@ export function ruleVisualRuntime() {
     if(!view||!view.state)return;
     if(frame!==null){window.cancelAnimationFrame(frame);frame=null;}
     var reset=view.steps===0,reduce=typeof window.matchMedia==='function'&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if(reset){motionTime=0;motionStamp=null;}
     var animate=!initial&&!reset&&!reduce&&view.steps!==lastStep;lastStep=view.steps;initial=false;
     var targets=entries.map(function(entry){var value=projected(entry,view.state);if(value.attrs.text!==undefined)value.attrs.text=textValue(value.attrs.text,view.state);
       var old=entry.rendered||value.attrs,changed=JSON.stringify(old)!==JSON.stringify(value.attrs);entry.el.dataset.visualChanged=String(changed&&!reset);entry.el.style.display=value.visible?'':'none';
       if(entry.definition.action){var action=(view.actions||[]).find(function(a){return a.id===entry.definition.action;});entry.el.setAttribute('aria-disabled',String(!action||!action.enabled));entry.el.setAttribute('tabindex',action&&action.enabled?'0':'-1');}
       return {entry:entry,from:old,to:value.attrs};
     });
-    function paint(t){targets.forEach(function(item){var attrs=Object.assign({},item.to);if(t<1)numeric.forEach(function(k){if(typeof item.from[k]==='number'&&typeof item.to[k]==='number')attrs[k]=item.from[k]+(item.to[k]-item.from[k])*t;});apply(item.entry,attrs);item.entry.rendered=attrs;});}
+    function paint(t){targets.forEach(function(item){var attrs=Object.assign({},item.to);if(t<1)numeric.forEach(function(k){if(typeof item.from[k]==='number'&&typeof item.to[k]==='number')attrs[k]=item.from[k]+(item.to[k]-item.from[k])*t;});apply(item.entry,attrs);item.entry.rendered=attrs;});spin();}
     if(animate&&typeof window.requestAnimationFrame==='function'){
       var start=null;function step(now){if(start===null)start=now;var t=Math.min(1,(now-start)/420);paint(t*t*(3-2*t));frame=t<1?window.requestAnimationFrame(step):null;}frame=window.requestAnimationFrame(step);
     }else paint(1);
@@ -132,5 +156,5 @@ export function ruleVisualRuntime() {
   // is held on a DOM event bridge, not recomputed or guessed from indicator text.
   var bridge=document.getElementById('scormify-rule-view');
   if(bridge){try{update(JSON.parse(bridge.textContent));}catch(_){/* retain initial view */}}
-  window.addEventListener('pagehide',function(){if(frame!==null)window.cancelAnimationFrame(frame);});
+  window.addEventListener('pagehide',function(){if(frame!==null)window.cancelAnimationFrame(frame);if(motionFrame!==null)window.cancelAnimationFrame(motionFrame);motionFrame=null;motionPlaying=false;if(sceneObserver)sceneObserver.disconnect();window.removeEventListener('resize',fitScene);});
 }
