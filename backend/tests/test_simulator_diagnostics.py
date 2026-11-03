@@ -12,6 +12,16 @@ from services.simulator_diagnostics import (capture_generation, diagnostic_scope
 
 
 class DiagnosticTests(unittest.IsolatedAsyncioTestCase):
+    async def test_failed_current_guided_art_is_not_promoted_by_structural_recovery(self):
+        from test_process_demo import process_demo
+        from test_visual_thresholds import threshold_scene
+        raw=process_demo();art=threshold_scene();art['nodes'][0]['attrs']['opacity']=0
+        prior={'version':VERSION,'status':'failed','generationKey':generation_key('request','context',['p','m']),
+               'plan':{'mechanic':'finite-rules-v1'},'result':{'spec':raw},'attempts':[{'document':json.dumps(art)}]}
+        generate=AsyncMock(side_effect=AssertionError('Do not regenerate rules'));enrich=AsyncMock(side_effect=lambda result,*args:result)
+        with diagnostic_scope(lambda record:None,[prior]):result=await capture_generation(generate,'request','context','session',['p','m'],enrich=enrich)
+        self.assertNotIn('visual',result['spec']);enrich.assert_awaited_once();generate.assert_not_awaited()
+
     async def test_old_guided_art_reuses_rules_but_requests_new_planned_frames(self):
         from test_process_demo import process_demo
         from test_visual_thresholds import threshold_scene

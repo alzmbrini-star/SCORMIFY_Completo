@@ -166,7 +166,10 @@ an earlier approval: all JSON passes the current proof and quality policy again.
                     data['verification']['visualDetailRevalidationRequired']=True
                 if not data.get('visual'):
                     from services.rule_visuals import validate_visual
-                    for attempt in (() if guided_upgrade else reversed(previous.get('attempts',[])[-3:])):
+                    # A failed guided art attempt may be structurally valid but
+                    # invisible in the raster checks. Never promote it through
+                    # the structural-only recovery path, even in this version.
+                    for attempt in (() if demo else reversed(previous.get('attempts',[])[-3:])):
                         document=attempt.get('document')
                         if attempt.get('truncated') or not isinstance(document,str):continue
                         try:
