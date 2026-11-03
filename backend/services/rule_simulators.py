@@ -16,6 +16,12 @@ PROCESS_PROMPT = '''Crie uma DEMONSTRAÇÃO DIDÁTICA VISUAL do processo geral s
 O autor quer compreender o funcionamento, não cálculos científicos precisos ou um jogo difícil.
 Represente as etapas e objetos pertinentes a QUALQUER tema, sem modelos temáticos fixos.
 Priorize cenário contextualizado bem acabado, poucas ações claras e mudanças visuais legíveis.
+O produto principal é a CENA ORIGINAL para o assunto e objetivo, não um painel
+administrativo repetido. Escolha objetos, personagens, ambiente, enquadramento e
+interações conforme o pedido. Recursos gráficos podem ser reutilizados, mas não
+um mesmo cenário com título trocado. Para tema abstrato, crie metáfora visual ou
+situação concreta pertinente e explique que é ilustrativa. Não force escritório,
+medidores, agenda ou quiz. Identidade dos objetos importa mais que números.
 Não invente pressão, orçamento, pontuação, percentuais ou perigo só para satisfazer métricas.
 Pode usar apenas uma variável de etapa/posição; avançar sequencialmente é legítimo.
 Não há número mínimo artificial de decisões nem obrigação de fracasso. Use failure.when=false
@@ -33,6 +39,10 @@ goal:{when:PREDICADO,message:até700},failure:{when:false,message:até700}}.
 Na demonstração sem fracasso (failure.when=false), message pode ser omitida/vazia;
 o motor fornece uma orientação neutra de reinício, sem inventar reprovação.
 IDs [a-z][a-z0-9_]* até32, únicos em cada grupo. Textos obrigatórios não vazios.
+Obrigatórios pedagógicos: título e objetivo. Subtitle, briefing, courseConnection,
+debrief, unit, descrição/motivo de bloqueio das ações e facts podem ser omitidos
+quando não acrescentam compreensão: o motor fornece apresentação neutra.
+Não invente dados ou fracasso só para preencher campos de interface.
 EXPRESSAO_NUMERICA: inteiro ou {var:"id"} ou {op:"add"|"sub"|"mul"|"min"|"max",args:[expressao,expressao]}.
 PREDICADO: true/false ou {op:"eq"|"ne"|"lt"|"le"|"gt"|"ge",args:[numero,numero]},
 {op:"all"|"any",args:[predicado,predicado,...]} ou {op:"not",args:[predicado]}.
@@ -414,7 +424,14 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
     if raw.get('unsupported'): raise ValueError('Recurso não representável: '+_text(raw['unsupported'],700,'unsupported'))
     if raw.get('didacticMode') not in (None,PROCESS_DEMO):raise ValueError('Modo didático inválido')
     demo=raw.get('didacticMode')==PROCESS_DEMO
-    spec = {k:_text(raw.get(k),limit,k) for k,limit in (
+    texts=dict(raw)
+    if demo:
+        defaults={'subtitle':raw.get('mission')[:240] if isinstance(raw.get('mission'),str) else raw.get('mission'),'briefing':raw.get('mission'),
+                  'courseConnection':'Representação ilustrativa para explorar o conteúdo.',
+                  'debrief':'Observe as mudanças e reinicie para explorar novamente.'}
+        for key,value in defaults.items():
+            if texts.get(key) is None or isinstance(texts.get(key),str) and not texts[key].strip():texts[key]=value
+    spec = {k:_text(texts.get(k),limit,k) for k,limit in (
         ('title',120),('subtitle',240),('mission',500),('briefing',1800),('courseConnection',800),('debrief',800))}
     if raw.get('layout') not in {'workbench','conversation','process'}: raise ValueError('Layout inválido')
     if demo:spec['didacticMode']=PROCESS_DEMO
@@ -427,8 +444,12 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
         key=_id(row.get('id'))
         if key in ids: raise ValueError('ID de variável repetido')
         ids.add(key); low=_int(row.get('min'),-100,100); high=_int(row.get('max'),low+1,min(100,low+100))
-        variables.append({'id':key,'label':_text(row.get('label'),60,f'variables.{key}.label'),'description':_text(row.get('description'),220,f'variables.{key}.description'),
-                          'min':low,'max':high,'initial':_int(row.get('initial'),low,high),'unit':_text(row.get('unit'),24,f'variables.{key}.unit')})
+        description=row.get('description');unit=row.get('unit')
+        if demo:
+            if description is None or isinstance(description,str) and not description.strip():description=row.get('label')
+            if unit is None or isinstance(unit,str) and not unit.strip():unit='estado'
+        variables.append({'id':key,'label':_text(row.get('label'),60,f'variables.{key}.label'),'description':_text(description,220,f'variables.{key}.description'),
+                          'min':low,'max':high,'initial':_int(row.get('initial'),low,high),'unit':_text(unit,24,f'variables.{key}.unit')})
     spec['variables']=variables
     actions=raw.get('actions')
     if not isinstance(actions,list) or not (1 if demo else 4) <= len(actions) <= 18: raise ValueError('Quantidade de ações inválida')
@@ -448,7 +469,11 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
             continue
         if not effects:empty_effects.append(key)
         changed.update(effects)
-        spec['actions'].append({'id':key,**{k:_text(row.get(k),lim,f'actions.{key}.{k}') for k,lim in (
+        action_texts=dict(row)
+        if demo:
+            for field,value in {'description':row.get('label'),'unavailable':'Esta ação não está disponível nesta etapa.'}.items():
+                if action_texts.get(field) is None or isinstance(action_texts.get(field),str) and not action_texts[field].strip():action_texts[field]=value
+        spec['actions'].append({'id':key,**{k:_text(action_texts.get(k),lim,f'actions.{key}.{k}') for k,lim in (
             ('label',100),('description',350),('unavailable',220),('feedback',500))},
             'requires':_field_expression(row.get('requires'),ids,True,'actions.'+key+'.requires'),
             'effects':{k:_field_expression(v,ids,False,'actions.'+key+'.effects.'+k) for k,v in effects.items()}})
@@ -462,7 +487,8 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
         key=_id(row.get('id'))
         if key in scene_ids: raise ValueError('ID de cena repetido')
         scene_ids.add(key); facts=row.get('facts')
-        if not isinstance(facts,list) or not 1 <= len(facts) <= 5: raise ValueError('Cena precisa de 1 a 5 fatos')
+        if demo and facts is None:facts=[]
+        if not isinstance(facts,list) or not (0 if demo else 1) <= len(facts) <= 5: raise ValueError('Cena precisa de '+('0' if demo else '1')+' a 5 fatos')
         spec['scenes'].append({'id':key,'when':_field_expression(row.get('when'),ids,True,'scenes.'+key+'.when'),
             'title':_text(row.get('title'),120,f'scenes.{key}.title'),'description':_text(row.get('description'),700,f'scenes.{key}.description'),
             'facts':[_text(f,220,f'scenes.{key}.facts.{i}') for i,f in enumerate(facts)]})

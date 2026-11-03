@@ -315,3 +315,32 @@ indicador por causa do formato de saída. Outros provedores mantêm JSON validad
 A direção de arte pede contornos compactos, sem sequências intermináveis; a
 revisão aceita contato esquemático, alinhamento em linha e rotações simultâneas
 opostas, sem exigir encaixe ou relações de transmissão matematicamente exatos.
+
+### Padrão ilustrativo centrado no assunto
+
+Novas demonstrações guiadas priorizam objetos, ambiente, personagens e ações
+pertinentes ao conteúdo, incluindo metáforas explicadas para conceitos abstratos.
+Não há roteamento por palavras-chave para modelos temáticos fixos. Recursos de
+desenho são reutilizáveis; a composição e a geometria continuam planejadas por
+atividade. O sistema não promete representar adequadamente todo pedido possível.
+
+O compilador aceita textos acessórios ausentes no modo process-demo-v1 e fornece
+apenas apresentação neutra: subtítulo, briefing, conexão com o conteúdo, reflexão,
+descrição de variável, unidade de estado e orientações de controles. Fatos da cena
+podem ser vazios. Título, objetivo, ações com consequência, referências tipadas e
+trajetória executável continuam verificados. Tipos incorretos não são silenciados.
+Modelos de desafio e documentos sem process-demo-v1 mantêm suas exigências.
+
+Indicadores internos não viram métricas obrigatórias para o aluno. Em novas
+demonstrações, essentialVariables pode ser vazio. Com até dois controles, a
+composição padrão immersive oferece cena ampla e uma faixa inferior de ações;
+scene-led mantém painel lateral quando útil. A escolha não depende do assunto.
+A conclusão tem linguagem neutra, sem aprovação/reprovação, e preserva reinício.
+É apresentação: regras e resultados internos não são reescritos nem usados para
+prometer aprovação do curso. O autor ainda pode escolher Aplicado ou Avançado.
+
+As instruções de visualização animada também priorizam simplificação qualitativa,
+objetos reconhecíveis e coerência básica, sem exigir relações físicas exatas.
+Não se aceita conteúdo sem relação com o pedido ou premissas falsas como fatos.
+Nenhuma geração de IA é necessária para migrar dados: esta versão não reescreve
+atividades já inseridas. Para estas, gerar/refinar explicitamente e conferir a prévia.

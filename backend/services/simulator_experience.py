@@ -50,13 +50,14 @@ def normalize_experience(raw,spec,preferences=None):
     raw=raw if isinstance(raw,dict) else {}
     selected=preferences or options(raw.get('complexity'),raw.get('visualStyle'))
     level=selected['complexity'];limit={'guided':2,'applied':3,'advanced':10}[level]
-    compositions={'guided':{'scene-led'},'applied':{'scene-led','split'},'advanced':{'scene-led','split','instruments'}}[level]
-    default={'guided':'scene-led','applied':'split','advanced':'instruments'}[level]
+    demo=level=='guided' and spec.get('didacticMode')=='process-demo-v1'
+    compositions={'guided':{'scene-led','immersive'} if demo else {'scene-led'},'applied':{'scene-led','split'},'advanced':{'scene-led','split','instruments'}}[level]
+    default='immersive' if demo and len(spec.get('actions',[]))<=2 else {'guided':'scene-led','applied':'split','advanced':'instruments'}[level]
     variables={v['id']:v for v in spec['variables']}
     primary=[]
     for key in raw.get('essentialVariables',[]) if isinstance(raw.get('essentialVariables'),list) else []:
         if isinstance(key,str) and key in variables and key not in primary:primary.append(key)
-    primary=(primary+list(k for k in variables if k not in primary))[:limit]
+    primary=(primary if demo else primary+list(k for k in variables if k not in primary))[:limit]
     def text(key,fallback,cap):
         value=raw.get(key)
         return value.strip()[:cap] if isinstance(value,str) and value.strip() else fallback[:cap]
@@ -79,7 +80,7 @@ def normalize_experience(raw,spec,preferences=None):
 
 EXPERIENCE_PROMPT='''Antes de desenhar, planeje a experiência didática em experience:
 {complexity:"guided"|"applied"|"advanced",visualStyle:"illustrated"|"technical",
- composition:"scene-led"|"split"|"instruments",palette:"daylight"|"deep"|"warm",
+ composition:"immersive"|"scene-led"|"split"|"instruments",palette:"daylight"|"deep"|"warm",
  environment:descrição específica do ambiente até600,learningFocus:até400,
  visualApproach:até800 descrevendo os objetos, suas mudanças observáveis e por que ensinam o conteúdo,
  essentialVariables:[IDs existentes das variáveis realmente úteis ao aluno],
@@ -87,6 +88,10 @@ EXPERIENCE_PROMPT='''Antes de desenhar, planeje a experiência didática em expe
 Use a complexidade e o estilo escolhidos pelo AUTOR em simulatorOptions.
 Guiado: cena predominante, orientação contextual, poucas escolhas relevantes a cada momento,
 até 2 indicadores essenciais; não simplifique a arte nem invente travas para criar um quiz.
+No Guiado, essentialVariables pode ser []: não mostre indicadores numéricos só
+porque existem variáveis internas. Use immersive para cena ampla com controles
+discretos, scene-led para cena com painel lateral quando isso ajudar a compreender.
+Não use sempre a mesma composição: o conteúdo e as ações determinam a apresentação.
 No Guiado, demonstre o processo geral de forma qualitativa: uma variável de etapa
 e um controle de avanço podem bastar. Não invente precisão científica, métricas,
 fracasso ou operações extras para satisfazer um desafio. Detalhe a arte, não a burocracia.

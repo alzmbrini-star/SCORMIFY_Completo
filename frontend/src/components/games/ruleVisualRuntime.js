@@ -124,7 +124,7 @@ export function ruleVisualRuntime() {
       else if(changedLinks.length)explanation.textContent='Observe: '+changedLinks.map(function(link){var v=data.variables.find(function(item){return item.id===link.var;});return v.label+': '+previousState[link.var]+' → '+view.state[link.var]+'. '+link.whatChanges+' '+link.whyItMatters;}).join(' ').slice(0,420);
       previousState=Object.assign({},view.state);
       caption.title=explanation.textContent;figure.dataset.observedVariables=changedLinks.map(function(link){return link.var;}).join(',');
-    }else caption.textContent=(demo?'Demonstração didática simplificada · ':'')+(authored?'Cena vinculada às decisões · ':data.visualNotice?'Ilustração indisponível; diagrama conceitual · ':'Diagrama conceitual dos estados · ')+(view.scene?view.scene.title:'Estado inicial');
+    }else caption.textContent=(demo?'Demonstração didática simplificada · ':'')+(authored?(demo?'Cena ilustrativa · ':'Cena vinculada às decisões · '):data.visualNotice?'Ilustração indisponível; diagrama conceitual · ':'Diagrama conceitual dos estados · ')+(view.scene?view.scene.title:'Estado inicial');
   }
   var state=Object.create(null);data.variables.forEach(function(v){state[v.id]=v.initial;});update({state:state,steps:0,actions:[],scene:{title:'Estado inicial'}});
   document.addEventListener('scormify:rules-state',function(event){update(event.detail);});
