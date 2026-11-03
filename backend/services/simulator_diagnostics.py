@@ -12,7 +12,7 @@ import re
 
 _scope = ContextVar('simulator_diagnostic_scope', default=None)
 _record = ContextVar('simulator_diagnostic_record', default=None)
-VERSION = 19
+VERSION = 20
 MAX_DOCUMENT = 1000000
 
 
@@ -144,6 +144,12 @@ an earlier approval: all JSON passes the current proof and quality policy again.
                     data=validate_rules(logic)
                     data['verification']['visualRevalidationRequired']=True
                 demo=data.get('didacticMode')=='process-demo-v1'
+                guided_upgrade=demo and version<20
+                if guided_upgrade:
+                    # Reuse proven rules, not old art that never passed the
+                    # planned-frame pipeline. Enrichment draws only the scene.
+                    data.pop('visual',None);data.pop('visualNotice',None)
+                    data['verification']['guidedVisualRevalidationRequired']=True
                 if not demo and single_action_shortcuts(data): continue
                 from services.simulator_experience import from_context,normalize_experience,has_options
                 selected=from_context(context)
@@ -160,7 +166,7 @@ an earlier approval: all JSON passes the current proof and quality policy again.
                     data['verification']['visualDetailRevalidationRequired']=True
                 if not data.get('visual'):
                     from services.rule_visuals import validate_visual
-                    for attempt in reversed(previous.get('attempts',[])[-3:]):
+                    for attempt in (() if guided_upgrade else reversed(previous.get('attempts',[])[-3:])):
                         document=attempt.get('document')
                         if attempt.get('truncated') or not isinstance(document,str):continue
                         try:

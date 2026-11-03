@@ -67,6 +67,8 @@ class DemoVisualRefinement(unittest.TestCase):
         from services.simulator_visual_refinement import refine_visual
         from services.component_authoring import stored_model
         model=pump_model();messages=[]
+        from guided_visual_fixtures import plan_for
+        async def planner(ask,request,samples):return plan_for(pump_scene(),samples)
         class Chat:
             def __init__(self,**kwargs):self.system=kwargs['system_message']
             def with_model(self,*args):return self
@@ -75,17 +77,19 @@ class DemoVisualRefinement(unittest.TestCase):
                 messages.append(json.loads(message.text))
                 if 'FIDELIDADE VISUAL' in self.system:return json.dumps({'approved':True,'summary':'Objetos pertinentes ao processo.','issues':[]})
                 return json.dumps(pump_scene())
-        with patch('services.llm_config.simulator_generation_config',return_value=('openai','test','model')),patch('emergentintegrations.llm.chat.LlmChat',Chat):
+        with patch('services.llm_config.simulator_generation_config',return_value=('openai','test','model')),patch('emergentintegrations.llm.chat.LlmChat',Chat),patch('services.guided_visuals.plan_scene',planner):
             result=asyncio.run(refine_visual(json.dumps(model),'Refinar bomba','Curso','guided','illustrated'))
         final=stored_model(result['html'])
         for field in ('variables','actions','goal','failure','didacticMode'):self.assertEqual(final[field],model[field])
-        self.assertEqual(len(messages),2);self.assertIn('processDemonstration',messages[0])
-        self.assertIn('não a uma cota artificial',messages[0]['finishRequirements'])
+        self.assertEqual(len(messages),2);self.assertIn('compositionPlan',messages[0])
+        self.assertIn('geometryBudget',messages[0])
 
     def test_editorial_observations_do_not_block_refinement_of_safe_demo(self):
         from services.simulator_visual_refinement import refine_visual
         from services.component_authoring import stored_model
         model=pump_model()
+        from guided_visual_fixtures import plan_for
+        async def planner(ask,request,samples):return plan_for(pump_scene(),samples)
         class Chat:
             def __init__(self,**kwargs):self.system=kwargs['system_message']
             def with_model(self,*args):return self
@@ -93,7 +97,7 @@ class DemoVisualRefinement(unittest.TestCase):
             async def send_message(self,message):
                 if 'FIDELIDADE VISUAL' in self.system:return json.dumps({'approved':False,'summary':'Melhorar a composição.','issues':[{'nodes':['reservoir1'],'problem':'Detalhes ilustrativos ainda simples.','correction':'Melhorar o contorno.'}]})
                 return json.dumps(pump_scene())
-        with patch('services.llm_config.simulator_generation_config',return_value=('openai','test','model')),patch('emergentintegrations.llm.chat.LlmChat',Chat):
+        with patch('services.llm_config.simulator_generation_config',return_value=('openai','test','model')),patch('emergentintegrations.llm.chat.LlmChat',Chat),patch('services.guided_visuals.plan_scene',planner):
             result=asyncio.run(refine_visual(json.dumps(model),'Refinar paisagem','Curso','guided','illustrated'))
         final=stored_model(result['html'])
         self.assertIn('não certificada',final['visualNotice'])

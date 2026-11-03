@@ -419,6 +419,9 @@ def illustration_detail_issues(visual,spec):
 
 
 async def generate_visual(data,prompt,context,session_id,provider,key,model):
+    if data.get('didacticMode')=='process-demo-v1':
+        from services.guided_visuals import generate_guided_visual
+        return await generate_guided_visual(data,prompt,context,session_id,provider,key,model)
     if (data.get('experience') or {}).get('complexity')=='advanced' and data.get('didacticMode')!='process-demo-v1':
         from services.visual_teaching import generate_teaching_visual
         return await generate_teaching_visual(data,prompt,context,session_id,provider,key,model)

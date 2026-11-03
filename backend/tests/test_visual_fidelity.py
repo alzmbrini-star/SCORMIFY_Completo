@@ -36,6 +36,10 @@ def rejection():return {'approved':False,'summary':'Silhueta não representa a p
 class VisualFidelity(unittest.TestCase):
     def run_generation(self,responses,prompt='Quatro engrenagens de tamanhos e cores diferentes'):
         calls=[];data=validate_rules(process_demo());before=copy.deepcopy(data)
+        from guided_visual_fixtures import plan_for
+        async def planner(ask,request,samples):
+            fixture=next((r for r in responses if isinstance(r,dict) and 'nodes' in r),scene(True))
+            return plan_for(fixture,samples)
         class Chat:
             def __init__(self,**kwargs):self.system=kwargs['system_message']
             def with_model(self,*args):return self
@@ -44,7 +48,7 @@ class VisualFidelity(unittest.TestCase):
                 calls.append({'system':self.system,'payload':json.loads(message.text)})
                 result=responses[len(calls)-1]
                 return result if isinstance(result,str) else json.dumps(result)
-        with patch('emergentintegrations.llm.chat.LlmChat',Chat):result=asyncio.run(generate_visual(data,prompt,'Curso','qa','openai','fake','model'))
+        with patch('emergentintegrations.llm.chat.LlmChat',Chat),patch('services.guided_visuals.plan_scene',planner):result=asyncio.run(generate_visual(data,prompt,'Curso','qa','openai','fake','model'))
         self.assertEqual(data,before)
         return result,calls
 
@@ -93,7 +97,7 @@ class VisualFidelity(unittest.TestCase):
         (visual,notice),_=self.run_generation([scene(True),rejection(),'invalid json'])
         self.assertIsNotNone(visual);self.assertIn('revisão do autor',notice)
         (visual,notice),_=self.run_generation(['invalid json','invalid json'])
-        self.assertIsNone(visual);self.assertIn('tecnicamente válida',notice)
+        self.assertIsNone(visual);self.assertIn('execução visual',notice)
 
     def test_one_recognizable_shape_can_demonstrate_a_guided_process(self):
         raw={'version':1,'title':'Mudança ilustrativa','description':'Observe o deslocamento.','background':'#edf4fa',

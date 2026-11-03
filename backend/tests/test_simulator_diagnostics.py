@@ -12,6 +12,19 @@ from services.simulator_diagnostics import (capture_generation, diagnostic_scope
 
 
 class DiagnosticTests(unittest.IsolatedAsyncioTestCase):
+    async def test_old_guided_art_reuses_rules_but_requests_new_planned_frames(self):
+        from test_process_demo import process_demo
+        from test_visual_thresholds import threshold_scene
+        raw=process_demo();raw['visual']=threshold_scene()
+        prior={'version':19,'status':'accepted','generationKey':generation_key('request','context',['p','m'],19),
+               'plan':{'mechanic':'finite-rules-v1'},'result':{'spec':raw},'attempts':[{'document':json.dumps(raw['visual'])}]}
+        generate=AsyncMock(side_effect=AssertionError('Do not regenerate rules'))
+        enrich=AsyncMock(side_effect=lambda result,*args:result)
+        with diagnostic_scope(lambda record:None,[prior]):result=await capture_generation(generate,'request','context','session',['p','m'],enrich=enrich)
+        generate.assert_not_awaited();enrich.assert_awaited_once()
+        self.assertNotIn('visual',result['spec']);self.assertTrue(result['spec']['verification']['guidedVisualRevalidationRequired'])
+        self.assertEqual(result['spec']['actions'][0]['id'],raw['actions'][0]['id'])
+
     async def test_saved_scene_json_is_recompiled_without_another_ai_call(self):
         from test_rule_visuals import sales_visual
         raw=sales_visual();scene=raw.pop('visual');scene['nodes'][10]['attrs']['x']=760;raw['mechanic']='finite-rules-v1'

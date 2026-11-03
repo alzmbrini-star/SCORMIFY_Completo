@@ -414,3 +414,21 @@ JavaScript usam a mesma regra, sem divisão por zero. Prefira states/visibleWhen
 ao autorar uma mudança por etapa; o limiar é compatibilidade para a saída gerada.
 Não adivinha unidades, fórmulas ou novas ações. Intervalos invertidos, valores
 inválidos e referências inexistentes continuam rejeitados; desafios não mudam.
+
+Geração guiada v20: o fluxo passa por plano semântico, arte em camadas, projeções
+de até oito estados executáveis e revisão por imagens. O plano define objetos com
+IDs estáveis, características visuais e presença esperada em cada amostra; não
+contém modelos temáticos nem novas variáveis. A revisão recebe um mosaico PNG
+das projeções SVG, não apenas nomes no JSON. Isso não é screenshot da interface
+nem certificação estética/científica; o volume cosmético do navegador não é prova.
+Um renderizador local resvg-py usa apenas SVG montado da whitelist validada, sem
+HTML/SVG bruto fornecido pela IA, referências externas, arquivos ou scripts.
+Diferenças de pixels com/sem cada objeto detectam invisibilidade por opacidade de
+ancestrais, oclusão, contraste ou posição. Objetos permanentes são verificados em
+duas fases de movimento contínuo. Não basta uma forma existir no código.
+Falhas locais direcionam reparos aos objetos afetados e descendentes, preservando
+as outras camadas. Falhas globais permitem recomposição. Regras nunca são alteradas.
+Uma candidata sem objetos essenciais visíveis não é mantida como prévia válida.
+Candidata executável com ressalva editorial continua identificada como não certificada.
+O cache antigo conserva a lógica, mas solicita a nova camada visual sem recertificar
+a arte anterior. Não há geração paga só por abrir ou rever uma atividade existente.
