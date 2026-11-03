@@ -17,7 +17,7 @@ export function ruleVisualRuntime() {
     var a=(expr.args||[]).map(function(e){return evalExpr(e,state);});
     switch(expr.op){case'eq':return a[0]===a[1];case'ne':return a[0]!==a[1];case'lt':return a[0]<a[1];case'le':return a[0]<=a[1];case'gt':return a[0]>a[1];case'ge':return a[0]>=a[1];case'all':return a.every(Boolean);case'any':return a.some(Boolean);case'not':return!a[0];case'add':return a[0]+a[1];case'sub':return a[0]-a[1];case'mul':return a[0]*a[1];case'min':return Math.min.apply(Math,a);case'max':return Math.max.apply(Math,a);default:return false;}
   }
-  function interpolate(b,state){var t=(state[b.var]-b.input[0])/(b.input[1]-b.input[0]);return b.output[0]+Math.max(0,Math.min(1,t))*(b.output[1]-b.output[0]);}
+  function interpolate(b,state){var lo=b.input[0],hi=b.input[1],t=hi===lo?(state[b.var]>=lo?1:0):(state[b.var]-lo)/(hi-lo);return b.output[0]+Math.max(0,Math.min(1,t))*(b.output[1]-b.output[0]);}
   function textValue(value,state){return String(value||'').slice(0,100).replace(/\{([a-z][a-z0-9_]*)\}/g,function(_,key){return Object.prototype.hasOwnProperty.call(state,key)?String(state[key]):'?';});}
   var figure=node('figure');figure.id='rule-visual';figure.className='sim-rule-visual';figure.dataset.visualMode=authored?'illustrated':'conceptual';
   var picture=svg('svg');picture.setAttribute('viewBox','0 0 800 450');picture.setAttribute('preserveAspectRatio','xMidYMid meet');picture.setAttribute('role','group');

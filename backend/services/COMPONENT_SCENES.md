@@ -407,3 +407,10 @@ Desafios Aplicado/Avançado mantêm seus critérios existentes.
 Demonstrações com até dois controles usam palco aberto e comandos inferiores,
 inclusive ao reabrir preferências antigas scene-led, sem reescrever o modelo.
 As ilustrações continuam autoradas para cada assunto, não roteadas por templates.
+
+No Guiado, binding input:[k,k] representa um limiar discreto: output[0] antes de k,
+output[1] em k ou acima, dentro dos limites da variável. Projetor Python e runtime
+JavaScript usam a mesma regra, sem divisão por zero. Prefira states/visibleWhen
+ao autorar uma mudança por etapa; o limiar é compatibilidade para a saída gerada.
+Não adivinha unidades, fórmulas ou novas ações. Intervalos invertidos, valores
+inválidos e referências inexistentes continuam rejeitados; desafios não mudam.
