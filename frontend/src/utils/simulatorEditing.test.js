@@ -16,6 +16,13 @@ test('save targets original element without new placement or implicit insertion'
  expect(()=>simulatorEditPatch(project,{...target,source:'changed'},html)).toThrow('alterado');
  expect(()=>simulatorEditPatch(project,target,'<p>Other</p>')).toThrow('original foi preservado');
 });
+
+test('explicit refresh upgrades the visualization legend without changing its authored plan',()=>{
+ const source='<body data-sim-engine="didactic-visualization-v1"><script type="application/json">{"title":"Original"}</script><script id="scormify-visualization-finish-v1">oldFinish();</script></body>';
+ const result=refreshSimulatorPresentation(source);
+ expect(result).not.toContain('oldFinish()');expect(result).toContain('data-vf-object-name');
+ expect(result).toContain('{"title":"Original"}');expect(refreshSimulatorPresentation(result)).toBe(result);
+});
 test('base64 unicode and previous preferences round-trip without evaluating authored scripts',()=>{
  const encoded='__B64__:'+btoa(unescape(encodeURIComponent(html)));
  expect(simulatorSource(encoded)).toBe(html);

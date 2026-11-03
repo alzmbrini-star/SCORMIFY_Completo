@@ -18,6 +18,10 @@ for(const {html,plan} of packet){
   const finished=g.firstElementChild.getAttribute('fill');assert.ok(finished==='none'||finished.startsWith('url(#vf-'));
   d.getElementById('reset').click();assert.equal(pending.size,0);
   d.querySelector('#items button').click();assert.equal(d.querySelectorAll('[data-vf-selected=true]').length,1);
+  const name=d.querySelector('[data-vf-object-name]');assert.equal(name.textContent,plan.nodes[0].label);
+  d.querySelectorAll('#items button')[1].focus();assert.equal(name.textContent,plan.nodes[1].label);
+  assert.ok(d.getElementById('detail').textContent.includes(plan.nodes[1].explanation));
+  d.getElementById('reset').click();assert.equal(name.hidden,true);assert.equal(pending.size,0);
   const marker=d.querySelector('#scormify-visualization-finish-v1');dom.window.eval(marker.textContent);
   assert.equal(d.querySelectorAll('#vf-definitions').length,1);assert.equal(d.querySelectorAll('#scormify-visualization-finish-style-v1').length,1);
   assert.deepEqual(errors,[]);dom.window.close();console.log('PASS finish: '+plan.presentation.theme+' / '+plan.title+' — paints, controls, exact motion, reset and idempotency');

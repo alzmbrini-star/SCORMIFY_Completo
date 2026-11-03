@@ -33,13 +33,13 @@ export function ruleVisualRuntime() {
     explanation.style.display='-webkit-box';explanation.style.webkitLineClamp='2';explanation.style.webkitBoxOrient='vertical';explanation.style.overflow='hidden';guide.style.flexShrink='0';
   }
   var style=node('style');style.id='rule-visual-style';style.textContent='.sim-rule-visual{margin:0;display:flex;flex-direction:column;min-width:0;min-height:0;flex:1;overflow:hidden}.sim-rule-visual>svg{display:block;width:100%;flex:1;min-height:0;border:1px solid #59768f;border-radius:10px}.sim-dialog-body .sim-rule-visual{height:min(65vh,520px);min-height:200px}.sim-visual-caption{font:calc(14px * var(--sim-ui,1))/1.35 system-ui,sans-serif;color:#dceafb;padding-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.sim-rule-visual [role="button"]{cursor:pointer}.sim-rule-visual [aria-disabled="true"]{cursor:not-allowed}.sim-rule-visual [role="button"]:focus-visible{outline:3px solid #fbbf24;outline-offset:4px}.sim-rule-visual [data-visual-changed="true"]{filter:drop-shadow(0 0 5px #7dd3fc)}';document.head.appendChild(style);
-  var entries=[],elements=Object.create(null),frame=null,initial=true,lastStep=0;
+  var entries=[],elements=Object.create(null),frame=null,initial=true,lastStep=0,syncLegend=null;
   var demo=data.didacticMode==='process-demo-v1';
   // Fit the scene itself, not a wide background strip. Never stretch SVG units.
   var stage=node('div');stage.className='sim-visual-stage';figure.insertBefore(stage,picture);stage.appendChild(picture);
   stage.style.cssText='flex:1;min-height:0;min-width:0;display:flex;align-items:center;justify-content:center;overflow:hidden';
   picture.style.flex='none';picture.style.maxWidth='100%';picture.style.maxHeight='100%';picture.style.border='1px solid #59768f';picture.style.borderRadius='10px';
-  function fitScene(){var box=stage.getBoundingClientRect();if(!box.width||!box.height)return;var w=Math.min(box.width,box.height*800/450);picture.style.width=w+'px';picture.style.height=(w*450/800)+'px';}
+  function fitScene(){var box=stage.getBoundingClientRect();if(!box.width||!box.height)return;var w=Math.min(box.width,box.height*800/450);picture.style.width=w+'px';picture.style.height=(w*450/800)+'px';if(syncLegend)syncLegend();}
   var sceneObserver=typeof ResizeObserver==='function'?new ResizeObserver(fitScene):null;
   if(sceneObserver)sceneObserver.observe(stage);window.addEventListener('resize',fitScene);if(typeof window.requestAnimationFrame==='function')window.requestAnimationFrame(fitScene);else fitScene();
   if(demo&&authored&&teaching)anchor.hidden=true; // The same guidance remains in the scene caption/guide; reserve room for the illustration.
@@ -137,7 +137,7 @@ export function ruleVisualRuntime() {
     cycles.forEach(function(e){if(!e.rendered||e.el.style.display==='none')return;var b=e.definition.bindings.find(function(b){return b.property==='rotation';}),a=e.rendered,rotation=(Number(a.rotation)||0)+(b.output[1]>=b.output[0]?1:-1)*motionTime*30;
     e.el.setAttribute('transform',(e.definition.type==='group'?'translate('+(Number(a.x)||0)+' '+(Number(a.y)||0)+') ':'')+'rotate('+rotation+')');});}
   function queueMotion(){if(motionFrame===null&&motionPlaying&&!document.hidden&&typeof window.requestAnimationFrame==='function')motionFrame=window.requestAnimationFrame(tickMotion);}
-  function tickMotion(now){motionFrame=null;if(!motionPlaying||document.hidden){motionStamp=null;return;}if(motionStamp!==null)motionTime+=Math.min(.1,(now-motionStamp)/1000)*motionSpeed;motionStamp=now;spin();queueMotion();}
+  function tickMotion(now){motionFrame=null;if(!motionPlaying||document.hidden){motionStamp=null;return;}if(motionStamp!==null)motionTime+=Math.min(.1,(now-motionStamp)/1000)*motionSpeed;motionStamp=now;spin();if(syncLegend)syncLegend();queueMotion();}
   function setMotion(playing){motionPlaying=playing;motionStamp=null;if(motionFrame!==null){window.cancelAnimationFrame(motionFrame);motionFrame=null;}figure.dataset.motionPlaying=String(playing);if(!teaching)caption.textContent=playing?'Reprodução ilustrativa contínua · sem avanço automático de decisões':'Reprodução pausada';if(motionButton){motionButton.textContent=playing?'Pausar movimento':'Reproduzir movimento';motionButton.setAttribute('aria-pressed',String(playing));}document.dispatchEvent(new CustomEvent('scormify:motion-playback'));queueMotion();}
   if(cycles.length||demonstration.length||declaredMotions.length){
     var motionTools=node('div');motionTools.className='sim-motion-tools';motionTools.style.cssText='display:flex;align-items:center;gap:8px;flex-shrink:0;padding:4px 0';
@@ -175,7 +175,7 @@ export function ruleVisualRuntime() {
       if(entry.definition.action){var action=(view.actions||[]).find(function(a){return a.id===entry.definition.action;});entry.el.setAttribute('aria-disabled',String(!action||!action.enabled));entry.el.setAttribute('tabindex',action&&action.enabled?'0':'-1');}
       return {entry:entry,from:old,to:value.attrs};
     });
-    function paint(t){targets.forEach(function(item){var attrs=Object.assign({},item.to);if(t<1)numeric.forEach(function(k){if(typeof item.from[k]==='number'&&typeof item.to[k]==='number')attrs[k]=item.from[k]+(item.to[k]-item.from[k])*t;});apply(item.entry,attrs);item.entry.rendered=attrs;});spin();}
+    function paint(t){targets.forEach(function(item){var attrs=Object.assign({},item.to);if(t<1)numeric.forEach(function(k){if(typeof item.from[k]==='number'&&typeof item.to[k]==='number')attrs[k]=item.from[k]+(item.to[k]-item.from[k])*t;});apply(item.entry,attrs);item.entry.rendered=attrs;});spin();if(syncLegend)syncLegend();}
     if(animate&&typeof window.requestAnimationFrame==='function'){
       var start=null;function step(now){if(start===null)start=now;var t=Math.min(1,(now-start)/420);paint(t*t*(3-2*t));frame=t<1?window.requestAnimationFrame(step):null;}frame=window.requestAnimationFrame(step);
     }else paint(1);
@@ -193,5 +193,30 @@ export function ruleVisualRuntime() {
   // is held on a DOM event bridge, not recomputed or guessed from indicator text.
   var bridge=document.getElementById('scormify-rule-view');
   if(bridge){try{update(JSON.parse(bridge.textContent));}catch(_){/* retain initial view */}}
+  // A consultable legend, not another layer of permanently overlapping SVG text.
+  var objects=authored?entries.filter(function(e){return e.definition.type!=='text'&&String(e.definition.label||'').trim();}):[];
+  if(objects.length){
+    var legendStyle=node('style');legendStyle.textContent='.sim-object-legend[hidden],.sim-object-name[hidden]{display:none!important}.sim-object-legend{position:fixed;right:12px;top:64px;z-index:1200;width:min(310px,calc(100vw - 24px));max-height:70vh;overflow:auto;background:#f8fbff;color:#10243b;border:1px solid #57758e;border-radius:12px;padding:12px;box-shadow:0 8px 35px #0005;font:14px/1.4 system-ui,sans-serif}.sim-object-legend h2{font-size:17px;margin:0 0 8px}.sim-object-legend .sim-object-list{display:grid;gap:5px}.sim-object-legend .sim-object-list button{text-align:left;width:100%;font-size:14px}.sim-object-legend button[aria-pressed=true]{background:#0e6675!important;color:#fff!important}.sim-object-legend p{font-size:14px;line-height:1.45;margin:8px 0}.sim-object-name{position:absolute;z-index:4;pointer-events:none;max-width:190px;background:#10243b;color:#fff;border:1px solid #facc15;border-radius:6px;padding:4px 7px;font:13px/1.3 system-ui,sans-serif;box-shadow:0 2px 8px #0005}.sim-rule-visual [data-legend-selected=true]{filter:drop-shadow(0 0 5px #facc15)!important}';document.head.appendChild(legendStyle);
+    var tools=motionTools;if(!tools){tools=node('div');tools.className='sim-motion-tools';figure.insertBefore(tools,caption);}tools.style.flexWrap='wrap';
+    var legendButton=node('button','Objetos e legendas');legendButton.type='button';legendButton.setAttribute('aria-expanded','false');tools.appendChild(legendButton);
+    var panel=node('section');panel.className='sim-object-legend';panel.hidden=true;panel.setAttribute('aria-label','Legenda dos objetos');
+    panel.appendChild(node('h2','Objetos da cena'));var closeLegend=node('button','Fechar legenda');closeLegend.type='button';panel.appendChild(closeLegend);
+    var list=node('div');list.className='sim-object-list';list.setAttribute('aria-label','Selecionar objeto');panel.appendChild(list);
+    var detail=node('p','Selecione um nome para identificar o objeto na cena.');detail.setAttribute('role','status');panel.appendChild(detail);figure.appendChild(panel);
+    var selectedObject=null,legendButtons=Object.create(null),nameTag=node('span');nameTag.className='sim-object-name';nameTag.hidden=true;stage.style.position='relative';stage.appendChild(nameTag);
+    syncLegend=function(){if(!selectedObject){nameTag.hidden=true;return;}var rect=selectedObject.el.getBoundingClientRect(),box=stage.getBoundingClientRect();
+      nameTag.hidden=!rect.width&&!rect.height||selectedObject.el.style.display==='none';if(nameTag.hidden)return;
+      nameTag.style.left=Math.max(4,Math.min(box.width-nameTag.offsetWidth-4,rect.left-box.left+rect.width/2-nameTag.offsetWidth/2))+'px';
+      nameTag.style.top=Math.max(4,Math.min(box.height-nameTag.offsetHeight-4,rect.top-box.top-nameTag.offsetHeight-6))+'px';};
+    function selectObject(e){selectedObject=e;objects.forEach(function(other){other.el.dataset.legendSelected=String(other===e);legendButtons[other.definition.id]?.setAttribute('aria-pressed',String(other===e));});
+      nameTag.textContent=e.definition.label;var explanation=e.definition.explanation||'';
+      if(!explanation&&teaching)explanation=(teaching.links||[]).filter(function(l){return l.node===e.definition.id;}).map(function(l){return l.whatChanges+' '+l.whyItMatters;}).join(' ');
+      detail.textContent=e.definition.label+(explanation?': '+explanation:'. Objeto identificado no cenário.');syncLegend();}
+    objects.forEach(function(e){var b=node('button',e.definition.label);b.type='button';b.setAttribute('aria-pressed','false');b.dataset.legendObject=e.definition.id;b.addEventListener('click',function(){selectObject(e);});b.addEventListener('focus',function(){selectObject(e);});list.appendChild(b);legendButtons[e.definition.id]=b;
+      if(!e.definition.action)e.el.addEventListener('click',function(event){if(event.target.closest('[data-visual-node]')!==e.el)return;event.stopPropagation();selectObject(e);});});
+    function showLegend(open){panel.hidden=!open;legendButton.setAttribute('aria-expanded',String(open));if(open)closeLegend.focus();else legendButton.focus();}
+    legendButton.addEventListener('click',function(){showLegend(panel.hidden);});closeLegend.addEventListener('click',function(){showLegend(false);});panel.addEventListener('keydown',function(e){if(e.key==='Escape'){e.preventDefault();showLegend(false);}});
+    var resetLegend=document.getElementById('reset');if(resetLegend)resetLegend.addEventListener('click',function(){selectedObject=null;nameTag.hidden=true;objects.forEach(function(e){e.el.removeAttribute('data-legend-selected');legendButtons[e.definition.id].setAttribute('aria-pressed','false');});});
+  }
   window.addEventListener('pagehide',function(){if(frame!==null)window.cancelAnimationFrame(frame);if(motionFrame!==null)window.cancelAnimationFrame(motionFrame);motionFrame=null;motionPlaying=false;if(sceneObserver)sceneObserver.disconnect();window.removeEventListener('resize',fitScene);});
 }

@@ -45,7 +45,7 @@ def scene_schema(ids,actions,demo=False):
             'var':{'type':'string','enum':ids},'input':array({'type':'number'},2,2),'output':array({'type':'number'},2,2)})
         state=obj({'when':{'$ref':'#/$defs/predicate'},'set':attrs(kind,True)})
         node=obj({'id':{'type':'string','pattern':'^[a-z][a-z0-9_]{0,31}$'},'type':{'type':'string','enum':[kind]},
-            'label':string(),'parent':nullable(string()),'attrs':attrs(kind),'bindings':array(binding,0,8),
+            'label':string(),'explanation':nullable(string(350)),'parent':nullable(string()),'attrs':attrs(kind),'bindings':array(binding,0,8),
             'states':array(state,0,8),'visibleWhen':nullable({'$ref':'#/$defs/predicate'}),
             'action':nullable({'type':'string','enum':actions})})
         definitions['node_'+kind]=node;variants.append({'$ref':'#/$defs/node_'+kind})

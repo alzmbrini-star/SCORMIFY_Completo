@@ -159,7 +159,7 @@ def validate_visual(raw, spec):
             if isinstance(prop,str):bound.add(prop)
     if contract_errors:raise ValueError('Contrato visual: '+' | '.join(contract_errors[:16])+'. Corrija TODOS estes objetos mantendo a lógica.')
     for row in rows:
-        if not isinstance(row,dict) or set(row)-{'id','type','label','parent','attrs','bindings','states','visibleWhen','action'}:
+        if not isinstance(row,dict) or set(row)-{'id','type','label','explanation','parent','attrs','bindings','states','visibleWhen','action'}:
             raise ValueError('Campos de objeto visual inválidos')
         key=_id(row.get('id'));kind=row.get('type')
         if key in seen or kind not in TYPES:raise ValueError('ID visual repetido ou tipo inválido')
@@ -212,6 +212,9 @@ def validate_visual(raw, spec):
         if row.get('action'):
             if row['action'] not in {a['id'] for a in spec['actions']}:raise ValueError('Ação visual inexistente')
             node['action']=row['action']
+        if row.get('explanation') is not None:
+            if not isinstance(row['explanation'],str):raise ValueError('Explicação visual precisa ser texto')
+            if row['explanation'].strip():node['explanation']=row['explanation'].strip()[:350]
         seen[key]=kind;result['nodes'].append(node)
     if raw.get('motions') is not None:
         if not demo:raise ValueError('Movimentos ilustrativos contínuos exigem modo demonstração')
@@ -338,6 +341,11 @@ def visual_state(visual,state):
 
 VISUAL_PROMPT = '''Crie uma CENA DIDÁTICA ORIGINAL, ilustrada, específica ao tema, usando apenas JSON de formas SVG. Não gere código, SVG bruto, HTML, URLs, imagens externas nem scripts. O motor lógico já foi aprovado: NÃO altere suas variáveis/regras. Desenhe um ambiente com objetos reconhecíveis, não cartões de indicadores ou um fluxograma genérico. Use grupos para compor pessoas, equipamentos, paisagens, artefatos, ferramentas ou outras representações pertinentes ao conteúdo. Para temas abstratos represente uma situação de aplicação concreta, sem fingir uma medição científica. Não existem modelos temáticos fixos.
 Preserve a IDENTIDADE VISUAL dos objetos pedidos: sua silhueta e partes funcionais, não só o nome e a cor. Escolha livremente path/polygon/grupos para desenhar o que o tema exige. Exemplo de princípio, não template: engrenagens precisam de dentes reconhecíveis em contato; círculos lisos separados não mostram engrenamento. Um objeto pode legitimamente ser circular quando o tema pede isso. Movimentos precisam ser perceptíveis: girar um círculo uniforme não comunica rotação; use detalhes solidários à peça. Relações entre peças devem aparecer na composição e nos estados, não apenas em legendas. Não exija física precisa nem decoração sem função.
+Cada objeto deve ter label com seu nome didático (não apenas cor ou tipo SVG).
+Pode incluir explanation opcional até350 com sua função no processo, baseada no
+conteúdo fornecido e declarando simplificações necessárias. Não invente dados.
+O renderizador oferece legenda consultável e destaque associado ao objeto;
+não sobrecarregue a arte com parágrafos ou repita o mesmo nome em vários textos.
 Em demonstrações guiadas, uma rotação declarada de uma volta completa (rotation com amplitude >=300 graus) pode ser reproduzida continuamente pelo renderizador, com pausa e velocidade, sem avançar etapas lógicas. Use isso somente quando a repetição representar o mecanismo pedido, não para ações irreversíveis. Para giro axial, agrupe a peça no seu eixo local; para órbita, a origem do grupo deve ser o centro da órbita. Não transforme translação ou preenchimento em rotação só para obter animação. A velocidade é ilustrativa, não cálculo físico.
 Para MOVIMENTO CONTÍNUO no Guiado, prefira motions opcionais no nível da cena:
 [{node:ID não textual existente,kind:"orbit"|"rotate"|"translate",cx,cy,dx,dy,cycles,phase}].

@@ -21,7 +21,7 @@ async function check(reduced,mode='rotation'){
  const d=dom.window.document;await new Promise(r=>setTimeout(r,0));
  function advance(){clock+=100;const pending=[...frames.values()];frames.clear();pending.forEach(fn=>fn(clock));}
  advance();const piece=d.querySelector('[data-visual-node="'+(mode==='polygon'?'part_0_body':'part_0')+'"]');
- if(mode==='branched'){assert.equal(d.querySelector('.sim-motion-tools'),null,'never choose a learner decision automatically');dom.window.close();return;}
+ if(mode==='branched'){assert.equal(d.querySelector('.sim-motion-tools button[aria-pressed]'),null,'never choose a learner decision automatically');assert.equal(JSON.parse(d.getElementById('scormify-rule-view').textContent).steps,0);dom.window.close();return;}
  const initial=piece.getAttribute('transform'),state=d.getElementById('scormify-rule-view').textContent;
  for(let i=0;i<47;i++)advance();
  if(reduced){assert.equal(piece.getAttribute('transform'),initial);d.querySelector('.sim-motion-tools button').click();advance();for(let i=0;i<8;i++)advance();}

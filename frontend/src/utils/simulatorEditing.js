@@ -1,6 +1,7 @@
 import { isSlideSimulator, upgradeSimulatorSlide } from './simulatorSlide';
 import { simulatorSlideRuntime } from '../components/games/simulatorSlideRuntime';
 import { ruleVisualRuntime } from '../components/games/ruleVisualRuntime';
+import { visualizationFinishRuntime } from '../components/games/visualizationFinishRuntime';
 
 export function simulatorSource(content) {
   if (typeof content !== 'string') throw new Error('Simulador sem código HTML.');
@@ -26,6 +27,10 @@ export function refreshSimulatorPresentation(content) {
   if (/data-sim-engine=["']finite-rules-v1["']/.test(html)) {
     html=html.replace(/<script id="scormify-rule-visual-v1">[\s\S]*?<\/script>/i,
       () => '<script id="scormify-rule-visual-v1">('+ruleVisualRuntime.toString()+')();</script>');
+  }
+  if (/data-sim-engine=["']didactic-visualization-v1["']/.test(html)) {
+    html=html.replace(/<script id="scormify-visualization-finish-v1">[\s\S]*?<\/script>/i,
+      () => '<script id="scormify-visualization-finish-v1">('+visualizationFinishRuntime.toString()+')();</script>');
   }
   return upgradeSimulatorSlide(html);
 }

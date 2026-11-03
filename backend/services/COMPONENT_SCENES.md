@@ -384,3 +384,13 @@ A edição permite carregar HTML local de até 2 MB apenas na prévia, antes de 
 no elemento original. Isso facilita aplicar uma correção ou recuperar um arquivo
 sem criar outro simulador nem chamar IA. Cancelar e verificações de conflito mantêm
 o comportamento anterior de preservação do curso.
+
+Legendas consultáveis: cenas finite-rules oferecem “Objetos e legendas” com todos
+os nós nomeados que não sejam textos. Selecionar um nome destaca a peça e mostra
+um único rótulo acompanhando sua posição, sem cobrir a cena com vários textos.
+Explicações usam explanation opcional (até 350 caracteres) ou o vínculo didático
+autorado; não são inferidas a partir de cores ou formas. Consultar não chama IA
+nem altera estado lógico, histórico ou SCORM. Reset limpa seleção e destaque.
+Visualizações didáticas mantêm sua lista existente e ganham o rótulo associado.
+Reabrir e salvar atualiza explicitamente runtimes reconhecidos, preservando o
+plano original. HTML arbitrário sem metadados não ganha nomes inventados.
