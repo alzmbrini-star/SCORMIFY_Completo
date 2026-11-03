@@ -185,7 +185,7 @@ export function HtmlDialog({
   handleDownloadHtmlDiagnostic,
   simulatorOptions = { complexity: 'guided', visualStyle: 'illustrated' }, onSimulatorOptionsChange = () => {},
   handleAddHtml, handleGenerateHtmlAI, handleInsertAiHtml,
-  editingSimulator = false, onDownloadHtml,
+  editingSimulator = false, onDownloadHtml, onLoadHtml,
 }) {
   return (
     <Dialog open={open} onOpenChange={(o) => {
@@ -196,6 +196,7 @@ export function HtmlDialog({
       <DialogContent className="sm:max-w-6xl max-h-[92vh] flex flex-col overflow-y-auto">
         <DialogHeader><DialogTitle>{editingSimulator?'Editar simulador':'Adicionar HTML Personalizado'}</DialogTitle></DialogHeader>
         {editingSimulator && <p className="text-sm text-muted-foreground">As alterações serão salvas no simulador original, sem criar outro elemento. Cancelar preserva o slide.</p>}
+        {onLoadHtml && <label className="text-sm">Carregar HTML do computador<input type="file" accept=".html,.htm,text/html" disabled={aiHtmlLoading} className="block mt-1" onChange={e => {const file=e.target.files?.[0];if(file)onLoadHtml(file);e.target.value='';}} data-testid="simulator-html-upload" /></label>}
         <Tabs value={htmlDialogTab} onValueChange={setHtmlDialogTab} className="flex flex-col shrink-0">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="paste" data-testid="html-tab-paste"><Code className="w-4 h-4 mr-2" />Colar HTML</TabsTrigger>

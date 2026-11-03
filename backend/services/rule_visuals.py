@@ -128,7 +128,7 @@ def normalize_visual(raw):
 def validate_visual(raw, spec):
     from services.rule_simulators import expression,_refs,_id,trace_rules
     raw=normalize_visual(raw)
-    if not isinstance(raw,dict) or raw.get('version')!=VERSION or set(raw)-{'version','title','description','background','nodes','teaching'}:
+    if not isinstance(raw,dict) or raw.get('version')!=VERSION or set(raw)-{'version','title','description','background','nodes','teaching','motions'}:
         raise ValueError('Cena deve seguir o contrato visual versão 1')
     result={'version':VERSION,'title':_text(raw.get('title'),100),'description':_text(raw.get('description'),600),
             'background':_color(raw.get('background')),'nodes':[]}
@@ -213,8 +213,13 @@ def validate_visual(raw, spec):
             if row['action'] not in {a['id'] for a in spec['actions']}:raise ValueError('Ação visual inexistente')
             node['action']=row['action']
         seen[key]=kind;result['nodes'].append(node)
+    if raw.get('motions') is not None:
+        if not demo:raise ValueError('Movimentos ilustrativos contínuos exigem modo demonstração')
+        from services.illustration_motion import validate_motions
+        result['motions']=validate_motions(raw['motions'],result['nodes'])
+    continuous=bool(result.get('motions'))
     minimum=1 if demo else 2
-    if len(dynamic)<minimum or not (appearance if demo else geometric):raise ValueError('Cena deve alterar objetos do processo por movimento, aparência ou visibilidade; não apenas texto ou números' if demo else 'Cena deve alterar formas/posições por estado e representar variáveis causais do processo; não apenas texto ou números')
+    if not continuous and (len(dynamic)<minimum or not (appearance if demo else geometric)):raise ValueError('Cena deve alterar objetos do processo por movimento, aparência ou visibilidade; não apenas texto ou números' if demo else 'Cena deve alterar formas/posições por estado e representar variáveis causais do processo; não apenas texto ou números')
     if (spec.get('experience') or {}).get('visualStyle')=='illustrated':
         def descendants(key):
             children=[n for n in result['nodes'] if n.get('parent')==key]
@@ -251,7 +256,7 @@ def validate_visual(raw, spec):
             for state in (before,after):
                 key=tuple(state[k] for k in variables)
                 if key not in unique:states.append(state);unique.add(key)
-        if not any(signature(state)!=first for state in states[1:]):raise ValueError('A cena não reage aos controles disponíveis. Vincule os objetos a estados realmente alterados; texto sozinho não basta.')
+        if not continuous and not any(signature(state)!=first for state in states[1:]):raise ValueError('A cena não reage aos controles disponíveis. Vincule os objetos a estados realmente alterados; texto sozinho não basta.')
     else:
         for check in checks:
             final=trace_rules(spec,check['actions'])['expected']
@@ -334,6 +339,16 @@ def visual_state(visual,state):
 VISUAL_PROMPT = '''Crie uma CENA DIDÁTICA ORIGINAL, ilustrada, específica ao tema, usando apenas JSON de formas SVG. Não gere código, SVG bruto, HTML, URLs, imagens externas nem scripts. O motor lógico já foi aprovado: NÃO altere suas variáveis/regras. Desenhe um ambiente com objetos reconhecíveis, não cartões de indicadores ou um fluxograma genérico. Use grupos para compor pessoas, equipamentos, paisagens, artefatos, ferramentas ou outras representações pertinentes ao conteúdo. Para temas abstratos represente uma situação de aplicação concreta, sem fingir uma medição científica. Não existem modelos temáticos fixos.
 Preserve a IDENTIDADE VISUAL dos objetos pedidos: sua silhueta e partes funcionais, não só o nome e a cor. Escolha livremente path/polygon/grupos para desenhar o que o tema exige. Exemplo de princípio, não template: engrenagens precisam de dentes reconhecíveis em contato; círculos lisos separados não mostram engrenamento. Um objeto pode legitimamente ser circular quando o tema pede isso. Movimentos precisam ser perceptíveis: girar um círculo uniforme não comunica rotação; use detalhes solidários à peça. Relações entre peças devem aparecer na composição e nos estados, não apenas em legendas. Não exija física precisa nem decoração sem função.
 Em demonstrações guiadas, uma rotação declarada de uma volta completa (rotation com amplitude >=300 graus) pode ser reproduzida continuamente pelo renderizador, com pausa e velocidade, sem avançar etapas lógicas. Use isso somente quando a repetição representar o mecanismo pedido, não para ações irreversíveis. Para giro axial, agrupe a peça no seu eixo local; para órbita, a origem do grupo deve ser o centro da órbita. Não transforme translação ou preenchimento em rotação só para obter animação. A velocidade é ilustrativa, não cálculo físico.
+Para MOVIMENTO CONTÍNUO no Guiado, prefira motions opcionais no nível da cena:
+[{node:ID não textual existente,kind:"orbit"|"rotate"|"translate",cx,cy,dx,dy,cycles,phase}].
+Não dependa de clicar para animar. motions usa relógio visual de 12 segundos por ciclo-base,
+sem alterar variáveis, decisões ou resultados. cycles assinado em módulo0.25..8;
+phase0..360; dx até400, dy até225. Coordenadas são LOCAIS ao parent.
+Orbit coloca o centro do objeto em (cx+dx*cos(ângulo),cy+dy*sin(ângulo));
+rotate gira ao redor de(cx,cy); translate oscila em torno da posição do modelo
+com deslocamento(dx*sin(ângulo),dy*sin(ângulo)). Ângulo=2*pi*cycles*t/12+phase.
+Use somente para fenômenos repetíveis e mantenha objetos dentro da cena durante
+todo o movimento. Não use bindings lineares x/y para fingir uma órbita curva.
 Contrato: {version:1,title:até100,description:até600 explicando o que muda e a simplificação didática,background:"#RRGGBB",nodes:[...]}. Canvas 800x450. Use 15..70 formas, objetos principais grandes, composição horizontal e pouco texto. Textos fonte >=28, cor contrastante ao fundo, rótulos curtos sem sobreposição, margens 20. Cena não contém controles/indicadores: esses ficam fora. Use SOMENTE:
 node={id:[a-z][a-z0-9_]* até32,type:"group"|"rect"|"circle"|"ellipse"|"line"|"path"|"polygon"|"text",label:descrição acessível até120,parent?:id de group anterior,attrs:{...},bindings?:[...],states?:[...],visibleWhen?:PREDICADO,action?:id de ação existente}.
 attrs comuns fill/stroke="#RRGGBB" ou "none",strokeWidth:0..16,opacity:0..1,rotation:-360..360.
@@ -358,6 +373,9 @@ Rotação de forma perfeitamente simétrica sem detalhes não é movimento perce
 Confira o pivô: rotação ocorre na origem local. Uma peça com x/y deslocados e
 rotation gira em órbita da origem, não sobre seu eixo. Para giro axial, use group
 posicionado no eixo e detalhes centrados em (0,0). Órbitas são corretas quando pedidas.
+Se a cena declara motions, o movimento usa um relógio visual independente das
+etapas. Analise esses movimentos pelo contrato (orbit/rotate/translate); não exija
+que um clique ou mudança de variável seja necessário para eles acontecerem.
 Aceite peças em linha reta quando o contato estiver representado. Engrenagens
 em contato podem girar simultaneamente em sentidos opostos; isso não é um defeito.
 Não exija encaixe matematicamente exato dos dentes, torque ou proporções físicas

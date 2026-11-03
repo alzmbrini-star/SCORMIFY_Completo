@@ -53,6 +53,12 @@ def scene_schema(ids,actions,demo=False):
     teaching=obj({'version':{'type':'integer','enum':[1]},'focus':string(220),'readScene':string(700),'links':array(link,2,4)})
     result=obj({'version':{'type':'integer','enum':[1]},'title':string(100),'description':string(600),
         'background':{'type':'string','pattern':'^#[0-9a-fA-F]{6}$'},'nodes':array({'anyOf':variants},6,100),'teaching':{'type':'null'} if demo else teaching})
+    if demo:
+        motion=obj({'node':string(32),'kind':{'type':'string','enum':['orbit','rotate','translate']},
+                    'cx':{'type':'number','minimum':-800,'maximum':1600},'cy':{'type':'number','minimum':-450,'maximum':900},
+                    'dx':{'type':'number','minimum':-400,'maximum':400},'dy':{'type':'number','minimum':-225,'maximum':225},
+                    'cycles':{'type':'number','minimum':-8,'maximum':8},'phase':{'type':'number','minimum':0,'maximum':360}})
+        result['properties']['motions']=nullable(array(motion,1,24));result['required'].append('motions')
     result['$defs']=definitions
     return result
 

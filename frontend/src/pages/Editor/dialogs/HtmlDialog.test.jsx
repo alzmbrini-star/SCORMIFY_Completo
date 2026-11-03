@@ -10,14 +10,17 @@ jest.mock('../../../components/ui/dialog',()=>Object.fromEntries(['Dialog','Dial
 jest.mock('../../../components/ui/tabs',()=>Object.fromEntries(['Tabs','TabsContent','TabsList','TabsTrigger'].map(k=>[k,({children})=><div>{children}</div>])));
 globalThis.IS_REACT_ACT_ENVIRONMENT=true;
 test('editing exposes export and save, never silently inserts, and cancel does not save',()=>{
- const host=document.createElement('div');document.body.appendChild(host);const root=createRoot(host),save=jest.fn(),download=jest.fn(),close=jest.fn();
+ const host=document.createElement('div');document.body.appendChild(host);const root=createRoot(host),save=jest.fn(),download=jest.fn(),close=jest.fn(),load=jest.fn();
  const html='<body data-sim-engine="finite-rules-v1">Scene</body>';
  act(()=>root.render(<HtmlDialog open editingSimulator onOpenChange={close} htmlConfig={{content:html}} setHtmlConfig={()=>{}}
   htmlDialogTab="ai" setHtmlDialogTab={()=>{}} aiHtmlPrompt="" setAiHtmlPrompt={()=>{}} aiHtmlResult={html} setAiHtmlResult={()=>{}}
-  aiHtmlLoading={false} aiHtmlProgress="" handleAddHtml={save} handleGenerateHtmlAI={()=>{}} handleInsertAiHtml={save} onDownloadHtml={download}/>));
+  aiHtmlLoading={false} aiHtmlProgress="" handleAddHtml={save} handleGenerateHtmlAI={()=>{}} handleInsertAiHtml={save} onDownloadHtml={download} onLoadHtml={load}/>));
  expect(host.textContent).toContain('Editar simulador');expect(host.textContent).toContain('sem criar outro elemento');
  const buttons=[...host.querySelectorAll('button')];expect(buttons.some(b=>b.textContent==='Inserir no Slide')).toBe(false);
  act(()=>buttons.filter(b=>b.textContent==='Baixar HTML').at(-1).click());expect(download).toHaveBeenCalledWith(html);
+ const upload=host.querySelector('[data-testid="simulator-html-upload"]'),file=new File([html],'simulador.html',{type:'text/html'});
+ Object.defineProperty(upload,'files',{value:[file]});act(()=>upload.dispatchEvent(new Event('change',{bubbles:true})));
+ expect(load).toHaveBeenCalledWith(file);expect(save).not.toHaveBeenCalled();
  act(()=>buttons.find(b=>b.textContent==='Cancelar').click());expect(close).toHaveBeenCalledWith(false);expect(save).not.toHaveBeenCalled();
  act(()=>host.querySelector('[data-testid="ai-html-insert-btn"]').click());expect(save).toHaveBeenCalledTimes(1);
  act(()=>root.unmount());host.remove();

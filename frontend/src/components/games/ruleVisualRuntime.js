@@ -41,7 +41,7 @@ export function ruleVisualRuntime() {
   picture.style.flex='none';picture.style.maxWidth='100%';picture.style.maxHeight='100%';picture.style.border='1px solid #59768f';picture.style.borderRadius='10px';
   function fitScene(){var box=stage.getBoundingClientRect();if(!box.width||!box.height)return;var w=Math.min(box.width,box.height*800/450);picture.style.width=w+'px';picture.style.height=(w*450/800)+'px';}
   var sceneObserver=typeof ResizeObserver==='function'?new ResizeObserver(fitScene):null;
-  if(sceneObserver)sceneObserver.observe(stage);window.addEventListener('resize',fitScene);window.requestAnimationFrame(fitScene);
+  if(sceneObserver)sceneObserver.observe(stage);window.addEventListener('resize',fitScene);if(typeof window.requestAnimationFrame==='function')window.requestAnimationFrame(fitScene);else fitScene();
   if(demo&&authored&&teaching)anchor.hidden=true; // The same guidance remains in the scene caption/guide; reserve room for the illustration.
   if(demo){var simplified=node('div','Demonstração didática simplificada · foco no processo, sem precisão de engenharia.');simplified.setAttribute('role','note');simplified.style.cssText='flex-shrink:0;font:12px/1.3 system-ui,sans-serif;color:#d7eef3;background:#183b4a;padding:5px 8px;border-left:3px solid #6ed9c4;border-radius:5px;margin-bottom:5px';figure.insertBefore(simplified,stage);}
   var finish=demo&&authored&&(data.experience||{}).visualStyle==='illustrated',paints=Object.create(null),defs;
@@ -96,13 +96,50 @@ export function ruleVisualRuntime() {
   // A declared full rotational cycle can keep demonstrating between decisions.
   // This clock paints only; it never advances the rule engine or its score.
   var cycles=demo?entries.filter(function(e){return(e.definition.bindings||[]).some(function(b){return b.property==='rotation'&&b.output&&Math.abs(b.output[1]-b.output[0])>=300;});}):[];
+  var declaredMotions=demo&&authored&&Array.isArray(visual.motions)?visual.motions.slice(0,24).filter(function(m){return m&&entries.some(function(e){return e.definition.id===m.node&&e.definition.type!=='text';})&&['orbit','rotate','translate'].indexOf(m.kind)>=0&&['cx','cy','dx','dy','cycles','phase'].every(function(k){return Number.isFinite(m[k])&&Math.abs(m[k])<=2000;})&&Math.abs(m.cycles)>=.25&&Math.abs(m.cycles)<=8;}):[];
+  if(declaredMotions.length)cycles=[];
+  // Old guided documents often encode animation as one "advance" action.
+  // Replay its unambiguous trajectory on a separate engine, never click the
+  // learner's controls, choose a branch, or alter the real state/history.
+  var demonstration=[];
+  if(demo&&!cycles.length&&!declaredMotions.length&&typeof window.createRuleEngine==='function'){
+    try {
+      var rehearsal=window.createRuleEngine(data),rehearsalView=rehearsal.getState(),trajectory=[rehearsalView],safe=true;
+      for(var rehearsalStep=0;rehearsalStep<Math.min(24,Number(data.maxSteps)||24)&&rehearsalView.outcome==='active';rehearsalStep++){
+        var choices=rehearsalView.actions.filter(function(a){return a.enabled;});
+        if(choices.length!==1){safe=false;break;}
+        var rehearsalResult=rehearsal.act(choices[0].id);
+        if(!rehearsalResult.ok){safe=false;break;}
+        rehearsalView=rehearsalResult.view;trajectory.push(rehearsalView);
+      }
+      if(safe&&trajectory.length>1&&rehearsalView.outcome==='success')demonstration=trajectory;
+    }catch(_){/* Non-replayable documents retain manual exploration. */}
+  }
   var motionFrame=null,motionTime=0,motionStamp=null,motionSpeed=1,motionPlaying=false,motionButton=null;
-  function spin(){cycles.forEach(function(e){if(!e.rendered||e.el.style.display==='none')return;var b=e.definition.bindings.find(function(b){return b.property==='rotation';}),a=e.rendered,rotation=(Number(a.rotation)||0)+(b.output[1]>=b.output[0]?1:-1)*motionTime*30;
+  function spin(){
+    if(declaredMotions.length&&motionPlaying){declaredMotions.forEach(function(m){var e=entries.find(function(e){return e.definition.id===m.node;});if(!e.rendered||e.el.style.display==='none')return;
+      var a=Object.assign({},e.rendered),angle=2*Math.PI*m.cycles*motionTime/12+m.phase*Math.PI/180;
+      if(m.kind==='orbit'){a.x=m.cx+m.dx*Math.cos(angle);a.y=m.cy+m.dy*Math.sin(angle);}
+      else if(m.kind==='translate'){a.x=(Number(a.x)||0)+m.dx*Math.sin(angle);a.y=(Number(a.y)||0)+m.dy*Math.sin(angle);}
+      apply(e,a);
+      if(m.kind==='rotate')e.el.setAttribute('transform',(e.definition.type==='group'?'translate('+(Number(a.x)||0)+' '+(Number(a.y)||0)+') ':'')+'rotate('+((Number(a.rotation)||0)+angle*180/Math.PI)+' '+m.cx+' '+m.cy+')');
+    });}
+    if(demonstration.length&&motionPlaying){
+      var segmentSeconds=2,travel=(demonstration.length-1)*segmentSeconds,local=motionTime%(travel+1),index=Math.min(demonstration.length-2,Math.floor(local/segmentSeconds)),t=Math.min(1,(local-index*segmentSeconds)/segmentSeconds);
+      var before=demonstration[index],after=demonstration[index+1];
+      entries.forEach(function(e){var first=projected(e,before.state),last=projected(e,after.state),attrs=Object.assign({},t<.5?first.attrs:last.attrs);
+        numeric.forEach(function(k){if(typeof first.attrs[k]==='number'&&typeof last.attrs[k]==='number')attrs[k]=first.attrs[k]+(last.attrs[k]-first.attrs[k])*t;});
+        if(attrs.text!==undefined)attrs.text=textValue(attrs.text,(t<.5?before:after).state);
+        e.el.style.display=(t<.5?first.visible:last.visible)?'':'none';apply(e,attrs);
+      });
+      if(!teaching)caption.textContent='Reprodução ilustrativa em ciclo · '+((t<.5?before:after).scene?.title||'Demonstração');
+    }
+    cycles.forEach(function(e){if(!e.rendered||e.el.style.display==='none')return;var b=e.definition.bindings.find(function(b){return b.property==='rotation';}),a=e.rendered,rotation=(Number(a.rotation)||0)+(b.output[1]>=b.output[0]?1:-1)*motionTime*30;
     e.el.setAttribute('transform',(e.definition.type==='group'?'translate('+(Number(a.x)||0)+' '+(Number(a.y)||0)+') ':'')+'rotate('+rotation+')');});}
-  function queueMotion(){if(motionFrame===null&&motionPlaying&&!document.hidden)motionFrame=window.requestAnimationFrame(tickMotion);}
+  function queueMotion(){if(motionFrame===null&&motionPlaying&&!document.hidden&&typeof window.requestAnimationFrame==='function')motionFrame=window.requestAnimationFrame(tickMotion);}
   function tickMotion(now){motionFrame=null;if(!motionPlaying||document.hidden){motionStamp=null;return;}if(motionStamp!==null)motionTime+=Math.min(.1,(now-motionStamp)/1000)*motionSpeed;motionStamp=now;spin();queueMotion();}
-  function setMotion(playing){motionPlaying=playing;motionStamp=null;if(motionFrame!==null){window.cancelAnimationFrame(motionFrame);motionFrame=null;}if(motionButton){motionButton.textContent=playing?'Pausar movimento':'Reproduzir movimento';motionButton.setAttribute('aria-pressed',String(playing));}queueMotion();}
-  if(cycles.length){
+  function setMotion(playing){motionPlaying=playing;motionStamp=null;if(motionFrame!==null){window.cancelAnimationFrame(motionFrame);motionFrame=null;}figure.dataset.motionPlaying=String(playing);if(!teaching)caption.textContent=playing?'Reprodução ilustrativa contínua · sem avanço automático de decisões':'Reprodução pausada';if(motionButton){motionButton.textContent=playing?'Pausar movimento':'Reproduzir movimento';motionButton.setAttribute('aria-pressed',String(playing));}document.dispatchEvent(new CustomEvent('scormify:motion-playback'));queueMotion();}
+  if(cycles.length||demonstration.length||declaredMotions.length){
     var motionTools=node('div');motionTools.className='sim-motion-tools';motionTools.style.cssText='display:flex;align-items:center;gap:8px;flex-shrink:0;padding:4px 0';
     motionButton=node('button');motionButton.type='button';motionButton.addEventListener('click',function(){setMotion(!motionPlaying);});motionTools.appendChild(motionButton);
     var speedLabel=node('label','Velocidade '),speedControl=node('select');speedControl.setAttribute('aria-label','Velocidade do movimento');[.5,1,2].forEach(function(value){var option=node('option',value+'×');option.value=value;speedControl.appendChild(option);});speedControl.value='1';speedControl.addEventListener('change',function(){motionSpeed=Number(speedControl.value)||1;});speedLabel.appendChild(speedControl);motionTools.appendChild(speedLabel);figure.insertBefore(motionTools,caption);

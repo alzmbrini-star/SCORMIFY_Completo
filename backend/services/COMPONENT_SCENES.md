@@ -366,3 +366,21 @@ dimensões. Se o original foi removido ou mudou, recusa sobrescrita em vez de cr
 uma cópia silenciosa. Cancelar não modifica o curso. O botão de refino segue
 explícito e usa IA somente se acionado pelo autor. HTML comum mantém o editor
 anterior; a reedição especializada exige um motor de simulador identificado.
+
+Movimentos contínuos explícitos também podem ser declarados em visual.motions,
+com objetos existentes, orbit/rotate/translate e parâmetros numéricos limitados.
+São coordenadas locais ao parent e um relógio ilustrativo independente. Órbitas
+usam cx+dx*cos e cy+dy*sin, não interpolação linear entre dois pontos. Não requerem
+cliques ou efeitos artificiais em variáveis para acontecer. Desafios não aceitam
+esse contrato como substituição silenciosa das decisões. Não é cálculo físico.
+
+Para demonstrações antigas de avanço único, o cliente pode reproduzir a trajetória
+de uma cópia isolada do motor, interpolando a arte em ciclo e sinalizando reprodução.
+Só faz isso quando todas as etapas têm uma única ação disponível até a conclusão;
+nunca escolhe entre alternativas. Não aciona os botões reais nem altera histórico,
+indicadores, aprovação ou progresso SCORM. Ambas as reproduções têm pausa/velocidade.
+
+A edição permite carregar HTML local de até 2 MB apenas na prévia, antes de salvar
+no elemento original. Isso facilita aplicar uma correção ou recuperar um arquivo
+sem criar outro simulador nem chamar IA. Cancelar e verificações de conflito mantêm
+o comportamento anterior de preservação do curso.

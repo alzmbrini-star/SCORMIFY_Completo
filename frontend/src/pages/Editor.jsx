@@ -989,6 +989,15 @@ export default function Editor() {
     const url=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));
     const link=document.createElement('a');link.href=url;link.download='simulador.html';link.click();setTimeout(()=>URL.revokeObjectURL(url),0);
   };
+  const loadSimulatorHtml = async file => {
+    if (!file || aiHtmlLoading) return;
+    try {
+      if (file.size>2000000) throw new Error('O HTML deve ter até 2 MB.');
+      const html=refreshSimulatorPresentation(await file.text());
+      setHtmlConfig({content:html});setAiHtmlResult(html);setSimulatorOptions(simulatorPreferences(html));setHtmlDialogTab('ai');
+      setAiHtmlProgress('Arquivo carregado somente na prévia. Confira antes de salvar no slide.');
+    } catch(err) { toast.error(err.message || 'Não foi possível abrir o HTML. O original foi preservado.'); }
+  };
   const handleAddHtml = async () => {
     if (!htmlConfig.content) {
       toast.error('Por favor, insira o código HTML');
@@ -2560,7 +2569,7 @@ export default function Editor() {
 
         <HtmlDialog
           open={showHtmlDialog} onOpenChange={open => { if (!aiHtmlLoading) setShowHtmlDialog(open); }}
-          editingSimulator={!!simulatorEditTarget} onDownloadHtml={downloadSimulatorHtml}
+          editingSimulator={!!simulatorEditTarget} onDownloadHtml={downloadSimulatorHtml} onLoadHtml={loadSimulatorHtml}
           htmlConfig={htmlConfig} setHtmlConfig={setHtmlConfig}
           htmlDialogTab={htmlDialogTab} setHtmlDialogTab={setHtmlDialogTab}
           aiHtmlPrompt={aiHtmlPrompt} setAiHtmlPrompt={setAiHtmlPrompt}
