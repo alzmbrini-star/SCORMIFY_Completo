@@ -7,10 +7,12 @@ import RemoveBackgroundDialog from '../dialogs/RemoveBackgroundDialog';
 import TextShadowControls from '../../../components/editor/TextShadowControls';
 import InteractiveTextColorControls from '../../../components/editor/InteractiveTextColorControls';
 import EditorialTextColorControls from '../../../components/editor/EditorialTextColorControls';
+import VideoQuizDialog from '../../../components/editor/VideoQuizDialog';
 
 export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 540, projectId }) {
   const style = element.style || {};
   const [bgRemoverOpen, setBgRemoverOpen] = useState(false);
+  const [videoQuizOpen, setVideoQuizOpen] = useState(false);
 
   const handleStyleChange = (key, value) => {
     const newStyle = { ...style, [key]: value };
@@ -124,6 +126,13 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
           </Button>
         </div>
       </div>
+
+      {(element.type === 'video' && !element.embedUrl || element.videoQuizConfig) && <div className="panel-section">
+        <h4 className="text-sm font-medium mb-2">Vídeo interativo</h4>
+        <Button className="w-full" onClick={() => setVideoQuizOpen(true)}>Perguntas durante o vídeo</Button>
+        <p className="text-xs text-muted-foreground mt-2">Pausas, respostas e explicação abaixo do personagem.</p>
+        <VideoQuizDialog open={videoQuizOpen} onOpenChange={setVideoQuizOpen} element={element} onApply={onUpdate} projectId={projectId} />
+      </div>}
 
       {element.type === 'image' && (
         <div className="panel-section">

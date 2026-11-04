@@ -20,7 +20,9 @@ var ScormAPI = (function() {
         return {ready:true,score:Math.round(earned/total)};
     }
     function persistResults(api) {
-        var snapshot=JSON.stringify({scormifyResults:1,results:results});
+        var previous={};
+        try { previous=JSON.parse(api.LMSGetValue('cmi.suspend_data')||'{}'); } catch (_) {}
+        var snapshot=JSON.stringify(Object.assign({},previous,{scormifyResults:1,results:results}));
         return snapshot.length<=4000 && write(api,'cmi.suspend_data',snapshot);
     }
     function accepted(result) { return result === true || result === 'true'; }

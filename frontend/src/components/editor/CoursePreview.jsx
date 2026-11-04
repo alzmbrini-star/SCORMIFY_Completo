@@ -250,6 +250,20 @@ const CoursePreview = ({ course, projectId, onClose }) => {
   const slides = course?.slides || [];
   const currentSlide = slides[currentSlideIndex];
   const slideDuration = currentSlide?.duration || 10;
+
+  // The avatar's own player owns time while its questions are in progress.
+  // Never let a five-second slide timer remove a longer interactive video.
+  const hasVideoQuiz = currentSlide?.elements?.some(el => el.videoQuizConfig);
+  useEffect(() => {
+    if (hasVideoQuiz) setIsPlaying(false);
+    const receive = event => {
+      if (!hasVideoQuiz || event.data?.type !== 'scormify-video-quiz') return;
+      const frames = containerRef.current?.querySelectorAll('iframe') || [];
+      if ([...frames].some(frame => frame.contentWindow === event.source)) setIsPlaying(false);
+    };
+    window.addEventListener('message', receive);
+    return () => window.removeEventListener('message', receive);
+  }, [hasVideoQuiz, currentSlideIndex]);
   
   // Calculate slide scale to fit in the available space
   const calculateScale = useCallback(() => {
@@ -364,7 +378,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
   
   // Timeline playback
   useEffect(() => {
-    if (isPlaying) {
+    if (isPlaying && !hasVideoQuiz) {
       timelineRef.current = setInterval(() => {
         setCurrentTime(prev => {
           const newTime = prev + 0.1;
@@ -409,7 +423,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
         clearInterval(timelineRef.current);
       }
     };
-  }, [isPlaying, slideDuration, currentSlideIndex, slides.length, currentTime]);
+  }, [isPlaying, slideDuration, currentSlideIndex, slides.length, currentTime, hasVideoQuiz]);
   
   // Start/stop global audio with playback
   useEffect(() => {
@@ -1114,6 +1128,8 @@ const CoursePreview = ({ course, projectId, onClose }) => {
               variant="ghost"
               size="icon"
               className="text-white/80 hover:text-white hover:bg-white/10 w-12 h-12"
+              disabled={hasVideoQuiz}
+              title={hasVideoQuiz ? 'Use Reproduzir dentro do vídeo interativo' : 'Reproduzir slide'}
               onClick={() => setIsPlaying(!isPlaying)}
             >
               {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}

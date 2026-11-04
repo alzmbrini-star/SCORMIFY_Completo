@@ -93,7 +93,12 @@ _SCORM_API_JS = r"""// scorm-api.js — SCORM 1.2 runtime bridge for single-page
       try {
         var s = JSON.stringify(state);
         // SCORM 1.2 cmi.suspend_data has a 4096 char limit
-        if (s.length > 4000) s = s.substring(0, 4000);
+        // Never truncate JSON: preserve the previous valid snapshot instead.
+        if (new TextEncoder().encode(s).length > 4000) {
+          delete state.videoQuizzes;
+          s = JSON.stringify(state);
+          if (new TextEncoder().encode(s).length > 4000) return;
+        }
         this.api.LMSSetValue('cmi.suspend_data', s);
       } catch(e){}
     },

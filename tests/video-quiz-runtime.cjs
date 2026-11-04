@@ -1,0 +1,63 @@
+const fs = require('fs');
+const assert = require('assert/strict');
+const { createRequire } = require('module');
+const front = createRequire(require('path').resolve(__dirname, '../frontend/package.json'));
+const scripts = createRequire(front.resolve('react-scripts/package.json'));
+const { JSDOM } = createRequire(scripts.resolve('jest-environment-jsdom'))('jsdom');
+const html = fs.readFileSync(0, 'utf8');
+function setup(saved) {
+  let current = 0, paused = true, store = saved || '{}', writes = [];
+  const dom = new JSDOM(html, {url: 'https://course.example/player', runScripts: 'dangerously', beforeParse(w) {
+    w.TextEncoder = TextEncoder;
+    w.API = {LMSGetValue: key => key === 'cmi.suspend_data' ? store : '', LMSSetValue: (key, value) => { writes.push([key, value]); if (key === 'cmi.suspend_data') store = value; return 'true'; }, LMSCommit: () => 'true'};
+    Object.defineProperties(w.HTMLMediaElement.prototype, {
+      duration: {get() { return 30; }}, currentTime: {get() { return current; }, set(n) { current = n; }}, paused: {get() { return paused; }}
+    });
+    w.HTMLMediaElement.prototype.play = function () { paused = false; this.dispatchEvent(new w.Event('play')); return Promise.resolve(); };
+    w.HTMLMediaElement.prototype.pause = function () { const changed = !paused; paused = true; if (changed) this.dispatchEvent(new w.Event('pause')); };
+  }});
+  const w = dom.window, d = w.document, video = d.getElementById('video');
+  video.dispatchEvent(new w.Event('loadedmetadata'));
+  const tick = n => { video.currentTime = n; video.dispatchEvent(new w.Event('timeupdate')); };
+  const choose = n => { d.querySelectorAll('input[name="answer"]')[n].checked = true; d.getElementById('answer').click(); };
+  return {w, d, video, tick, choose, writes, dom, saved: () => store};
+}
+let t = setup();
+t.tick(12);
+assert.equal(t.video.currentTime, 10, 'stop precisely at first unresolved marker');
+assert.equal(t.video.paused, true);
+assert.match(t.d.getElementById('question').textContent, /Qual/);
+t.d.getElementById('answer').click();
+assert.match(t.d.getElementById('message').textContent, /Selecione/);
+t.choose(0); t.choose(0);
+assert.equal(t.d.getElementById('continue').hidden, true);
+t.choose(0);
+assert.equal(t.d.getElementById('continue').hidden, false);
+assert.match(t.d.getElementById('feedback').textContent, /Resposta correta: Duas/);
+assert.equal(t.video.paused, true, 'explanation requires acknowledgment');
+const assisted = JSON.parse(t.saved());
+assert.equal(Object.values(assisted.videoQuizzes)[0].p[0][1], 'assisted');
+t.d.getElementById('continue').click();
+assert.equal(t.video.paused, false);
+t.tick(20); assert.equal(t.video.currentTime, 20);
+assert(!t.writes.some(([key]) => /lesson_status|score/.test(key)), 'formative activity cannot grant pass/fail');
+const saved = t.saved(); t.dom.window.close();
+t = setup(saved);
+assert.equal(t.video.currentTime, 20);
+t.tick(25); assert.equal(t.d.getElementById('answer').hidden, true);
+t.dom.window.close();
+t = setup(); t.tick(10); t.choose(1);
+assert.match(t.d.getElementById('message').textContent, /correta/);
+assert.equal(t.video.paused, true);
+const correct = t.saved(); t.dom.window.close();
+t = setup(correct);
+assert.equal(t.d.getElementById('continue').hidden, false, 'unacknowledged correct answer restored');
+t.d.getElementById('continue').click(); t.tick(1); t.tick(15);
+assert.equal(t.d.getElementById('answer').hidden, true, 'released question not repeated after rewind');
+t.d.getElementById('font').click(); assert(t.d.body.classList.contains('large'));
+t.d.getElementById('contrast').click(); assert(t.d.body.classList.contains('high'));
+t.dom.window.close();
+t = setup(); t.d.getElementById('seek').value = '29'; t.d.getElementById('seek').dispatchEvent(new t.w.Event('input'));
+assert.equal(t.video.currentTime, 10, 'seeking cannot bypass question');
+t.dom.window.close();
+console.log('video quiz runtime checks passed');

@@ -1500,6 +1500,7 @@ var CoursePlayer = (function() {
                     // not a tall screenshot squeezed into the element. Fixed-stage
                     // simulations may explicitly opt into "fit".
                     if (wrappedHtml.indexOf('__stage') === -1 &&
+                        wrappedHtml.indexOf('video-quiz-data') === -1 &&
                         wrappedHtml.indexOf('__scormify_page_mode') === -1 &&
                         (element.htmlDisplayMode || 'page') !== 'fit') {
                         var pageViewportStyle = '<style id="__scormify_page_mode">' +
@@ -1517,6 +1518,7 @@ var CoursePlayer = (function() {
                             wrappedHtml += pageViewportStyle;
                         }
                     } else if (wrappedHtml.indexOf('__stage') === -1 &&
+                               wrappedHtml.indexOf('video-quiz-data') === -1 &&
                                wrappedHtml.indexOf('data-sim-engine="finite-rules-v1"') === -1 &&
                                wrappedHtml.indexOf('data-sim-engine="entity-planning-v1"') === -1 &&
                                wrappedHtml.indexOf('data-case-study-version="2"') === -1 &&

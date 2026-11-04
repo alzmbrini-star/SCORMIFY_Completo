@@ -13,7 +13,7 @@ def inline_assessment_assets(document: str, assets_dir: str) -> str:
     if re.search(r'id=[\"\']assessment-data[\"\']', document):
         css = (Path(__file__).parent / 'export_assets' / 'assessment-layout.css').read_text(encoding='utf-8')
         document = document.replace('</head>', '<style id="assessment-viewport">' + css + '</style></head>')
-    pattern = re.compile(r'(<script\b[^>]*\bid="assessment-data"[^>]*>)([\s\S]*?)(</script>)', re.I)
+    pattern = re.compile(r'(<script\b[^>]*\bid="(?:assessment-data|video-quiz-data)"[^>]*>)([\s\S]*?)(</script>)', re.I)
 
     def replace(match):
         data = json.loads(match.group(2))
@@ -25,7 +25,8 @@ def inline_assessment_assets(document: str, assets_dir: str) -> str:
             if not isinstance(value, dict):
                 return value
             result = {key: visit(item) for key, item in value.items()}
-            url = result.get('url')
+            source_key = 'src' if 'src' in result and 'checkpoints' in result else 'url'
+            url = result.get(source_key)
             if not isinstance(url, str):
                 return result
             path = urlsplit(url).path
@@ -45,7 +46,7 @@ def inline_assessment_assets(document: str, assets_dir: str) -> str:
                     raise ValueError(f'O anexo da avaliação não está disponível: {filename}. Reenvie o arquivo antes de exportar.')
                 mime = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
                 cache[path] = f'data:{mime};base64,' + base64.b64encode(local.read_bytes()).decode('ascii')
-            result['url'] = cache[path]
+            result[source_key] = cache[path]
             return result
 
         encoded = json.dumps(visit(data), ensure_ascii=False).replace('<', '\\u003c')

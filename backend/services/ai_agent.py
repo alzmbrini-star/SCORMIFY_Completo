@@ -3499,6 +3499,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 "type": "heygen",
                 "avatar_id": mc.get("avatar_id", ""),
                 "voice_id": mc.get("voice_id", ""),
+                "videoQuizEnabled": mc.get("videoQuizEnabled") is True,
             }
         elif media_type == "kling":
             slide_media[i] = {
@@ -3915,6 +3916,17 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                         text_content = el["content"]
                 clean_text = re.sub(r'<[^>]+>', '', text_content)
                 clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+                if media.get('videoQuizEnabled'):
+                    from services.video_quiz import plan_video_questions
+                    script_text = str(sb_slide.get('narrationScript') or clean_text)[:2000]
+                    clean_text = script_text
+                    checkpoints = await plan_video_questions(script_text)
+                    # Keep the immutable question snapshot beside the processing
+                    # placeholder. The background callback only supplies the URL.
+                    placeholder = slide_elements[-1]
+                    placeholder.update(x=80, y=100, width=1760, height=650,
+                                       videoQuizPending={'title': sb_slide.get('title', 'Vídeo com perguntas'), 'checkpoints': checkpoints, 'instanceId': placeholder['id']})
+                    slide_elements = [slide_elements[0], placeholder]
                 heygen_pending.append({
                     "slideIndex": i,
                     "slideId": slide_id,

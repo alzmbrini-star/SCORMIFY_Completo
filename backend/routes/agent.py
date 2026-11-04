@@ -2814,6 +2814,17 @@ async def _update_slide_with_heygen_video(project_id: str, slide_id: str, video_
             for ei, el in enumerate(slide.get("elements", [])):
                 html = el.get("htmlContent", "")
                 if f'data-heygen-slide="{slide_id}"' in html:
+                    if el.get('videoQuizPending'):
+                        from services.video_quiz import build_video_quiz
+                        quiz_config, quiz_html = build_video_quiz(dict(el['videoQuizPending'], src=video_url))
+                        await db.projects.update_one(
+                            {'id': project_id},
+                            {'$set': {f'course.slides.{si}.elements.{ei}.htmlContent': quiz_html,
+                                      f'course.slides.{si}.elements.{ei}.videoQuizConfig': quiz_config,
+                                      f'course.slides.{si}.elements.{ei}.htmlDisplayMode': 'page'},
+                             '$unset': {f'course.slides.{si}.elements.{ei}.videoQuizPending': ''}}
+                        )
+                        return
                     from models import generate_id
                     new_html = f'''<div style="width:100%;height:100%;border-radius:12px;overflow:hidden;background:#000;position:relative;">
 <video src="{video_url}" style="width:100%;height:100%;object-fit:cover;" controls autoplay muted></video>

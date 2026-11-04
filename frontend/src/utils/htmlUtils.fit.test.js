@@ -1,5 +1,11 @@
 import { fitGameElementToSlide, isGeneratedGameHtml, wrapInteractiveFullbleed } from './htmlUtils';
 
+test('video questions keep their bounded viewport without page-height or fit overrides', () => {
+  const html = '<html><body><script id="video-quiz-data" type="application/json">{}</script></body></html>';
+  expect(wrapInteractiveFullbleed(html, 'page')).toBe(html);
+  expect(wrapInteractiveFullbleed(html, 'fit')).toBe(html);
+});
+
 describe('interactive fixed-stage fitting', () => {
   test('generic rules workspace fills the slide without scaling away readable controls',()=>{
     const html='<html><body data-sim-engine="finite-rules-v1"><main>Simulação</main></body></html>';

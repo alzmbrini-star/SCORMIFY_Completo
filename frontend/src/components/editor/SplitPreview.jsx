@@ -169,6 +169,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
   const slides = course?.slides || [];
   const currentSlide = slides[currentSlideIndex];
   const slideDuration = currentSlide?.duration || 10;
+  const hasVideoQuiz = currentSlide?.elements?.some(el => el.videoQuizConfig);
   const slideWidth = currentSlide?.width || 960;
   const slideHeight = currentSlide?.height || 540;
 
@@ -218,7 +219,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
 
   // Timeline playback
   useEffect(() => {
-    if (isPlaying) {
+    if (isPlaying && !hasVideoQuiz) {
       timelineRef.current = setInterval(() => {
         setCurrentTime(prev => {
           const next = prev + 0.1;
@@ -234,7 +235,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
       if (timelineRef.current) { clearInterval(timelineRef.current); timelineRef.current = null; }
     }
     return () => { if (timelineRef.current) clearInterval(timelineRef.current); };
-  }, [isPlaying, slideDuration, currentSlideIndex, slides.length, onSlideChange]);
+  }, [isPlaying, slideDuration, currentSlideIndex, slides.length, onSlideChange, hasVideoQuiz]);
 
   // Element visibility check based on timeline
   const isElementVisible = (el) => {
@@ -504,7 +505,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
             <Button variant="ghost" size="icon" className="h-6 w-6 text-white/60 hover:text-white hover:bg-white/10" onClick={() => { setCurrentTime(0); setIsPlaying(false); }}>
               <SkipBack className="w-3 h-3" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-white/60 hover:text-white hover:bg-white/10" onClick={() => setIsPlaying(!isPlaying)} data-testid="split-preview-play-btn">
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-white/60 hover:text-white hover:bg-white/10" disabled={hasVideoQuiz} title={hasVideoQuiz ? 'Use Reproduzir dentro do vídeo interativo' : 'Reproduzir slide'} onClick={() => setIsPlaying(!isPlaying)} data-testid="split-preview-play-btn">
               {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
             </Button>
             <span className="text-[10px] text-white/40 font-mono ml-1">{currentTime.toFixed(1)}s</span>

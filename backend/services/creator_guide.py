@@ -6,6 +6,12 @@ def entry(ident,title,keywords,steps,target='editor',action='',access='author'):
     return dict(id=ident,title=title,keywords=keywords,steps=steps,target=target,action=action,access=access)
 
 GUIDE=[
+ entry('video-quiz','Criar perguntas durante o vídeo do avatar','heygen avatar vídeo video quiz pausa pergunta tentativas feedback continuar',[
+  'No Editor, selecione um vídeo direto já inserido (por exemplo HeyGen). Em Properties, abra Perguntas durante o vídeo. A mesma opção reabre uma atividade de vídeo interativo já salva.',
+  'Informe os momentos em segundos, enunciados, alternativas, resposta correta, explicação final e limite de tentativas. Você pode importar questões de escolha simples do Banco do projeto ou gerar duas perguntas com IA a partir do roteiro; a geração usa créditos e substitui as perguntas do rascunho.',
+  'No Agente, na etapa Mídia, escolha HeyGen no slide e habilite Criar perguntas durante o vídeo do avatar. O Agente gera duas perguntas do roteiro, com até três tentativas e posições proporcionais sugeridas. Revise os pontos de pausa no Editor ao final das frases.',
+  'Ao acertar, o aluno pode continuar; ao esgotar as tentativas, lê a explicação abaixo do personagem e continua. É uma atividade formativa, sem alterar Passed/Failed do curso. HTML e SCORM mantêm as interações; MP4 não.',
+  'Exige link direto ou arquivo de vídeo, não iframe do YouTube/Vimeo/Bunny. Links externos dependem de conexão e disponibilidade; prefira arquivos persistidos no projeto para exportação offline.'],'editor'),
  entry('creator-help','Usar este Tutor do Criador','tutor criador ajuda modal ampliar reduzir fonte contraste leitura janela',[
   'Clique em Tutor IA no canto inferior direito para abrir o painel. Ele não abre sozinho.',
   'Use Ampliar para ler em uma janela central maior. A− e A+ ajustam a fonte; Contraste permite escolher claro, escuro ou alto contraste.',

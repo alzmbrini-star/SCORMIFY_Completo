@@ -25,6 +25,32 @@ logger = logging.getLogger("server")
 router = APIRouter(tags=["HeyGen"])
 
 
+@router.post('/heygen/video-quiz/build')
+async def build_interactive_video(request: Request):
+    if not await get_current_user(request):
+        raise HTTPException(401, 'Autenticação necessária.')
+    from services.video_quiz import build_video_quiz
+    try:
+        config, document = build_video_quiz(await request.json())
+        return {'config': config, 'htmlContent': document}
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(422, str(exc))
+
+
+@router.post('/heygen/video-quiz/plan')
+async def plan_interactive_video(request: Request):
+    await require_agent_access(request)
+    from services.video_quiz import plan_video_questions
+    body = await request.json()
+    context = body.get('context', '')
+    if not isinstance(context, str) or not 40 <= len(context.strip()) <= 16000:
+        raise HTTPException(422, 'Informe o roteiro do vídeo (40 a 16000 caracteres).')
+    try:
+        return {'checkpoints': await plan_video_questions(context)}
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+
+
 # ── HeyGen request helpers ────────────────────────────────────────────
 # HeyGen sits behind Cloudflare. WAF intermittently returns generic
 # nginx-style 403 to our K8s egress IPs even when the API key is valid.

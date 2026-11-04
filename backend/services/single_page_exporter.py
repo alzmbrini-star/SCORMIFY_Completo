@@ -1140,7 +1140,7 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
             'height:100%;overflow:hidden;box-sizing:border-box}'
             '*{box-sizing:border-box}</style>'
         )
-        if 'data-sim-engine="finite-rules-v1"' in raw or 'data-sim-engine="entity-planning-v1"' in raw or 'data-sim-engine="didactic-visualization-v1"' in raw:
+        if 'video-quiz-data' in raw or 'data-sim-engine="finite-rules-v1"' in raw or 'data-sim-engine="entity-planning-v1"' in raw or 'data-sim-engine="didactic-visualization-v1"' in raw:
             # This responsive workspace owns its scrolling viewport. Hiding body
             # overflow would strand actions/history below the exported frame.
             reset_css = ''
@@ -1169,14 +1169,19 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
         sandbox = 'allow-scripts allow-same-origin allow-forms'
         if el.get('assessmentConfig'):
             sandbox += ' allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals'
+        video_quiz_key = ''
+        if el.get('videoQuizConfig'):
+            match_key = re.search(r'"key"\s*:\s*"([a-f0-9]{20})"', raw)
+            if match_key:
+                video_quiz_key = f' data-video-quiz-key="{match_key.group(1)}"'
         return (
             f'<div class="sp-html sp-interactive" data-interactive="html" data-required="true">'
-            f'<iframe sandbox="{sandbox}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen '
+            f'<iframe{video_quiz_key} sandbox="{sandbox}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen '
             f'src="data:text/html;charset=utf-8;base64,{b64}" '
             f'style="width:100%;{iframe_height_css};border:0;border-radius:8px;background:#fff;display:block"></iframe>'
             f'<button type="button" class="sp-btn sp-btn-primary sp-iframe-done" '
             f'onclick="window.SP&&SP.markClicked(this.closest(\'.sp-interactive\'))" '
-            f'style="margin-top:12px;width:100%">'
+            f'style="margin-top:12px;width:100%;{"display:none" if video_quiz_key else ""}">'
             f'✓ Concluí a interação acima — liberar próxima seção'
             f'</button>'
             f'</div>'
@@ -2719,6 +2724,7 @@ def _BUILD_PAGE(
 </button>
 
 <script>{js}</script>
+<script>{(Path(__file__).parent / 'export_assets' / 'video-quiz-host.js').read_text(encoding='utf-8')}</script>
 {gamification_script}
 {tutor_script}
 </body>

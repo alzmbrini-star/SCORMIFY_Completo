@@ -16,12 +16,14 @@
   function scormSaveState(){
     if (!SCORM_MODE || !window.SCORM || !window.SCORM.api) return;
     try {
-      window.SCORM.saveSuspend({
+      var previous={};
+      try { previous=JSON.parse(window.SCORM.api.LMSGetValue('cmi.suspend_data')||'{}'); } catch (_) {}
+      window.SCORM.saveSuspend(Object.assign({},previous,{
         unlocked: state.unlocked,
         completed: state.completed,
         quizScores: state.quizScores,
         currentIndex: state.currentIndex,
-      });
+      }));
       window.SCORM.setLocation(String(state.currentIndex));
       window.SCORM.commit();
     } catch (e) {}
