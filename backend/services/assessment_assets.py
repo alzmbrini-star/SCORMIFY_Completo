@@ -9,6 +9,8 @@ from urllib.parse import urlsplit
 
 
 def inline_assessment_assets(document: str, assets_dir: str) -> str:
+    from services.video_quiz_playback import upgrade_video_quiz_playback
+    document = upgrade_video_quiz_playback(document)
     # Repair existing snapshots as well as newly generated assessments.
     if re.search(r'id=[\"\']assessment-data[\"\']', document):
         css = (Path(__file__).parent / 'export_assets' / 'assessment-layout.css').read_text(encoding='utf-8')

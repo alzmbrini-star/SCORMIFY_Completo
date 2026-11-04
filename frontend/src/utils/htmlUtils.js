@@ -11,6 +11,7 @@ import { upgradeBattleHtml } from './battleHtml';
 import { upgradeTreasureHtml } from './treasureHtml';
 import { upgradeClimbHtml } from './climbHtml';
 import { upgradeSimulatorSlide } from './simulatorSlide';
+import { upgradeVideoQuizPlayback } from './videoQuizPlayback';
 const API_URL = getApiUrl();
 
 /**
@@ -205,7 +206,7 @@ export const fitGameElementToSlide = (element, slideWidth = 960, slideHeight = 5
 export const wrapInteractiveFullbleed = (html, mode = 'page') => {
   if (!html || typeof html !== 'string') return html;
   // Recorded-video interactions own a responsive, height-bounded viewport.
-  if (/id=["']video-quiz-data["']/.test(html)) return html;
+  if (/id=["']video-quiz-data["']/.test(html)) return upgradeVideoQuizPlayback(html);
   html = upgradeSimulatorSlide(html);
   if (/data-case-study-version=["']2["']|data-human-simulator-version=["']1["']|data-sim-engine=["'](?:entity-planning-v1|finite-rules-v1|didactic-visualization-v1)["']/.test(html)) return html;
   if (/id=["']assessment-data["']/.test(html)) {

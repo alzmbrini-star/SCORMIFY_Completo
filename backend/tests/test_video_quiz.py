@@ -128,3 +128,17 @@ def test_configurations_do_not_share_resume_across_elements():
     data = sample(); data['instanceId'] = 'element-1'
     other = dict(data, instanceId='element-2')
     assert normalize_video_quiz(data)['key'] != normalize_video_quiz(other)['key']
+
+
+def test_saved_video_playback_upgrades_preserve_questions_and_match_frontend():
+    from services.video_quiz_playback import upgrade_video_quiz_playback
+    root = Path(__file__).resolve().parents[2]
+    runtime = (root / 'backend/services/export_assets/video-quiz-playback.js').read_text(encoding='utf-8')
+    frontend = (root / 'frontend/src/utils/videoQuizPlayback.js').read_text(encoding='utf-8')
+    assert runtime.split('\nvideoQuizPlaybackRuntime();')[0] in frontend
+    old = '<html><body><script id="video-quiz-data" type="application/json">{"checkpoints":[{"at":20}]}</script></body></html>'
+    upgraded = upgrade_video_quiz_playback(old)
+    assert upgraded.count('id="video-quiz-playback-v1"') == 1
+    assert '{"checkpoints":[{"at":20}]}' in upgraded
+    assert upgrade_video_quiz_playback(upgraded) == upgraded
+    assert upgrade_video_quiz_playback('<p>Outro conteúdo</p>') == '<p>Outro conteúdo</p>'
