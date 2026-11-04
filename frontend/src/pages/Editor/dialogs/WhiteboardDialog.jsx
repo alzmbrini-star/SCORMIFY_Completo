@@ -18,6 +18,7 @@ import { Loader2, Sparkles, Wand2, Palette, Eraser, Bold, Underline, AlignLeft, 
 import { toast } from 'sonner';
 import { getApiUrl } from '../../../utils/apiUrl';
 import { authHeaders } from '../../../contexts/AuthContext';
+import WhiteboardPlanArt, { WhiteboardIconPreview } from '../../../components/editor/WhiteboardPlanArt';
 
 const SIZE_PRESETS = [
   { value: 64, label: 'Pequeno (64)' },
@@ -50,6 +51,13 @@ function WhiteboardPlanPreview({ plan }) {
           </marker>
         </defs>
         <rect width="1920" height="1080" fill="#fff" />
+        {operations.filter(op=>op.fill).map((op,i)=>{
+          const props={key:`fill-${i}`,fill:op.fill,fillOpacity:(op.fill_opacity??85)/100};
+          if(op.type==='rectangle')return <rect {...props} x={op.x} y={op.y} width={op.w} height={op.h}/>;
+          if(op.type==='circle')return <ellipse {...props} cx={op.cx} cy={op.cy} rx={op.rx} ry={op.ry}/>;
+          if(op.type==='polygon')return <polygon {...props} points={(op.points||[]).map(p=>p.join(',')).join(' ')}/>;
+          return null;
+        })}
         {operations.map((op, index) => {
           const color = op.color || '#1f2937';
           const key = op.id || `${op.type}-${index}`;
@@ -81,13 +89,11 @@ function WhiteboardPlanPreview({ plan }) {
             return <line key={key} x1={op.x1} y1={op.y1} x2={op.x2} y2={op.y1} stroke={color} strokeWidth={op.width || 5} />;
           }
           if (op.type === 'icon') {
-            const size = op.size || 220;
-            return (
-              <g key={key}>
-                <rect x={op.x - size / 2} y={op.y - size / 2} width={size} height={size} fill="none" stroke={color} strokeWidth={op.width || 5} strokeDasharray="18 12" rx="20" />
-                <text x={op.x} y={op.y} fill={color} fontSize="34" textAnchor="middle" dominantBaseline="middle">{op.name}</text>
-              </g>
-            );
+            return <WhiteboardIconPreview key={key} op={op}/>;
+          }
+          if (op.type === 'polygon' || op.type === 'polyline') {
+            const Component=op.type==='polygon'?'polygon':'polyline';
+            return <Component key={key} points={(op.points||[]).map(p=>p.join(',')).join(' ')} fill="none" stroke={color} strokeWidth={op.width||6} strokeLinejoin="round" strokeLinecap="round"/>;
           }
           return null;
         })}
@@ -496,6 +502,7 @@ export default function WhiteboardDialog({
         credentials: 'include',
         body: JSON.stringify({
           plan: aiPlan,
+          charsPerSecond: Number(speed) || 6,
           fontFamily: fontFamily || null,
           transparent: Boolean(transparent),
           title: title.trim() || null,
@@ -583,7 +590,7 @@ export default function WhiteboardDialog({
               </Label>
               <p className="text-[10px] text-muted-foreground mt-1">
                 Descreva em português o que quer desenhar — a IA cria um plano
-                com <strong>texto + setas, círculos, retângulos, sublinhados</strong> e
+                com <strong>texto escrito por traços, objetos do catálogo, polígonos, linhas e formas coloridas</strong> e
                 a caneta executa em ordem. Útil pra <strong>destacar conceitos</strong>,
                 <strong> conectar ideias</strong> e dar vida didática aos slides.
               </p>
@@ -655,7 +662,7 @@ export default function WhiteboardDialog({
                 {planBusy ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Gerando plano...</>
                 ) : (
-                  <><Sparkles className="w-4 h-4 mr-2" /> Gerar plano preciso</>
+                  <><Sparkles className="w-4 h-4 mr-2" /> Gerar plano ilustrado</>
                 )}
               </Button>
 
@@ -676,6 +683,7 @@ export default function WhiteboardDialog({
                     <span className="text-slate-200 ml-1">{aiPlan.summary}</span>
                   </div>
                   <WhiteboardPlanPreview plan={aiPlan} />
+                  <WhiteboardPlanArt plan={aiPlan} onChange={setAiPlan} disabled={busy||planBusy}/>
                   {aiPlan.quality && (
                     <div className="text-[10px] text-slate-300 flex flex-wrap items-center gap-2">
                       <span className={aiPlan.quality.score >= 88 ? 'text-emerald-400' : 'text-amber-300'}>

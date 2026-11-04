@@ -84,7 +84,8 @@ GUIDE=[
   'A Biblioteca de Marca da empresa reúne imagens e diretrizes visuais. Nas propriedades do slide, consulte as opções de uso ou herança dessa biblioteca.',
   'Após aplicar um tema, confira contraste dos textos, posição das imagens e legibilidade de atividades HTML.'],'editor','template'),
  entry('whiteboard','Criar animações Whiteboard','whiteboard desenho mão caneta pen traço animação',[
-  'No Editor, abra Whiteboard para criar os conteúdos oferecidos por essa ferramenta.',
+  'No Editor, abra Whiteboard. O modo IA + Formas escreve por traços como o modo normal, desenha objetos do catálogo e aceita polígonos e linhas livres. Após gerar o plano, abra Desenhos, cores e preenchimentos para buscar objetos e ajustar traço, preenchimento, opacidade e posição dos desenhos.',
+  'As cores preenchem apenas regiões fechadas, depois do contorno, preservando textos. Ajustar o plano manualmente não usa IA; gerar um novo plano usa a integração configurada. Renderize uma nova versão para atualizar vídeos já inseridos: arquivos antigos não mudam automaticamente.',
   'As ferramentas de caneta e formas do Editor permitem anotar o slide; escolha cor e espessura antes de desenhar.',
   'Confira o resultado e a duração na prévia antes de exportar.'],'editor','whiteboard'),
  entry('pdf','Adicionar PDF e flipbook','pdf flipbook documento páginas livro',[

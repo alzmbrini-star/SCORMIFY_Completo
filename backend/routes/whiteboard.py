@@ -456,6 +456,20 @@ async def whiteboard_tools():
     return {"tools": list_available_tools()}
 
 
+@router.get('/icons')
+async def whiteboard_icon_catalog(user: dict = Depends(require_auth)):
+    from services.whiteboard_icons import list_icon_names, ALIASES
+    return {'names': list(list_icon_names()), 'aliases': ALIASES}
+
+
+@router.get('/icons/{name}')
+async def whiteboard_icon_preview(name: str, user: dict = Depends(require_auth)):
+    from services.whiteboard_icons import list_icon_names, icon_strokes
+    if name not in list_icon_names():
+        raise HTTPException(404, 'Desenho não encontrado no catálogo')
+    return {'strokes': icon_strokes(name, 12, 12, 24)}
+
+
 @router.get("/health")
 async def whiteboard_health():
     """Diagnostic: verifies font + hand asset + ffmpeg binary are ready.
@@ -768,6 +782,7 @@ async def generate_whiteboard_plan(
 class WhiteboardPlanRenderRequest(BaseModel):
     # The (possibly user-edited) plan returned from /ai-plan.
     plan: dict
+    charsPerSecond: float = Field(default=6, ge=1, le=30)
     fontFamily: Optional[str] = None
     transparent: bool = Field(default=False)
     projectId: Optional[str] = None
@@ -850,6 +865,7 @@ async def _do_plan_render(
             "font_family": payload.fontFamily or None,
             "transparent": bool(payload.transparent),
             "tool": payload.tool or "pen",
+            "chars_per_second": payload.charsPerSecond,
         })
     except Exception as e:
         logger.exception("whiteboard-plan render failed: %s", e)

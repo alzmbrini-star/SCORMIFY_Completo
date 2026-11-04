@@ -290,6 +290,15 @@ def path_for_op(op: dict, default_n: int = DEFAULT_POINTS_PER_SHAPE) -> list[Poi
     """Build the pen path for a single render-plan operation. Returns
     an empty list if the op type is unsupported — caller should skip."""
     t = (op.get("type") or "").lower()
+    if t in {"polygon", "polyline"}:
+        points = [(float(p[0]), float(p[1])) for p in op.get('points', [])]
+        if t == 'polygon' and points and points[-1] != points[0]:
+            points.append(points[0])
+        result = []
+        for a, b in zip(points, points[1:]):
+            count = max(2, min(120, int(math.dist(a, b) / 5)))
+            result.extend((a[0]+(b[0]-a[0])*i/count, a[1]+(b[1]-a[1])*i/count) for i in range(count))
+        return result + points[-1:] if points else []
     if t == "circle":
         return circle_path(
             float(op["cx"]), float(op["cy"]),

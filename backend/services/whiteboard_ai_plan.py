@@ -139,6 +139,19 @@ TIPOS DE OPERAÇÃO PERMITIDOS:
    - Combine com um "text" LOGO ABAIXO do desenho como legenda
      (y do texto ≈ y + size/2 + 40) quando fizer sentido.
 
+7. {"type":"polygon", "points":[[200,200],[400,200],[300,400]], "color":"#1f2937", "width":6, "fill":"#60a5fa", "fill_opacity":85}
+   - Polígono fechado (3 a 48 vértices). Permite triângulos, losangos, silhuetas e peças de desenhos próprios.
+8. {"type":"polyline", "points":[[200,200],[280,240],[360,200]], "color":"#1f2937", "width":6}
+   - Linha livre aberta, até 48 pontos; pode descrever curvas por uma sequência de pontos próximos.
+
+CORES E PREENCHIMENTOS:
+- circle, rectangle, polygon e icon aceitam fill (cor #RRGGBB) e fill_opacity (10 a 100).
+- Use preenchimentos quando o autor pedir desenhos coloridos, volumes ou superfícies sólidas. Prefira cores claras com contornos escuros e contraste nos rótulos.
+- Não pinte apenas um retângulo de fundo no lugar de um objeto: use o ícone real do catálogo ou combine polígonos e linhas para uma silhueta reconhecível.
+- Nos ícones, apenas contornos fechados recebem preenchimento; linhas abertas continuam traços.
+- O motor desenha o contorno e depois colore progressivamente por baixo da tinta já existente, preservando textos e detalhes.
+- Sem fill, mantenha o comportamento tradicional de somente contorno. Não use fill em texto, seta, sublinhado ou polyline.
+
 REGRAS DE LAYOUT (CANVAS 1920×1080):
 - Use a área útil: x entre 140 e 1780, y entre 140 e 940.
 - **ZONAS HORIZONTAIS** (use no máximo UMA zona por shape boxed):
@@ -710,7 +723,7 @@ def _normalize_plan(
         ops_in = []
     summary = (plan.get("summary") or "").strip()[:400]
 
-    allowed_types = {"text", "circle", "rectangle", "arrow", "underline", "icon"}
+    allowed_types = {"text", "circle", "rectangle", "arrow", "underline", "icon", "polygon", "polyline"}
     ops_out: list[dict] = []
     for op in ops_in[:MAX_OPS]:
         if not isinstance(op, dict):
@@ -778,6 +791,15 @@ def _normalize_plan(
             target_id = _safe_id(op.get("target_id"))
             if target_id:
                 cleaned["target_id"] = target_id
+        elif t in {"polygon", "polyline"}:
+            points = op.get('points')
+            if not isinstance(points, list):
+                continue
+            points = [[_clamp_int(p[0], 0, CANVAS_W), _clamp_int(p[1], 0, CANVAS_H)]
+                      for p in points[:48] if isinstance(p, (list, tuple)) and len(p) == 2]
+            if len(points) < (3 if t == 'polygon' else 2):
+                continue
+            cleaned.update(points=points, width=_clamp_int(op.get('width', 6), 3, 12))
         elif t == "icon":
             from .whiteboard_icons import resolve_icon_name
             resolved = resolve_icon_name(op.get("name"))
@@ -799,6 +821,11 @@ def _normalize_plan(
             cleaned["color"] = str(color_in).strip()[:32]
         elif base_color:
             cleaned["color"] = base_color
+        if t in {'circle', 'rectangle', 'polygon', 'icon'} and op.get('fill') not in (None, '', 'none', 'transparent'):
+            from .whiteboard_shapes import parse_color
+            fill = base_color if not allow_color_per_shape and base_color else str(op['fill'])[:32]
+            cleaned['fill'] = '#%02x%02x%02x' % parse_color(fill, (219, 234, 254))
+            cleaned['fill_opacity'] = _clamp_int(op.get('fill_opacity', 85), 10, 100)
         ops_out.append(cleaned)
 
     return {"summary": summary, "ops": ops_out}
@@ -812,7 +839,7 @@ def _safe_id(value) -> str:
 def _clamp_int(v, lo: int, hi: int) -> int:
     try:
         i = int(round(float(v)))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         i = lo
     return max(lo, min(hi, i))
 
@@ -986,6 +1013,9 @@ def _operation_center(op: dict) -> Optional[tuple[float, float]]:
         return _shape_center(op)
     if op_type == "icon":
         return float(op["x"]), float(op["y"])
+    if op_type in {'polygon', 'polyline'} and op.get('points'):
+        xs, ys = zip(*op['points'])
+        return (min(xs)+max(xs))/2, (min(ys)+max(ys))/2
     if op_type == "text":
         x0, y0, x1, y1 = _text_aabb(op)
         return (x0 + x1) / 2, (y0 + y1) / 2
@@ -1113,10 +1143,13 @@ def _retract_arrows_from_shapes(plan: dict) -> dict:
         if sh["type"] == "icon":
             s = sh.get("size") or 220
             return {"type": "rectangle", "x": sh["x"] - s / 2, "y": sh["y"] - s / 2, "w": s, "h": s}
+        if sh['type'] == 'polygon':
+            xs, ys = zip(*sh['points'])
+            return {'type': 'rectangle', 'x': min(xs), 'y': min(ys), 'w': max(xs)-min(xs), 'h': max(ys)-min(ys)}
         return sh
 
     shapes = [_as_container(op) for op in ops
-              if op.get("type") in ("rectangle", "circle", "icon")]
+              if op.get("type") in ("rectangle", "circle", "icon", "polygon")]
     if not shapes:
         return plan
     for op in ops:
