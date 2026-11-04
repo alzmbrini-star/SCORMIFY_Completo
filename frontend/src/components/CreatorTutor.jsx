@@ -53,7 +53,7 @@ export default function CreatorTutor() {
   useEffect(()=>{if(open)end.current?.scrollIntoView({block:'nearest'});},[messages,busy,open,expanded]);
   const close=()=>{setOpen(false);setExpanded(false);launcher.current?.focus();};
   const changeFont=delta=>setReading(p=>({...p,font:Math.max(16,Math.min(28,p.font+delta))}));
-  const useGuide=topic=>{
+  const openGuide=topic=>{
     setError('');setMessages(previous=>[...previous,{role:'user',text:topic.title},{role:'assistant',text:topic.steps.map((s,i)=>`${i+1}. ${s}`).join('\n\n'),links:[topic.link],mode:'guide'}]);
   };
   const send=async event=>{
@@ -102,7 +102,7 @@ export default function CreatorTutor() {
     </div>
     <details className="ct-guides" open={messages.length===1}><summary>Guias rápidos · sem geração de IA</summary>
       {guideError&&<p role="status">{guideError}</p>}
-      <div>{topics.filter(t=>quickIds.includes(t.id)).map(t=><button type="button" key={t.id} disabled={busy} onClick={()=>useGuide(t)}>{t.title}</button>)}</div>
+      <div>{topics.filter(t=>quickIds.includes(t.id)).map(t=><button type="button" key={t.id} disabled={busy} onClick={()=>openGuide(t)}>{t.title}</button>)}</div>
     </details>
     <form className="ct-compose" onSubmit={send}>
       <label className="ct-sr" htmlFor="creator-tutor-question">Sua pergunta sobre o SCORMIFY</label>
