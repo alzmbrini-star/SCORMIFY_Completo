@@ -5,6 +5,7 @@ import VideoQuizDialog from './VideoQuizDialog';
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 jest.mock('../../contexts/AuthContext', () => ({authHeaders: () => ({Authorization: 'Bearer test'})}));
 jest.mock('../../utils/apiUrl', () => ({getApiUrl: () => 'https://api.example'}));
+jest.mock('sonner', () => ({toast: {success: jest.fn()}}));
 jest.mock('../ui/button', () => ({Button: ({children, variant, ...props}) => <button {...props}>{children}</button>}));
 jest.mock('../ui/input', () => ({Input: props => <input {...props} />}));
 jest.mock('../ui/textarea', () => ({Textarea: props => <textarea {...props} />}));
@@ -15,7 +16,7 @@ describe('interactive avatar video authoring', () => {
   beforeEach(() => { container = document.createElement('div'); document.body.append(container); root = createRoot(container); global.fetch = jest.fn(); });
   afterEach(async () => { await act(async () => root.unmount()); container.remove(); jest.restoreAllMocks(); });
   test('reopens saved checkpoints and updates the same element only on Apply', async () => {
-    const apply = jest.fn(), close = jest.fn();
+    const apply = jest.fn().mockResolvedValue({videoQuizConfig: config}), close = jest.fn();
     await act(async () => root.render(<VideoQuizDialog open element={{type: 'html', videoQuizConfig: config}} onApply={apply} onOpenChange={close} />));
     expect(container.querySelector('[aria-label="Enunciado 1"]').value).toBe('Qual?');
     expect(apply).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
@@ -30,7 +31,7 @@ describe('interactive avatar video authoring', () => {
     await act(async () => root.render(<VideoQuizDialog open element={{src: config.src}} onApply={apply} onOpenChange={() => {}} />));
     fetch.mockResolvedValue({ok: false, json: async () => ({detail: 'Informe a explicação.'})});
     await act(async () => [...container.querySelectorAll('button')].find(b => b.textContent === 'Aplicar ao vídeo').click());
-    expect(container.querySelector('[role="alert"]').textContent).toBe('Informe a explicação.'); expect(apply).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]').textContent).toContain('preencha a explicação'); expect(apply).not.toHaveBeenCalled();
   });
   test('Cancel does not generate AI, build or alter the element', async () => {
     const apply = jest.fn(), close = jest.fn();
@@ -46,5 +47,40 @@ describe('interactive avatar video authoring', () => {
     await act(async () => root.render(<VideoQuizDialog open element={{src: 'https://example.org/alpha.webm'}} onApply={() => {}} onOpenChange={() => {}} />));
     const label = [...container.querySelectorAll('label')].find(n => n.textContent.includes('Preservar fundo transparente'));
     expect(label.querySelector('input').checked).toBe(true);
+  });
+  test('adds a second question, ignores unused options, saves and reopens both', async () => {
+    const close = jest.fn(), apply = jest.fn(async payload => payload);
+    const render = (open, element) => root.render(<VideoQuizDialog open={open} element={element} onApply={apply} onOpenChange={close} />);
+    await act(async () => render(true, {id:'v1', videoQuizConfig:config}));
+    const click = label => [...container.querySelectorAll('button')].find(b => b.textContent === label).click();
+    await act(async () => click('Adicionar pausa com pergunta'));
+    const set = async (label, value) => { await act(async () => { const field=container.querySelector(`[aria-label="${label}"]`); const proto=field.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(proto,'value').set.call(field,value);field.dispatchEvent(new Event('input',{bubbles:true})); }); };
+    await set('Enunciado 2','Segunda?'); await set('Alternativa 1 da pergunta 2','Sim'); await set('Alternativa 2 da pergunta 2','Não');
+    await act(async () => click('Aplicar ao vídeo'));
+    expect(container.querySelector('[role="alert"]').textContent).toContain('Pergunta 2: preencha a explicação');
+    expect(fetch).not.toHaveBeenCalled();
+    await set('Explicação 2','Sim é a resposta.');
+    // A same-element parent refresh must not erase the unsaved question.
+    await act(async () => render(true,{id:'v1',videoQuizConfig:config}));
+    expect(container.querySelector('[aria-label="Enunciado 2"]').value).toBe('Segunda?');
+    fetch.mockImplementation(async (url, options) => ({ok:true,json:async()=>({config:JSON.parse(options.body),htmlContent:'<html>two</html>'})}));
+    await act(async () => click('Aplicar ao vídeo'));
+    const saved=apply.mock.calls[0][0];
+    expect(saved.videoQuizConfig.checkpoints).toHaveLength(2);
+    expect(saved.videoQuizConfig.checkpoints[1].options).toEqual(['Sim','Não']);
+    expect(close).toHaveBeenCalledWith(false);
+    await act(async () => render(false,{id:'v1',...saved}));
+    await act(async () => render(true,{id:'v1',...saved}));
+    expect(container.querySelector('[aria-label="Enunciado 2"]').value).toBe('Segunda?');
+    expect(container.querySelector('[aria-label="Enunciado 1"]').value).toBe('Qual?');
+  });
+  test('does not close when persistence fails or does not acknowledge all checkpoints', async () => {
+    const close=jest.fn(), apply=jest.fn().mockResolvedValue(undefined);
+    await act(async()=>root.render(<VideoQuizDialog open element={{id:'v1',videoQuizConfig:config}} onApply={apply} onOpenChange={close}/>));
+    fetch.mockResolvedValue({ok:true,json:async()=>({config,htmlContent:'<html/>'})});
+    await act(async()=>[...container.querySelectorAll('button')].find(b=>b.textContent==='Aplicar ao vídeo').click());
+    expect(close).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]').textContent).toContain('rascunho foi preservado');
+    expect(container.querySelector('[aria-label="Enunciado 1"]').value).toBe('Qual?');
   });
 });
