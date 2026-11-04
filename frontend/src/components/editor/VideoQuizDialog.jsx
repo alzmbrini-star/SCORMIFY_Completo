@@ -13,7 +13,8 @@ export default function VideoQuizDialog({ open, onOpenChange, element, onApply, 
   const [script, setScript] = useState(''), [bank, setBank] = useState([]), [search, setSearch] = useState('');
   useEffect(() => {
     if (!open) return;
-    setDraft(element.videoQuizConfig || {title: 'Vídeo com perguntas', src: element.src || '', instanceId: element.id, checkpoints: [blank()]});
+    const initial = element.videoQuizConfig || {title: 'Vídeo com perguntas', src: element.src || '', instanceId: element.id, checkpoints: [blank()]};
+    setDraft({...initial, src: initial.src?.startsWith('/api/') ? `${getApiUrl()}${initial.src}` : initial.src});
     setError(''); setScript(''); setBank([]);
   }, [open, element]);
   const patch = (i, data) => setDraft(prev => ({...prev, checkpoints: prev.checkpoints.map((cp, n) => n === i ? {...cp, ...data} : cp)}));

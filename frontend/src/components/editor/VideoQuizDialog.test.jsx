@@ -38,4 +38,8 @@ describe('interactive avatar video authoring', () => {
     await act(async () => [...container.querySelectorAll('button')].find(b => b.textContent === 'Cancelar').click());
     expect(fetch).not.toHaveBeenCalled(); expect(apply).not.toHaveBeenCalled(); expect(close).toHaveBeenCalledWith(false);
   });
+  test('project video URLs point at the backend rather than the separate static frontend', async () => {
+    await act(async () => root.render(<VideoQuizDialog open element={{id: 'v1', src: '/api/projects/p1/assets/avatar.mp4'}} onApply={() => {}} onOpenChange={() => {}} />));
+    expect(container.querySelector('video').getAttribute('src')).toBe('https://api.example/api/projects/p1/assets/avatar.mp4');
+  });
 });
