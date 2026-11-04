@@ -1,6 +1,7 @@
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import SlideCanvas from './SlideCanvas';
+import SlideThumbnailContent from '../../pages/Editor/components/SlideThumbnailContent';
 import { getApiUrl } from '../../utils/apiUrl';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -423,5 +424,20 @@ describe('SlideCanvas element interactions', () => {
     expect(image.getAttribute('src')).toBe(
       `${getApiUrl()}/api/whiteboard/file/wb_plan_saved.png`,
     );
+  });
+
+  it('keeps Kling quiz media on the backend in both canvas and thumbnail JSON', async () => {
+    const config = {src:'https://old.example/api/projects/p/assets/kling_saved.mp4',key:'saved-key',checkpoints:[{at:4,question:'Qual ação?',options:['A','B'],correctIndex:1}]};
+    const videoSlide = {...slide,elements:[{...slide.elements[0],htmlContent:'<!doctype html><html><body><script id="video-quiz-data" type="application/json">'+JSON.stringify(config)+'</script></body></html>'}]};
+    const assertSnapshot = () => {
+      const doc = new DOMParser().parseFromString(container.querySelector('iframe').getAttribute('srcdoc'),'text/html');
+      expect(JSON.parse(doc.getElementById('video-quiz-data').textContent)).toEqual({...config,src:getApiUrl()+'/api/projects/p/assets/kling_saved.mp4'});
+    };
+    await act(async () => {root.render(<SlideCanvas slide={videoSlide} selectedElementId="element-1" onSelectElement={jest.fn()} onUpdateElement={onUpdateElement} onDeleteElement={jest.fn()}/>);});
+    assertSnapshot();
+    await act(async () => {root.render(<SlideThumbnailContent slide={videoSlide}/>);});
+    assertSnapshot();
+    expect(videoSlide.elements[0].htmlContent).toContain('https://old.example/');
+    expect(onUpdateElement).not.toHaveBeenCalled();
   });
 });

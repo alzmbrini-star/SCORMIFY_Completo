@@ -4,6 +4,7 @@
  */
 
 import { getApiUrl } from './apiUrl';
+import { resolveHtmlAssetUrls } from './htmlAssetUrls';
 import { assessmentLayout } from '../components/assessment/assessmentLayout';
 import { upgradeGameHud } from './gameHud';
 import { upgradeCrosswordHtml } from './crosswordHtml';
@@ -83,18 +84,7 @@ export const stripDomainFromAssetUrls = (htmlContent) => {
  */
 export const resolveAssetUrls = (htmlContent) => {
   if (!htmlContent || typeof htmlContent !== 'string' || !API_URL) return htmlContent || '';
-  
-  // First strip any old absolute domains to normalize
-  let result = stripDomainFromAssetUrls(htmlContent);
-  
-  // Then resolve relative /api/ URLs to the current domain
-  // Match src="/api/..." or src='/api/...' attributes
-  result = result.replace(
-    /(src=["'])\/api\//g,
-    `$1${API_URL}/api/`
-  );
-  
-  return result;
+  return resolveHtmlAssetUrls(htmlContent, API_URL);
 };
 
 // Full HTML documents pasted into the Editor are web pages, not screenshots.

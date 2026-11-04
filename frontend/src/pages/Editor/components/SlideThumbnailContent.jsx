@@ -1,21 +1,10 @@
 import React from 'react';
 import { getThumbAssetUrl } from '../utils';
 import { sanitizeHtmlForDisplay, wrapInteractiveFullbleed } from '../../../utils/htmlUtils';
-import { getApiUrl } from '../../../utils/apiUrl';
+import { resolveHtmlAssetUrls } from '../../../utils/htmlAssetUrls';
 
 const resolveThumbHtmlUrls = (htmlContent) => {
-  if (!htmlContent || typeof htmlContent !== 'string') return '';
-  const API_URL = getApiUrl();
-  let resolved = htmlContent.replace(
-    /https?:\/\/[^/\s"']+\/api\/assets\//g, '/api/assets/'
-  );
-  resolved = resolved.replace(
-    /https?:\/\/[^/\s"']+\/api\/projects\//g, '/api/projects/'
-  );
-  resolved = resolved.replace(
-    /(src=["'])\/api\//g, `$1${API_URL}/api/`
-  );
-  return resolved;
+  return resolveHtmlAssetUrls(htmlContent);
 };
 
 const SlideThumbnailContent = ({ slide }) => {

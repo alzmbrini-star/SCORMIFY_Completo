@@ -6,6 +6,7 @@ import { sanitizeHtmlForDisplay, getRtfContentStyles, wrapInteractiveFullbleed }
 import { getAnimationInitialStyle, getAnimationFinalStyle, getAnimationTransition } from '../../lib/animations';
 
 import { getApiUrl } from '../../utils/apiUrl';
+import { resolveHtmlAssetUrls } from '../../utils/htmlAssetUrls';
 const API_URL = getApiUrl();
 
 // Helper to get full asset URL
@@ -41,25 +42,7 @@ const getAssetUrl = (src) => {
 
 // Helper to resolve all asset URLs in HTML content
 const resolveHtmlContentUrls = (htmlContent) => {
-  if (!htmlContent || typeof htmlContent !== 'string') return typeof htmlContent === 'object' ? '' : String(htmlContent || '');
-  
-  // First strip any old absolute domains to normalize
-  let resolved = htmlContent.replace(
-    /https?:\/\/[^/\s"']+\/api\/assets\//g,
-    '/api/assets/'
-  );
-  resolved = resolved.replace(
-    /https?:\/\/[^/\s"']+\/api\/projects\//g,
-    '/api/projects/'
-  );
-  
-  // Then resolve all relative /api/ URLs to current domain
-  resolved = resolved.replace(
-    /(src=["'])\/api\//g,
-    `$1${API_URL}/api/`
-  );
-  
-  return resolved;
+  return resolveHtmlAssetUrls(htmlContent, API_URL);
 };
 
 // Debounce helper
