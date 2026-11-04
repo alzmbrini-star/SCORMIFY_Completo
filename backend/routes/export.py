@@ -163,10 +163,11 @@ async def save_export_to_gridfs(file_path: str, filename: str):
         cursor = exports_bucket.find({"filename": filename})
         async for grid_file in cursor:
             await exports_bucket.delete(grid_file._id)
-        with open(file_path, "rb") as f:
-            data = f.read()
-        await exports_bucket.upload_from_stream(filename, io.BytesIO(data))
-        logger.info(f"Saved export to GridFS: {filename} ({len(data)} bytes)")
+        # GridFS consumes a file-like source in chunks. Do not duplicate the
+        # complete offline course in bytes + BytesIO after generating it.
+        with open(file_path, "rb") as source:
+            await exports_bucket.upload_from_stream(filename, source)
+        logger.info(f"Saved export to GridFS: {filename} ({os.path.getsize(file_path)} bytes)")
     except Exception as e:
         logger.warning(f"GridFS save failed (non-fatal): {e}")
 
@@ -201,11 +202,13 @@ async def get_export_from_gridfs(filename: str, dest_path: str) -> bool:
         cursor = exports_bucket.find({"filename": filename}, limit=1).sort("uploadDate", -1)
         grid_file = await cursor.next()
         stream = await exports_bucket.open_download_stream(grid_file._id)
-        data = await stream.read()
         Path(dest_path).parent.mkdir(parents=True, exist_ok=True)
+        total = 0
         with open(dest_path, "wb") as f:
-            f.write(data)
-        logger.info(f"Restored export from GridFS: {filename} ({len(data)} bytes)")
+            while chunk := await stream.read(64 * 1024):
+                f.write(chunk)
+                total += len(chunk)
+        logger.info(f"Restored export from GridFS: {filename} ({total} bytes)")
         return True
     except StopAsyncIteration:
         return False
@@ -876,6 +879,13 @@ async def _run_html_export_job(
 
         await update_job(job_id, {"progress": 35, "message": "Gerando HTML..."})
 
+        project_name = project_doc.get('name', 'course')
+        safe_name = re.sub(r'[^\w\s-]', '', project_name).replace(' ', '_')
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        suffix = "_singlepage" if use_single_page else ""
+        filename = f"{safe_name}{suffix}_{timestamp}_{job_id[:8]}.html"
+        html_path = EXPORTS_DIR / filename
+
         # Standalone HTML must also remain self-contained after a Render
         # restart, so materialize its Whiteboards before generating markup.
         from services.whiteboard_store import prepare_whiteboards_for_export
@@ -952,25 +962,21 @@ async def _run_html_export_job(
                 gamification_config=gamification_settings_html,
             )
         else:
-            html_content = await generate_standalone_html(
+            await generate_standalone_html(
                 project_doc,
                 assets_dir,
                 base_url,
                 questions=questions,
                 backend_url=base_url,
                 tutor_config=tutor_settings,
+                output_path=str(html_path),
             )
 
         await update_job(job_id, {"progress": 80, "message": "Salvando arquivo..."})
 
-        project_name = project_doc.get('name', 'course')
-        safe_name = re.sub(r'[^\w\s-]', '', project_name).replace(' ', '_')
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        suffix = "_singlepage" if use_single_page else ""
-        filename = f"{safe_name}{suffix}_{timestamp}.html"
-
-        html_path = EXPORTS_DIR / filename
-        await asyncio.to_thread(_write_html_file, str(html_path), html_content)
+        if use_single_page:
+            await asyncio.to_thread(_write_html_file, str(html_path), html_content)
+            del html_content
 
         await update_job(job_id, {"progress": 90, "message": "Persistindo..."})
 

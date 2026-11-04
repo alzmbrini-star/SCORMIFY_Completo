@@ -12,6 +12,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional
 import mimetypes
+import io
 
 from models import Course, Project
 
@@ -40,9 +41,12 @@ def file_to_base64(file_path: str) -> Optional[str]:
             return None
         
         mime_type = get_mime_type(file_path)
-        with open(file_path, 'rb') as f:
-            data = base64.b64encode(f.read()).decode('utf-8')
-        return f"data:{mime_type};base64,{data}"
+        with io.StringIO() as encoded, open(file_path, 'rb') as source:
+            encoded.write(f'data:{mime_type};base64,')
+            # Multiple of three: intermediate base64 chunks need no padding.
+            while chunk := source.read(192 * 1024):
+                encoded.write(base64.b64encode(chunk).decode('ascii'))
+            return encoded.getvalue()
     except Exception as e:
         logger.error(f"Error converting file to base64: {e}")
         return None
@@ -78,13 +82,19 @@ async def url_to_base64(url: str) -> Optional[str]:
     """Download a URL and convert to base64 data URI"""
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.get(url)
-            if response.status_code == 200:
-                content_type = response.headers.get('content-type', 'application/octet-stream')
-                # Remove charset and other parameters from content type
-                content_type = content_type.split(';')[0].strip()
-                data = base64.b64encode(response.content).decode('utf-8')
-                return f"data:{content_type};base64,{data}"
+            async with client.stream('GET', url) as response:
+                if response.status_code == 200:
+                    content_type = response.headers.get('content-type', 'application/octet-stream').split(';')[0].strip()
+                    with io.StringIO() as encoded:
+                        encoded.write(f'data:{content_type};base64,')
+                        carry = b''
+                        async for chunk in response.aiter_bytes(chunk_size=192 * 1024):
+                            chunk = carry + chunk
+                            boundary = len(chunk) - len(chunk) % 3
+                            encoded.write(base64.b64encode(chunk[:boundary]).decode('ascii'))
+                            carry = chunk[boundary:]
+                        if carry: encoded.write(base64.b64encode(carry).decode('ascii'))
+                        return encoded.getvalue()
     except Exception as e:
         logger.error(f"Error downloading URL {url}: {e}")
     return None
@@ -304,13 +314,25 @@ def _generate_tutor_block(tutor_config: dict = None) -> str:
 
 
 
-async def generate_standalone_html(
+async def generate_standalone_html(project, assets_dir, base_url='', questions=None,
+                                   backend_url='', tutor_config=None, output_path=None):
+    """Return HTML for legacy callers, or stream an offline HTML to output_path."""
+    from services.streaming_html import JsonArraySpool
+    if output_path is None:
+        return await _generate_standalone_html(project, assets_dir, base_url, questions, backend_url, tutor_config)
+    with JsonArraySpool() as slides:
+        return await _generate_standalone_html(project, assets_dir, base_url, questions, backend_url, tutor_config, output_path, slides)
+
+
+async def _generate_standalone_html(
     project: Dict[str, Any],
     assets_dir: str,
     base_url: str = "",
     questions: list = None,
     backend_url: str = "",
-    tutor_config: dict = None
+    tutor_config: dict = None,
+    output_path: str = None,
+    slide_spool=None,
 ) -> str:
     """
     Generate a standalone HTML file with all assets embedded as base64
@@ -391,7 +413,7 @@ async def generate_standalone_html(
         default_height = slides[0].get('height', 864)
     
     # Process all assets and convert to base64
-    processed_slides = []
+    processed_slides = slide_spool if slide_spool is not None else []
     for slide in slides:
         processed_slide = slide.copy()
 
@@ -596,6 +618,9 @@ async def generate_standalone_html(
             processed_audios.append(processed_audio)
         processed_slide['audio'] = processed_audios
         
+        if slide_spool is not None:
+            from services.simulator_slide import refresh_simulator_slides
+            refresh_simulator_slides({'course': {'slides': [processed_slide]}})
         processed_slides.append(processed_slide)
     
     # Process global audio
@@ -659,12 +684,13 @@ async def generate_standalone_html(
         enable_vlibras,
         backend_url=backend_url,
         tutor_config=tutor_config,
+        output_path=output_path,
     )
     
     return html
 
 
-def generate_html_template(title: str, course_data: Dict, width: int, height: int, enable_vlibras: bool = True, backend_url: str = "", tutor_config: dict = None) -> str:
+def generate_html_template(title: str, course_data: Dict, width: int, height: int, enable_vlibras: bool = True, backend_url: str = "", tutor_config: dict = None, output_path: str = None) -> str:
     """Generate the complete HTML template with embedded player"""
     
     # VLibras block for accessibility (LIBRAS - Brazilian Sign Language)
@@ -719,9 +745,10 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     
     # Create a deep copy and sanitize htmlContent fields to prevent JSON/JS issues
     import copy
-    sanitized_data = copy.deepcopy(course_data)
+    sanitized_data = dict(course_data) if output_path else copy.deepcopy(course_data)
     from services.simulator_slide import refresh_simulator_slides
-    refresh_simulator_slides({'course':sanitized_data})
+    if not output_path:
+        refresh_simulator_slides({'course':sanitized_data})
     
     # Pull the pre-resolved branded loader config from the course_data
     # envelope (set by `generate_standalone_html`). Fall back to neutral
@@ -741,7 +768,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     player_theme = course_data.get("_playerTheme") or {}
     sanitized_data.pop("_playerTheme", None)
     
-    for slide in sanitized_data.get('slides', []):
+    for slide in ([] if output_path else sanitized_data.get('slides', [])):
         for element in slide.get('elements', []):
             # Sanitize htmlContent - encode as base64 to prevent issues
             if element.get('htmlContent'):
@@ -751,7 +778,8 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     
     # Escape special characters that could break the script tag
     # First dump to JSON, then escape </script> and other problematic sequences
-    course_json = json.dumps(sanitized_data, ensure_ascii=False, cls=DateTimeEncoder)
+    from services.streaming_html import COURSE_MARKER, write_html_file
+    course_json = COURSE_MARKER if output_path else json.dumps(sanitized_data, ensure_ascii=False, cls=DateTimeEncoder)
     # Escape </script> to prevent breaking the script block
     course_json = course_json.replace('</script>', '<\\/script>')
     course_json = course_json.replace('</Script>', '<\\/Script>')
@@ -3745,5 +3773,6 @@ html,body{{background:{canvas}}}
 .sidebar-item.active .sidebar-item-title,.sidebar-item.active .sidebar-item-number{{color:{sidebar_active_text}}}
 </style>"""
     html = html.replace("</head>", branded_player_css + "</head>", 1)
-    
+    if output_path:
+        return write_html_file(output_path, html, sanitized_data)
     return html

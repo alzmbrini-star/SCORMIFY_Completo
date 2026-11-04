@@ -46,13 +46,11 @@ def _read_image_as_data_uri(project_id: str, filename: str, package_assets_dir: 
     
     # Try 1: Read from package assets directory (local file)
     local_path = package_assets_dir / filename
+    from services.html_exporter import file_to_base64
     if local_path.exists():
         try:
-            with open(local_path, 'rb') as f:
-                data = f.read()
-            b64 = base64.b64encode(data).decode('ascii')
-            logger.info(f"Embedded image as data URI from local file: {filename} ({len(data)} bytes)")
-            return f"data:{content_type};base64,{b64}"
+            logger.info(f"Embedded image as data URI from local file: {filename} ({local_path.stat().st_size} bytes)")
+            return file_to_base64(str(local_path))
         except Exception as e:
             logger.warning(f"Failed to read local file {filename}: {e}")
     
@@ -60,18 +58,14 @@ def _read_image_as_data_uri(project_id: str, filename: str, package_assets_dir: 
     global_assets_path = STORAGE_DIR / "assets" / filename
     if global_assets_path.exists():
         try:
-            with open(global_assets_path, 'rb') as f:
-                data = f.read()
             # Also copy to package assets for file-based references
             try:
                 package_assets_dir.mkdir(parents=True, exist_ok=True)
-                with open(package_assets_dir / filename, 'wb') as out:
-                    out.write(data)
+                shutil.copy2(global_assets_path, package_assets_dir / filename)
             except Exception:
                 pass
-            b64 = base64.b64encode(data).decode('ascii')
-            logger.info(f"Embedded image as data URI from global assets: {filename} ({len(data)} bytes)")
-            return f"data:{content_type};base64,{b64}"
+            logger.info(f"Embedded image as data URI from global assets: {filename}")
+            return file_to_base64(str(global_assets_path))
         except Exception as e:
             logger.warning(f"Failed to read global asset {filename}: {e}")
     
@@ -84,11 +78,8 @@ def _read_image_as_data_uri(project_id: str, filename: str, package_assets_dir: 
             # Try to restore to filesystem first
             dest = str(local_path)
             if retrieve_asset_sync(mongo_url, db_name, project_id, filename, dest):
-                with open(dest, 'rb') as f:
-                    data = f.read()
-                b64 = base64.b64encode(data).decode('ascii')
-                logger.info(f"Embedded image as data URI from MongoDB: {filename} ({len(data)} bytes)")
-                return f"data:{content_type};base64,{b64}"
+                logger.info(f"Embedded image as data URI from MongoDB: {filename}")
+                return file_to_base64(dest)
     except Exception as e:
         logger.warning(f"MongoDB fallback failed for {filename}: {e}")
     
@@ -114,8 +105,11 @@ def _read_image_as_data_uri(project_id: str, filename: str, package_assets_dir: 
                         f.write(img_data)
                 except Exception:
                     pass
-                b64 = base64.b64encode(img_data).decode('ascii')
                 logger.info(f"Embedded image as data URI from MongoDB global: {filename} ({len(img_data)} bytes)")
+                # A write failure above must not silently discard the image.
+                if global_assets_path.is_file():
+                    return file_to_base64(str(global_assets_path))
+                b64 = base64.b64encode(img_data).decode('ascii')
                 return f"data:{content_type};base64,{b64}"
     except Exception as e:
         logger.warning(f"MongoDB global fallback failed for {filename}: {e}")
@@ -707,15 +701,20 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
 
                     logger.info(f"Downloading external video: {elem_src[:100]}...")
                     # Use 25s timeout - Cloudflare upstream limit is ~30s
-                    with httpx.Client(timeout=25.0, follow_redirects=True) as client:
-                        response = client.get(elem_src)
-                        if response.status_code == 200:
-                            with open(video_path, 'wb') as vf:
-                                vf.write(response.content)
-                            element['src'] = f"assets/{video_filename}"
-                            logger.info(f"Downloaded video as: {video_filename}")
-                        else:
-                            logger.warning(f"Failed to download video ({response.status_code}), keeping original URL")
+                    partial = video_path.with_suffix(video_path.suffix + '.part')
+                    try:
+                        with httpx.Client(timeout=25.0, follow_redirects=True) as client:
+                            with client.stream('GET', elem_src) as response:
+                                if response.status_code == 200:
+                                    with open(partial, 'wb') as vf:
+                                        for chunk in response.iter_bytes(chunk_size=64 * 1024): vf.write(chunk)
+                                    os.replace(partial, video_path)
+                                    element['src'] = f"assets/{video_filename}"
+                                    logger.info(f"Downloaded video as: {video_filename}")
+                                else:
+                                    logger.warning(f"Failed to download video ({response.status_code}), keeping original URL")
+                    finally:
+                        if partial.exists(): partial.unlink()
                 except Exception as e:
                     logger.warning(f"Video download skipped (non-fatal): {e}")
                     # Keep original URL as fallback so the element still works online
@@ -1015,7 +1014,8 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     logger.info(f"SCORM package: {embedded_count} background images embedded as data URIs")
     
     with open(package_dir / "course.json", 'w', encoding='utf-8') as f:
-        json.dump(course_data, f, ensure_ascii=False, indent=2, cls=DateTimeEncoder)
+        from services.streaming_html import write_json
+        write_json(f, course_data)
     
     # Get slide dimensions with safe None fallback
     slide_width = 960
