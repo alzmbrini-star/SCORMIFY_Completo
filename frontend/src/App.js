@@ -13,6 +13,7 @@ import Admin from './pages/Admin';
 import AuthCallback from './pages/AuthCallback';
 import ChangePassword from './pages/ChangePassword';
 import './index.css';
+import CreatorTutor from './components/CreatorTutor';
 
 // Protected Route component
 function ProtectedRoute({ children }) {
@@ -102,6 +103,7 @@ function App() {
         <ProjectProvider>
           <BrowserRouter>
             <AppRouter />
+            <CreatorTutor />
           </BrowserRouter>
           <Toaster position="top-right" />
         </ProjectProvider>

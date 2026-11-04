@@ -55,6 +55,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import TutorialImportDialog from '../components/dashboard/TutorialImportDialog';
+import useCreatorHelpNavigation from '../hooks/useCreatorHelpNavigation';
 
 // Pure helper to parse an ISO date string into a millisecond timestamp.
 // Lives outside the component so `useMemo` filter logic stays pure under
@@ -87,6 +88,7 @@ export default function Dashboard() {
 
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
+  useCreatorHelpNavigation({'new-project':()=>setShowNewProjectDialog(true),import:()=>setShowUploadDialog(true)});
   const [showTutorialImport, setShowTutorialImport] = useState(false);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');

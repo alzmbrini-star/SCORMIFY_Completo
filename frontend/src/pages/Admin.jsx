@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { authHeaders } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -53,6 +53,12 @@ export default function Admin() {
   const { user, isSuperAdmin, isCompanyAdmin, logout } = useAuth();
   
   const [activeTab, setActiveTab] = useState('companies');
+  const location=useLocation();
+  useEffect(()=>{
+    const tab=new URLSearchParams(location.search).get('tab');
+    const allowed=['users','game_questions','tutor','tutor_dashboard','batch_export',...(isSuperAdmin?['companies','cost_report','integrations_health','data_migration','plates_cleanup']:[])];
+    if(allowed.includes(tab))setActiveTab(tab);
+  },[location.search,isSuperAdmin]);
   const [companies, setCompanies] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);

@@ -5,6 +5,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { authHeaders, useAuth } from '../contexts/AuthContext';
 import { isSimulatorRequest } from '../utils/simulatorPermission';
+import useCreatorHelpNavigation from '../hooks/useCreatorHelpNavigation';
 import { resolveAssetUrls } from '../utils/htmlUtils';
 import { isSlideSimulator, upgradeSimulatorSlide } from '../utils/simulatorSlide';
 import { refreshSimulatorPresentation, simulatorEditPatch, simulatorPreferences } from '../utils/simulatorEditing';
@@ -1342,6 +1343,15 @@ export default function Editor() {
       toast.error('Falha ao adicionar cenário');
     }
   };
+
+  useCreatorHelpNavigation({
+    export:()=>setShowExportDialog(true), video:()=>{setMediaType('video');setShowMediaDialog(true);},
+    assessment:()=>setShowAssessmentDialog(true), games:()=>setShowEducationalGameDialog(true),
+    html:()=>{setSimulatorEditTarget(null);setShowHtmlDialog(true);}, 'text-colors':()=>setShowBulkTextColorDialog(true),
+    template:()=>setShowDesignTemplateDialog(true), preview:()=>setShowSplitPreview(true),
+    tts:()=>setShowTTSDialog(true),
+    scenario:()=>setShowScenarioDialog(true), whiteboard:()=>setShowWhiteboardDialog(true),pdf:()=>setShowPdfDialog(true),
+  },!loading&&!!currentSlide);
 
   if (loading) {
     return (
