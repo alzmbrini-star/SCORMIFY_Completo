@@ -3,7 +3,7 @@ export async function generateAssessment(api, payload, headers, options = {}) {
   const wait = options.wait || (ms => new Promise(resolve => setTimeout(resolve, ms)));
   let storage = options.storage;
   if (storage === undefined) { try { storage = globalThis.sessionStorage; } catch { storage = null; } }
-  const key = `scormify-assessment-job:${payload.projectId}`;
+  const key = options.storageKey || `scormify-assessment-job:${payload.projectId}`;
   const signature = JSON.stringify(payload);
   let pending;
   try { pending = JSON.parse(storage?.getItem(key) || 'null'); } catch { pending = null; }
@@ -31,8 +31,8 @@ export async function generateAssessment(api, payload, headers, options = {}) {
   }
   let state;
   if (!pending.jobId) {
-    options.onProgress?.('Criando questões e preparando as imagens…');
-    state = await request(`${api}/api/assessment-questions/generate/jobs`, {
+    options.onProgress?.(options.initialMessage || 'Criando questões e preparando as imagens…');
+    state = await request(`${api}/api/assessment-questions${options.startPath || '/generate/jobs'}`, {
       method: 'POST', headers, body: JSON.stringify({ ...payload, requestId: pending.requestId }),
     });
     if (!state.jobId) throw new Error('O servidor não confirmou a geração.');
@@ -44,7 +44,7 @@ export async function generateAssessment(api, payload, headers, options = {}) {
     if (state.status === 'done') { clear(); return state; }
     if (state.status === 'error') { clear(); throw new Error(state.error || 'Não foi possível concluir a geração.'); }
     if (!['queued', 'running'].includes(state.status)) throw new Error('Estado desconhecido. Consulte a geração novamente.');
-    options.onProgress?.(state.imagesTotal ? `Gerando imagens de apoio: ${state.imagesCompleted || 0} de ${state.imagesTotal} processadas…` : 'Criando questões com IA…');
+    options.onProgress?.(state.imagesTotal ? `Gerando imagens de apoio: ${state.imagesCompleted || 0} de ${state.imagesTotal} processadas…` : (options.initialMessage || 'Criando questões com IA…'));
     await wait(options.pollMs ?? 3000); state = null;
   }
   throw new Error('A geração continua em processamento. Clique em Gerar novamente para consultar o mesmo pedido.');

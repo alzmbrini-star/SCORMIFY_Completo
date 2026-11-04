@@ -32,3 +32,12 @@ test('server error is surfaced and releases pending request',async()=>{
   await expect(generateAssessment('',payload,{}, {storage:state,wait:async()=>{}})).rejects.toThrow('preservadas');
   expect(state.getItem('scormify-assessment-job:p1')).toBeUndefined();
 });
+
+test('individual image uses isolated resumable job and leaves batch key untouched',async()=>{
+ const state=storage();state.setItem('scormify-assessment-job:p1','batch');
+ global.fetch=jest.fn().mockResolvedValueOnce(response({jobId:'image-job',status:'queued'})).mockResolvedValueOnce(response({status:'done',media:{kind:'image',url:'/api/projects/p1/assets/image.png'}}));
+ const result=await generateAssessment('',{projectId:'p1',prompt:'Luvas'},{},{storage:state,wait:async()=>{},startPath:'/images/jobs',storageKey:'single-image:p1:a'});
+ expect(global.fetch.mock.calls[0][0]).toBe('/api/assessment-questions/images/jobs');
+ expect(result.media.kind).toBe('image');expect(state.getItem('scormify-assessment-job:p1')).toBe('batch');
+ expect(state.getItem('single-image:p1:a')).toBeUndefined();
+});

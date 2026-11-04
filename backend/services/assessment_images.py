@@ -4,6 +4,7 @@ import io
 import re
 import uuid
 from pathlib import Path
+from datetime import datetime, timezone
 
 
 def image_prompt(question, project):
@@ -43,5 +44,14 @@ async def create_support_image(question, project, database, projects_dir):
     path.write_bytes(output.getvalue())
     if not await store_asset_async(database, project_id, filename, str(path)):
         raise ValueError('Não foi possível persistir a imagem no projeto')
-    return {'url': f'/api/projects/{project_id}/assets/{filename}', 'kind': 'image',
+    media = {'url': f'/api/projects/{project_id}/assets/{filename}', 'kind': 'image',
             'name': 'Imagem de apoio · ' + str(question.get('title') or 'Questão')[:180]}
+    # The same persistent asset is reused, never an expiring provider URL.
+    gallery_id = str(uuid.uuid4())
+    await database.image_gallery.insert_one({'_id': gallery_id, 'id': gallery_id,
+        'imageUrl': media['url'], 'prompt': image_prompt(question, project),
+        'keywords': str(question.get('title') or '') + ' ' + str(question.get('prompt') or '')[:1200],
+        'projectId': project_id, 'projectName': str(project.get('name') or ''),
+        'userId': str(question.get('_creatorId') or project.get('userId') or ''),
+        'companyId': str(project.get('companyId') or ''), 'createdAt': datetime.now(timezone.utc).isoformat()})
+    return media

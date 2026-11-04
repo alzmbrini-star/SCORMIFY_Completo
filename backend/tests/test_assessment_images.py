@@ -51,7 +51,7 @@ def fixture():
 
 class AssessmentImageTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.db = SimpleNamespace(assessment_questions=Collection(), assessment_generation_jobs=Collection())
+        self.db = SimpleNamespace(assessment_questions=Collection(), assessment_generation_jobs=Collection(), image_gallery=Collection())
         self.project = {'id':'project-1','name':'Feedback','companyId':'company-1'}
         self.auth = AsyncMock(return_value=self.project)
         env = dict(asyncio=asyncio, hashlib=hashlib, json=json, logging=logging, os=os, re=re, uuid=uuid,
@@ -150,6 +150,8 @@ class AssessmentImageTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(media['kind'],'image')
             self.assertTrue((Path(folder)/'project-1/assets'/media['url'].split('/')[-1]).is_file())
             assets.store_asset_async.assert_awaited_once()
+            self.assertEqual(self.db.image_gallery.rows[0]['imageUrl'],media['url'])
+            self.assertEqual(self.db.image_gallery.rows[0]['projectId'],'project-1')
         assets.store_asset_async=AsyncMock(return_value=False)
         with tempfile.TemporaryDirectory() as folder, \
              patch.dict(sys.modules,{'services.ai_agent':agent,'services.asset_store':assets}):
@@ -163,6 +165,27 @@ class AssessmentImageTests(unittest.IsolatedAsyncioTestCase):
             exported=inline_assessment_assets(html,folder)
             self.assertIn('data:image/png;base64,',exported)
             self.assertIn('same-id',exported)
+
+    async def test_individual_image_job_is_authorized_and_idempotent(self):
+        tasks=SimpleNamespace(add_task=lambda *args:None)
+        payload={'projectId':'project-1','requestId':'image-request-123456789','prompt':'Ilustre um equipamento','context':'Compare os equipamentos','title':'Alternativa A'}
+        user={'user_id':'creator-1'}
+        job=await self.env['start_image_generation'](payload,tasks,user)
+        same=await self.env['start_image_generation'](payload,tasks,user)
+        self.assertEqual(job['jobId'],same['jobId'])
+        self.assertEqual(len(self.db.assessment_generation_jobs.rows),1)
+        picture=AsyncMock(return_value={'url':'/api/projects/project-1/assets/option.png','kind':'image'})
+        with patch('services.assessment_images.create_support_image',picture):
+            request={k:payload.get(k,'') for k in ('projectId','prompt','context','title','category')}
+            await self.env['_run_image_generation'](job['jobId'],self.project,request,user['user_id'])
+            await self.env['_run_image_generation'](job['jobId'],self.project,request,user['user_id'])
+        picture.assert_awaited_once()
+        self.assertEqual(picture.call_args.args[0]['_creatorId'],'creator-1')
+        result=await self.env['generation_status'](job['jobId'],user)
+        self.assertEqual(result['media']['kind'],'image')
+        self.assertEqual(self.db.assessment_questions.rows,[])
+        with self.assertRaises(HttpError):
+            await self.env['generation_status'](job['jobId'],{'user_id':'other'})
 
 
 if __name__=='__main__':unittest.main()

@@ -52,7 +52,8 @@ GUIDE=[
  entry('assessment','Criar avaliações interativas','avaliação avaliação interativa prova questões banco questão imagem apoio alternativas teste',[
   'No Editor, abra Avaliações interativas. Selecione questões do Banco, crie uma questão manualmente ou use Criar com IA.',
   'Revise enunciado, alternativas corretas, feedback e material de apoio. A geração com IA deve ser revisada antes de inserir a avaliação.',
-  'No material de apoio, você pode usar os tipos de anexo oferecidos e links de vídeo. Confira a prévia do vídeo e as permissões do provedor.',
+  'No material de apoio, você pode anexar arquivos, usar links de vídeo ou Gerar imagem da pergunta com IA. Nas alternativas, etapas e cartões, use Imagem IA. Edite a descrição, gere, confira a prévia e clique em Usar esta imagem; depois salve a questão no Banco. As imagens geradas também ficam na galeria reutilizável e usam créditos.',
+  'No Banco, localize questões pela busca no título, enunciado e alternativas, e pelos filtros de tipo, categoria, material de apoio e seleção. Limpar filtros restaura a lista sem remover as questões selecionadas.',
   'Selecione as questões e confirme a criação no slide. Valide o funcionamento na prévia.'],'editor','assessment'),
  entry('games','Criar jogos educativos','game jogos quiz show cruzadas batalha sudoku caça tesouro pontuação cronômetro',[
   'No Editor, abra Jogos educativos e escolha o tipo de jogo. No Agente, habilite Jogos Educativos na configuração do curso.',
