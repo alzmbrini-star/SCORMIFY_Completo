@@ -3500,6 +3500,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 "avatar_id": mc.get("avatar_id", ""),
                 "voice_id": mc.get("voice_id", ""),
                 "videoQuizEnabled": mc.get("videoQuizEnabled") is True,
+                "videoQuizGraded": mc.get("videoQuizGraded") is True,
             }
         elif media_type == "kling":
             slide_media[i] = {
@@ -3925,7 +3926,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     # placeholder. The background callback only supplies the URL.
                     placeholder = slide_elements[-1]
                     placeholder.update(x=80, y=100, width=1760, height=650,
-                                       videoQuizPending={'title': sb_slide.get('title', 'Vídeo com perguntas'), 'checkpoints': checkpoints, 'instanceId': placeholder['id']})
+                                       videoQuizPending={'title': sb_slide.get('title', 'Vídeo com perguntas'), 'checkpoints': checkpoints, 'instanceId': placeholder['id'], 'graded':media.get('videoQuizGraded') is True})
                     slide_elements = [slide_elements[0], placeholder]
                 heygen_pending.append({
                     "slideIndex": i,

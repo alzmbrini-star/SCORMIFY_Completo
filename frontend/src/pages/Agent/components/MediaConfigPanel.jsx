@@ -1610,7 +1610,8 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
                     {/* HeyGen info */}
                     {mc.type === 'heygen' && <div className="rounded border border-purple-700/50 p-3 space-y-2">
                       <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={Boolean(mc.videoQuizEnabled)} onChange={e => setMediaConfig(prev => ({...prev, [String(idx)]: {...mc, videoQuizEnabled: e.target.checked}}))} />Criar perguntas durante o vídeo do avatar</label>
-                      <p className="text-xs text-muted-foreground">O Agente cria duas perguntas sobre o roteiro. Após três erros, mostra uma explicação e permite continuar. Sem reprovação automática. Usa IA adicional; revise os pontos de pausa no Editor após a geração.</p>
+                      {mc.videoQuizEnabled && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={mc.videoQuizGraded===true} onChange={e=>setMediaConfig(prev=>({...prev,[String(idx)]:{...mc,videoQuizGraded:e.target.checked}}))} />Vale nota — incluir no resultado do curso no SCORM</label>}
+                      <p className="text-xs text-muted-foreground">O Agente cria duas perguntas sobre o roteiro. Após três erros, mostra uma explicação e permite continuar. Sem nota por padrão, com revisão livre; no modo avaliativo, acertos dentro das tentativas pontuam. Usa IA adicional; revise os pontos de pausa no Editor.</p>
                     </div>}
                     {mc.type === 'heygen' && (
                       <p className="text-[11px] text-purple-400/60">

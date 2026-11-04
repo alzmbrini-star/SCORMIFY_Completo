@@ -184,7 +184,8 @@ async def get_project_by_id(project_id: str) -> Optional[dict]:
     from services.treasure_upgrade import refresh_treasures
     from services.climb_upgrade import refresh_climbs
     from services.simulator_slide import refresh_simulator_slides
-    return refresh_simulator_slides(refresh_climbs(refresh_treasures(refresh_battles(refresh_crosswords(refresh_game_huds(refresh_assessment_documents(repair_legacy_agent_project(doc))))))))
+    from services.video_quiz_playback import refresh_video_quiz_documents
+    return refresh_video_quiz_documents(refresh_simulator_slides(refresh_climbs(refresh_treasures(refresh_battles(refresh_crosswords(refresh_game_huds(refresh_assessment_documents(repair_legacy_agent_project(doc)))))))))
 
 
 async def update_project(project_id: str, update_data: dict):

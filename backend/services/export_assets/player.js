@@ -448,6 +448,8 @@ var CoursePlayer = (function() {
         console.log('[Swipe] Swipe navigation setup complete');
     }
     
+    function gradedVideo(el) { var config=window.VideoQuizHost&&window.VideoQuizHost.configFor(el); return config&&config.graded===true?config:null; }
+    function isAssessment(el) { return (el.type||'').toLowerCase()==='quiz'||Boolean(el.assessmentConfig)||Boolean(gradedVideo(el)); }
     function loadCourse(courseData) {
         course = courseData;
         totalSlides = course.slides.length;
@@ -461,7 +463,7 @@ var CoursePlayer = (function() {
         // If so, completion must be sent from QuizController.showResults(), not from navigation.
         courseHasQuiz = course.slides.some(function(s) {
             return s.elements && s.elements.some(function(el) {
-                return (el.type || '').toLowerCase() === 'quiz' || Boolean(el.assessmentConfig);
+                return isAssessment(el);
             });
         });
         
@@ -478,7 +480,7 @@ var CoursePlayer = (function() {
         course.slides.forEach(function(s, slideIndex) {
             if (s.elements) {
                 s.elements.forEach(function(el) {
-                    if ((el.type || '').toLowerCase() === 'quiz' || el.assessmentConfig) {
+                    if (isAssessment(el)) {
                         totalQuizzes++;
                     }
                     if ((el.type || '').toLowerCase() === 'scenario') {
@@ -490,7 +492,7 @@ var CoursePlayer = (function() {
         
         var gradedEntries=[];
         course.slides.forEach(function(slide){(slide.elements||[]).forEach(function(el){
-            if(el.type==='quiz'||el.assessmentConfig)gradedEntries.push({id:el.id,weight:(el.quizConfig||el.assessmentConfig||{}).questionCount||1});
+            if(isAssessment(el)){var videoConfig=gradedVideo(el);gradedEntries.push({id:el.id,weight:videoConfig?videoConfig.checkpoints.length:(el.quizConfig||el.assessmentConfig||{}).questionCount||1});}
         });});
         if(ScormAPI.configureResults)ScormAPI.configureResults(gradedEntries).forEach(function(id){completedQuizzes[id]=true;});
         console.log('[Player] courseHasQuiz:', courseHasQuiz, 'totalQuizzes:', totalQuizzes);
@@ -1596,6 +1598,7 @@ var CoursePlayer = (function() {
                     });
                 }
                 el.style.overflow = 'hidden';
+                if(window.VideoQuizHost)window.VideoQuizHost.bindFrame(htmlIframe,element,function(score){onQuizComplete(element.id,score);},function(){onQuizRetry(element.id);});
                 el.appendChild(htmlIframe);
                 break;
             
@@ -2079,7 +2082,7 @@ var CoursePlayer = (function() {
             if(previousResult && previousResult.status==='failed' && ScormAPI.getResults){
                 var scores=ScormAPI.getResults();
                 var reviewSlide=course.slides.findIndex(function(slide){return (slide.elements||[]).some(function(el){
-                    return (el.type==='quiz'||el.assessmentConfig) && (scores[el.id]===undefined||scores[el.id]<previousResult.threshold);
+                    return isAssessment(el) && (scores[el.id]===undefined||scores[el.id]<previousResult.threshold);
                 });});
                 if(reviewSlide>=0){currentSlide=reviewSlide;renderSlide(currentSlide);updateProgress();return;}
             }

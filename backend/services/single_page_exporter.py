@@ -1170,10 +1170,15 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
         if el.get('assessmentConfig'):
             sandbox += ' allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals'
         video_quiz_key = ''
-        if el.get('videoQuizConfig'):
+        if el.get('videoQuizConfig') or 'video-quiz-data' in raw:
             match_key = re.search(r'"key"\s*:\s*"([a-f0-9]{20})"', raw)
             if match_key:
                 video_quiz_key = f' data-video-quiz-key="{match_key.group(1)}"'
+                match_config = re.search(r'<script\b[^>]*\bid=["\']video-quiz-data["\'][^>]*>([\s\S]*?)</script>', raw, re.I)
+                try:
+                    config = json.loads(match_config[1]) if match_config else el.get('videoQuizConfig',{})
+                    video_quiz_key += f' data-video-quiz-graded="{"true" if config.get("graded") is True else "false"}" data-video-quiz-total="{len(config.get("checkpoints",[]))}"'
+                except (ValueError,TypeError): pass
         return (
             f'<div class="sp-html sp-interactive" data-interactive="html" data-required="true">'
             f'<iframe{video_quiz_key} sandbox="{sandbox}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen '

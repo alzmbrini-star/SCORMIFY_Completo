@@ -1,4 +1,12 @@
 // Data-only helpers shared by manual authoring, question-bank imports and AI drafts.
+export function videoQuizSnapshot(element) {
+  if (element?.videoQuizConfig) return element.videoQuizConfig;
+  try {
+    const match=/<script\b[^>]*\bid=["']video-quiz-data["'][^>]*>([\s\S]*?)<\/script>/i.exec(element?.htmlContent || '');
+    return match ? JSON.parse(match[1]) : null;
+  } catch (_) { return null; }
+}
+
 export function absoluteVideoQuestions(checkpoints, duration) {
   if (!Number.isFinite(duration) || duration <= 0) return checkpoints;
   return checkpoints.map(cp => cp.relative ? {...cp, at: Math.round(cp.at * duration * 100) / 100, relative: false} : cp);

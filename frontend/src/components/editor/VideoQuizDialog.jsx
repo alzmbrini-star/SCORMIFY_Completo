@@ -5,7 +5,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { authHeaders } from '../../contexts/AuthContext';
 import { getApiUrl } from '../../utils/apiUrl';
-import { absoluteVideoQuestions, nextVideoQuestionTime, prepareVideoQuizDraft } from '../../utils/videoQuizDraft';
+import { absoluteVideoQuestions, nextVideoQuestionTime, prepareVideoQuizDraft, videoQuizSnapshot } from '../../utils/videoQuizDraft';
 import { toast } from 'sonner';
 
 const blank = () => ({at: 10, relative: false, question: '', options: ['', '', '', ''], correctIndex: 0, explanation: '', maxAttempts: 3});
@@ -20,7 +20,7 @@ export default function VideoQuizDialog({ open, onOpenChange, element, onApply, 
     const identity = element.id || 'current-video';
     if (sessionRef.current === identity) return;
     sessionRef.current = identity;
-    const initial = element.videoQuizConfig || {title: 'Vídeo com perguntas', src: element.src || '', instanceId: element.id, checkpoints: [blank()]};
+    const initial = videoQuizSnapshot(element) || {title: 'Vídeo com perguntas', src: element.src || '', instanceId: element.id, graded:false, checkpoints: [blank()]};
     setDraft({...JSON.parse(JSON.stringify(initial)), src: initial.src?.startsWith('/api/') ? `${getApiUrl()}${initial.src}` : initial.src});
     durationRef.current = 0; setDuration(0); setValidationErrors([]); setSavePhase('');
     setError(''); setScript(''); setBank([]); setSearch('');
@@ -66,7 +66,7 @@ export default function VideoQuizDialog({ open, onOpenChange, element, onApply, 
   }
   const questions = draft.checkpoints || [];
   return <Dialog open={open} onOpenChange={v => !busy && onOpenChange(v)}><DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
-    <DialogHeader><DialogTitle>Perguntas durante o vídeo</DialogTitle><DialogDescription>O vídeo pausa; acerto ou explicação após o limite de tentativas libera a continuação. Não altera a aprovação do curso.</DialogDescription></DialogHeader>
+    <DialogHeader><DialogTitle>Perguntas durante o vídeo</DialogTitle><DialogDescription>O vídeo pausa para as perguntas. Escolha se a atividade é prática sem nota ou avaliação.</DialogDescription></DialogHeader>
     {(error || validationErrors.length > 0) && <div role="alert" className="rounded border border-red-400 bg-red-950 p-3 text-sm text-red-100 max-h-36 overflow-y-auto">
       <p className="font-medium">As perguntas ainda não foram salvas. O rascunho foi mantido.</p>
       {error && <p>{error}</p>}
@@ -74,6 +74,8 @@ export default function VideoQuizDialog({ open, onOpenChange, element, onApply, 
     </div>}
     <div ref={formRef} className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-2">
       <label className="block text-sm">Título<Input value={draft.title || ''} onChange={e => setDraft({...draft, title: e.target.value})} /></label>
+      <label className="block text-sm">Vale nota?<select aria-label="Vale nota?" className="block w-full mt-1 rounded border border-input bg-background p-2" disabled={busy} value={draft.graded===true?'yes':'no'} onChange={e=>setDraft({...draft,graded:e.target.value==='yes'})}><option value="no">Não — prática e revisão livre</option><option value="yes">Sim — atividade avaliativa</option></select></label>
+      <p className="text-xs text-muted-foreground">{draft.graded===true ? 'Cada pergunta acertada dentro do limite de tentativas tem o mesmo peso. A explicação após esgotar as tentativas não pontua. A nota é enviada ao concluir o vídeo e compõe o resultado do curso no SCORM. Uma nova tentativa avaliativa precisa ser iniciada explicitamente.' : 'Não altera nota, aprovação ou reprovação. O aluno pode usar “Rever vídeo e perguntas” para começar de novo e responder novamente, inclusive após concluir. A revisão não bloqueia novamente as seções já liberadas.'}</p>
       <label className="block text-sm">Vídeo direto (HeyGen, MP4 ou WebM)<Input disabled={busy} value={draft.src || ''} onChange={e => { durationRef.current = 0; setDuration(0); setDraft({...draft, src: e.target.value}); }} /></label>
       <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={draft.preserveTransparency !== false} onChange={e => setDraft({...draft, preserveTransparency: e.target.checked})} />Preservar fundo transparente do vídeo</label>
       <p className="text-xs text-muted-foreground">Mantém o canal alfa do arquivo original (por exemplo, WebM transparente do HeyGen), sem converter o vídeo. Não remove um fundo que já esteja gravado no vídeo. O painel de perguntas mantém o contraste.</p>

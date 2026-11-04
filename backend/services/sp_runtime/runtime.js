@@ -50,6 +50,8 @@
     var quizzesPassed = Object.keys(state.quizScores).every(function(k){
       return state.quizScores[k].pct >= 80;
     });
+    var videosReady = Array.from(document.querySelectorAll('iframe[data-video-quiz-graded="true"]')).every(function(frame){return Boolean(state.quizScores['videoquiz:'+frame.dataset.videoQuizKey]);});
+    if(!videosReady)return;
     var passed = allUnlocked && (Object.keys(state.quizScores).length === 0 || quizzesPassed);
     try {
       window.SCORM.complete(passed);
@@ -199,6 +201,14 @@
 
   // ---- public API
   window.SP = {
+    recordVideoQuizResult:function(key,correct,total){
+      state.quizScores['videoquiz:'+key]={correct:correct,total:total,pct:Math.round(100*correct/total)};
+      scormUpdateScore();scormSaveState();
+      // A retake after the end card must be able to recover a failed result
+      // without requiring the learner to unlock the course a second time.
+      if(Object.keys(state.unlocked).length >= SECTIONS.length + 1)scormMarkComplete();
+    },
+    retryVideoQuiz:function(key){delete state.quizScores['videoquiz:'+key];scormUpdateScore();scormSaveState();},
     markPlayed: function(el){
       if (!el) return;
       el.dataset.completed = 'true';

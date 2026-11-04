@@ -1,4 +1,4 @@
-"""Formative questions on recorded avatar videos. Never changes LMS approval."""
+"""Recorded avatar questions, formative by default and optionally graded."""
 import hashlib
 import json
 import math
@@ -51,7 +51,10 @@ def normalize_video_quiz(raw):
         raise ValueError('Cada pergunta precisa de um momento diferente.')
     result = dict(version=1, src=source, title=str(raw.get('title') or 'Vídeo com perguntas')[:200], checkpoints=clean,
                   instanceId=str(raw.get('instanceId') or '')[:100])
+    if raw.get('graded') is True:
+        result['graded'] = True  # Different grading modes never share learner state.
     result['key'] = hashlib.sha256(json.dumps(result, sort_keys=True).encode()).hexdigest()[:20]
+    result['graded'] = raw.get('graded') is True
     # Visual preferences must not invalidate the learner's saved answers.
     result['preserveTransparency'] = raw.get('preserveTransparency') is not False
     return result

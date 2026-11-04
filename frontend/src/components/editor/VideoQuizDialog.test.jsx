@@ -83,4 +83,17 @@ describe('interactive avatar video authoring', () => {
     expect(container.querySelector('[role="alert"]').textContent).toContain('rascunho foi preservado');
     expect(container.querySelector('[aria-label="Enunciado 1"]').value).toBe('Qual?');
   });
+  test('legacy HTML can be reopened and explicitly switched to graded',async()=>{
+    const apply=jest.fn(async value=>value),close=jest.fn();
+    const html='<script id="video-quiz-data" type="application/json">'+JSON.stringify(config)+'</script>';
+    await act(async()=>root.render(<VideoQuizDialog open element={{id:'legacy',type:'html',htmlContent:html,width:1920,height:820}} onApply={apply} onOpenChange={close}/>));
+    expect(container.querySelector('[aria-label="Enunciado 1"]').value).toBe('Qual?');
+    const select=container.querySelector('[aria-label="Vale nota?"]');expect(select.value).toBe('no');
+    await act(async()=>{select.value='yes';select.dispatchEvent(new Event('change',{bubbles:true}));});
+    fetch.mockImplementation(async(url,options)=>({ok:true,json:async()=>({config:JSON.parse(options.body),htmlContent:'<html>graded</html>'})}));
+    await act(async()=>[...container.querySelectorAll('button')].find(b=>b.textContent==='Aplicar ao vídeo').click());
+    expect(apply.mock.calls[0][0].videoQuizConfig.graded).toBe(true);
+    expect(apply.mock.calls[0][0].videoQuizConfig.checkpoints).toHaveLength(1);
+    expect(close).toHaveBeenCalledWith(false);
+  });
 });
