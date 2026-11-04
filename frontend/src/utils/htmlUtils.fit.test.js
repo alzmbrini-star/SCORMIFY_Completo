@@ -2,7 +2,7 @@ import { fitGameElementToSlide, isGeneratedGameHtml, wrapInteractiveFullbleed } 
 
 test('video questions keep their bounded viewport without page-height or fit overrides', () => {
   const html = '<html><body><script id="video-quiz-data" type="application/json">{}</script></body></html>';
-  expect(wrapInteractiveFullbleed(html, 'page')).toContain('id="video-quiz-playback-v1"');
+  expect(wrapInteractiveFullbleed(html, 'page')).toContain('id="video-quiz-playback-v2"');
   expect(wrapInteractiveFullbleed(html, 'fit')).not.toContain('__scormify_fit_v3');
 });
 

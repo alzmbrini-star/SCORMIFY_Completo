@@ -8,6 +8,7 @@ def entry(ident,title,keywords,steps,target='editor',action='',access='author'):
 GUIDE=[
  entry('video-quiz','Criar perguntas durante o vídeo do avatar','heygen avatar vídeo video quiz pausa pergunta tentativas feedback continuar',[
   'No Editor, selecione um vídeo direto já inserido (por exemplo HeyGen). Em Properties, abra Perguntas durante o vídeo. A mesma opção reabre uma atividade de vídeo interativo já salva.',
+  'Preservar fundo transparente do vídeo mantém o canal alfa do arquivo original e remove o fundo pintado pelo player na área do avatar. Não remove um fundo gravado em vídeos opacos. O arquivo não é convertido e o painel de perguntas mantém contraste.',
   'Informe os momentos em segundos, enunciados, alternativas, resposta correta, explicação final e limite de tentativas. Você pode importar questões de escolha simples do Banco do projeto ou gerar duas perguntas com IA a partir do roteiro; a geração usa créditos e substitui as perguntas do rascunho.',
   'No Agente, na etapa Mídia, escolha HeyGen no slide e habilite Criar perguntas durante o vídeo do avatar. O Agente gera duas perguntas do roteiro, com até três tentativas e posições proporcionais sugeridas. Revise os pontos de pausa no Editor ao final das frases.',
   'Ao acertar, o aluno pode continuar; ao esgotar as tentativas, lê a explicação abaixo do personagem e continua. É uma atividade formativa, sem alterar Passed/Failed do curso. HTML e SCORM mantêm as interações; MP4 não.',

@@ -1,8 +1,17 @@
 function videoQuizPlaybackRuntime() {
   'use strict';
   var video = document.getElementById('video'), button = document.getElementById('play');
-  if (!video || !button || !document.getElementById('video-quiz-data') || video.dataset.playbackStatus === 'v1') return;
-  video.dataset.playbackStatus = 'v1';
+  if (!video || !button || !document.getElementById('video-quiz-data') || video.dataset.playbackStatus === 'v2') return;
+  video.dataset.playbackStatus = 'v2';
+  var settings = {};
+  try { settings = JSON.parse(document.getElementById('video-quiz-data').textContent); } catch (_) {}
+  if (settings.preserveTransparency !== false) {
+    var alphaStyle = document.createElement('style');
+    alphaStyle.id = 'video-quiz-alpha-style';
+    alphaStyle.textContent = 'html,body{background:transparent!important}.avatar,#video{background:transparent!important}.avatar{border-color:#7895ac80}header,.controls,footer{background:rgba(13,23,40,.94);border-radius:8px;padding:6px 10px}#video-load-status{background:rgba(13,23,40,.94);padding:5px 8px;border-radius:6px}';
+    document.head.appendChild(alphaStyle);
+    video.dataset.preserveTransparency = 'true';
+  }
   var status = document.createElement('p');
   status.id = 'video-load-status';
   status.setAttribute('role', 'status');

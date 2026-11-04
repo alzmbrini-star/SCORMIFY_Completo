@@ -2,8 +2,17 @@
 export function videoQuizPlaybackRuntime() {
   'use strict';
   var video = document.getElementById('video'), button = document.getElementById('play');
-  if (!video || !button || !document.getElementById('video-quiz-data') || video.dataset.playbackStatus === 'v1') return;
-  video.dataset.playbackStatus = 'v1';
+  if (!video || !button || !document.getElementById('video-quiz-data') || video.dataset.playbackStatus === 'v2') return;
+  video.dataset.playbackStatus = 'v2';
+  var settings = {};
+  try { settings = JSON.parse(document.getElementById('video-quiz-data').textContent); } catch (_) {}
+  if (settings.preserveTransparency !== false) {
+    var alphaStyle = document.createElement('style');
+    alphaStyle.id = 'video-quiz-alpha-style';
+    alphaStyle.textContent = 'html,body{background:transparent!important}.avatar,#video{background:transparent!important}.avatar{border-color:#7895ac80}header,.controls,footer{background:rgba(13,23,40,.94);border-radius:8px;padding:6px 10px}#video-load-status{background:rgba(13,23,40,.94);padding:5px 8px;border-radius:6px}';
+    document.head.appendChild(alphaStyle);
+    video.dataset.preserveTransparency = 'true';
+  }
   var status = document.createElement('p');
   status.id = 'video-load-status';
   status.setAttribute('role', 'status');
@@ -54,7 +63,8 @@ export function videoQuizPlaybackRuntime() {
 }
 
 export function upgradeVideoQuizPlayback(html) {
-  if (typeof html !== 'string' || !/id=["']video-quiz-data["']/.test(html) || html.includes('id="video-quiz-playback-v1"')) return html;
-  const snippet = '<script id="video-quiz-playback-v1">(' + videoQuizPlaybackRuntime.toString() + ')();</script>';
+  if (typeof html !== 'string' || !/id=["']video-quiz-data["']/.test(html) || html.includes('id="video-quiz-playback-v2"')) return html;
+  html = html.replace(/<script\b[^>]*\bid=["']video-quiz-playback-v1["'][^>]*>[\s\S]*?<\/script>/gi, '');
+  const snippet = '<script id="video-quiz-playback-v2">(' + videoQuizPlaybackRuntime.toString() + ')();</script>';
   return /<\/body>/i.test(html) ? html.replace(/<\/body>/i, snippet + '</body>') : html + snippet;
 }

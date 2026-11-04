@@ -9,7 +9,7 @@ describe('recorded avatar buffering feedback', () => {
     Object.defineProperties(video, {paused: {get: () => paused, configurable:true}, ended:{get:()=>false,configurable:true},currentTime:{get:()=>currentTime,configurable:true},readyState:{get:()=>ready,configurable:true}});
     videoQuizPlaybackRuntime();
   });
-  afterEach(() => { jest.clearAllTimers(); jest.useRealTimers(); document.body.innerHTML = ''; });
+  afterEach(() => { jest.clearAllTimers(); jest.useRealTimers(); document.body.innerHTML = ''; document.querySelectorAll('#video-quiz-alpha-style').forEach(n => n.remove()); });
   const emit = name => document.getElementById('video').dispatchEvent(new Event(name));
   test('play request shows loading, not a claim that playback has started', () => {
     paused = false; emit('play');
@@ -48,5 +48,27 @@ describe('recorded avatar buffering feedback', () => {
     expect(upgraded).toContain('{"src":"clip.mp4"}');
     expect(upgradeVideoQuizPlayback(upgraded)).toBe(upgraded);
     expect(upgradeVideoQuizPlayback('<html>Outro conteúdo</html>')).toBe('<html>Outro conteúdo</html>');
+  });
+  test('transparent avatars keep their original file and have no opaque player backing', () => {
+    video.src = 'https://example.org/original-alpha.webm';
+    videoQuizPlaybackRuntime();
+    expect(video.src).toBe('https://example.org/original-alpha.webm');
+    expect(video.dataset.preserveTransparency).toBe('true');
+    expect(document.getElementById('video-quiz-alpha-style').textContent).toContain('.avatar,#video{background:transparent!important}');
+  });
+  test('author can retain the dark backing for opaque videos', () => {
+    document.getElementById('video-quiz-data').textContent = '{"preserveTransparency":false}';
+    delete video.dataset.playbackStatus;
+    delete video.dataset.preserveTransparency;
+    document.getElementById('video-quiz-alpha-style').remove();
+    videoQuizPlaybackRuntime();
+    expect(document.getElementById('video-quiz-alpha-style')).toBeNull();
+    expect(video.dataset.preserveTransparency).toBeUndefined();
+  });
+  test('upgrades old loading UI without running two copies', () => {
+    const old = '<body><script id="video-quiz-data" type="application/json">{}</script><script id="video-quiz-playback-v1">oldRuntime();</script></body>';
+    const next = upgradeVideoQuizPlayback(old);
+    expect(next).not.toContain('oldRuntime()');
+    expect(next.match(/id="video-quiz-playback-v2"/g)).toHaveLength(1);
   });
 });

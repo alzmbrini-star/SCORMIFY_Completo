@@ -52,6 +52,8 @@ def normalize_video_quiz(raw):
     result = dict(version=1, src=source, title=str(raw.get('title') or 'Vídeo com perguntas')[:200], checkpoints=clean,
                   instanceId=str(raw.get('instanceId') or '')[:100])
     result['key'] = hashlib.sha256(json.dumps(result, sort_keys=True).encode()).hexdigest()[:20]
+    # Visual preferences must not invalidate the learner's saved answers.
+    result['preserveTransparency'] = raw.get('preserveTransparency') is not False
     return result
 
 

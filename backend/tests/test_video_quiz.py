@@ -138,7 +138,17 @@ def test_saved_video_playback_upgrades_preserve_questions_and_match_frontend():
     assert runtime.split('\nvideoQuizPlaybackRuntime();')[0] in frontend
     old = '<html><body><script id="video-quiz-data" type="application/json">{"checkpoints":[{"at":20}]}</script></body></html>'
     upgraded = upgrade_video_quiz_playback(old)
-    assert upgraded.count('id="video-quiz-playback-v1"') == 1
+    assert upgraded.count('id="video-quiz-playback-v2"') == 1
     assert '{"checkpoints":[{"at":20}]}' in upgraded
     assert upgrade_video_quiz_playback(upgraded) == upgraded
     assert upgrade_video_quiz_playback('<p>Outro conteúdo</p>') == '<p>Outro conteúdo</p>'
+
+
+def test_transparency_is_visual_only_and_preserves_original_video_and_resume_key():
+    original = sample(); original['src'] = 'https://example.org/avatar.webm'
+    enabled = normalize_video_quiz(original)
+    disabled = normalize_video_quiz(dict(original, preserveTransparency=False))
+    assert enabled['preserveTransparency'] is True
+    assert disabled['preserveTransparency'] is False
+    assert enabled['src'] == original['src']
+    assert enabled['key'] == disabled['key']

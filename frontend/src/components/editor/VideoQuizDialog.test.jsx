@@ -42,4 +42,9 @@ describe('interactive avatar video authoring', () => {
     await act(async () => root.render(<VideoQuizDialog open element={{id: 'v1', src: '/api/projects/p1/assets/avatar.mp4'}} onApply={() => {}} onOpenChange={() => {}} />));
     expect(container.querySelector('video').getAttribute('src')).toBe('https://api.example/api/projects/p1/assets/avatar.mp4');
   });
+  test('preserving video transparency is enabled by default', async () => {
+    await act(async () => root.render(<VideoQuizDialog open element={{src: 'https://example.org/alpha.webm'}} onApply={() => {}} onOpenChange={() => {}} />));
+    const label = [...container.querySelectorAll('label')].find(n => n.textContent.includes('Preservar fundo transparente'));
+    expect(label.querySelector('input').checked).toBe(true);
+  });
 });
