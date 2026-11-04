@@ -110,7 +110,6 @@ import {
   Menu,
   Check,
   Film,
-  RefreshCw,
   Clock,
   FileText,
   HelpCircle,
@@ -346,7 +345,6 @@ export default function Editor() {
   const [galleryLoading, setGalleryLoading] = useState(false);
   const [gallerySearch, setGallerySearch] = useState('');
   const [copiedElement, setCopiedElement] = useState(null);
-  const [fixingSimulators, setFixingSimulators] = useState(false);
   const [showLeonardoPanel, setShowLeonardoPanel] = useState(false);
   const [showKreaPanel, setShowKreaPanel] = useState(false);
   const [showAestheticsPanel, setShowAestheticsPanel] = useState(false);
@@ -646,31 +644,6 @@ export default function Editor() {
       toast.error('Failed to save project');
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const handleFixSimulators = async () => {
-    if (!currentProject?.id) return;
-    setFixingSimulators(true);
-    try {
-      const res = await fetch(`${API_URL}/api/projects/${currentProject.id}/fix-simulators`, {
-        method: 'POST',
-        headers: authHeaders(),
-        credentials: 'include',
-      });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success(data.message || `Simuladores corrigidos: ${data.fixed || 0}`);
-        if (data.fixed > 0) {
-          window.location.reload();
-        }
-      } else {
-        toast.error(data.detail || 'Erro ao corrigir simuladores');
-      }
-    } catch (err) {
-      toast.error('Erro ao conectar com o servidor');
-    } finally {
-      setFixingSimulators(false);
     }
   };
 
@@ -1455,18 +1428,6 @@ export default function Editor() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={handleFixSimulators}
-                  disabled={fixingSimulators}
-                  data-testid="fix-simulators-btn"
-                >
-                  {fixingSimulators ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                  )}
-                  {fixingSimulators ? 'Corrigindo...' : 'Corrigir Simuladores'}
-                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handleRepairPdfImages}
                   disabled={repairingPdfImages}
