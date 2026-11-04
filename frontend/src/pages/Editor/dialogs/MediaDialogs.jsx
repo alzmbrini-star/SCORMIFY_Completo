@@ -435,7 +435,6 @@ export function DesignTemplateDialog({ open, onOpenChange, designTemplates, sele
 }
 
 export function ImageGalleryDialog({ open, onOpenChange, galleryImages, galleryLoading, gallerySearch, setGallerySearch, handleSelectGalleryImage, API_URL, onRefreshGallery }) {
-  const [cleaning, setCleaning] = useState(false);
   const [deleting, setDeleting] = useState(null);
 
   const handleDeleteImage = async (e, imgId) => {
@@ -459,32 +458,6 @@ export function ImageGalleryDialog({ open, onOpenChange, galleryImages, galleryL
       toast.error('Erro ao remover imagem');
     }
     setDeleting(null);
-  };
-
-  const handleCleanup = async () => {
-    setCleaning(true);
-    try {
-      const { authHeaders } = await import('../../../contexts/AuthContext');
-      const { getApiUrl } = await import('../../../utils/apiUrl');
-      const res = await fetch(`${getApiUrl()}/api/gallery/cleanup`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ deep: true }),
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      const { toast } = await import('sonner');
-      if (data.removed > 0) {
-        toast.success(`${data.removed} imagens quebradas removidas!`);
-        if (onRefreshGallery) onRefreshGallery();
-      } else {
-        toast.info('Nenhuma imagem quebrada encontrada.');
-      }
-    } catch {
-      const { toast } = await import('sonner');
-      toast.error('Erro ao limpar galeria');
-    }
-    setCleaning(false);
   };
 
   return (
@@ -536,14 +509,6 @@ export function ImageGalleryDialog({ open, onOpenChange, galleryImages, galleryL
             <p className="text-[10px] text-muted-foreground">
               {galleryImages.filter(img => !gallerySearch || (img.keywords || '').toLowerCase().includes(gallerySearch.toLowerCase()) || (img.projectName || '').toLowerCase().includes(gallerySearch.toLowerCase())).length} de {galleryImages.length} imagens
             </p>
-            <button
-              onClick={handleCleanup}
-              disabled={cleaning}
-              className="text-[10px] text-red-400/70 hover:text-red-300 underline disabled:opacity-50"
-              data-testid="gallery-cleanup-btn"
-            >
-              {cleaning ? 'Limpando...' : 'Remover imagens quebradas'}
-            </button>
           </div>
         </div>
       </DialogContent>
