@@ -218,6 +218,30 @@ async def get_project(project_id: str, user: dict = Depends(require_auth)):
     return project
 
 
+@router.post("/projects/{project_id}/recover-activity-layout")
+async def recover_activity_layout(project_id: str, request: Request, user: dict = Depends(require_auth)):
+    """Explicit, backed-up metadata recovery, guarded against concurrent edits."""
+    await load_authorized_project(project_id, user)
+    raw = await db.projects.find_one({'id':project_id}, {'_id':0})
+    if not raw: raise HTTPException(404, 'Projeto não encontrado.')
+    body = await request.json()
+    revision = raw.get('updatedAt')
+    normalized_revision = revision.isoformat() if hasattr(revision, 'isoformat') else revision
+    if body.get('expectedUpdatedAt') != normalized_revision:
+        raise HTTPException(409, 'O projeto foi alterado. Reabra o curso antes de restaurar o enquadramento.')
+    from services.layout_recovery import layout_recovery_plan, backup_layout_source
+    changes, slides = layout_recovery_plan(raw)
+    if not changes: return {'recoveredSlides':[], 'message':'Nenhum enquadramento incompleto encontrado.'}
+    # A failed backup aborts the recovery; never save without a recoverable copy.
+    recovery_id = await backup_layout_source(db, raw, user.get('user_id'), changes)
+    guard = {'id':project_id, 'updatedAt':revision} if 'updatedAt' in raw else {'id':project_id, 'updatedAt':{'$exists':False}}
+    result = await db.projects.update_one(guard, {'$set':{**changes, 'updatedAt':now_utc().isoformat()}})
+    if result.matched_count != 1:
+        raise HTTPException(409, 'O projeto mudou durante a restauração. Nenhum enquadramento foi sobrescrito. Reabra o curso e tente novamente.')
+    logger.info('Layout recovery %s: project=%s slides=%s metadata-only fields=%d', recovery_id, project_id, slides, len(changes))
+    return {'recoveredSlides':slides, 'recoveryId':recovery_id, 'message':'Enquadramento restaurado. Conteúdo preservado.'}
+
+
 @router.put("/projects/{project_id}", response_model=dict)
 async def update_project_endpoint(project_id: str, data: ProjectUpdate, user: dict = Depends(require_auth)):
     """Update project. Enforces per-company access isolation.
@@ -574,7 +598,12 @@ async def get_course(project_id: str, user: dict = Depends(require_auth)):
 @router.post("/course/{project_id}/save")
 async def save_course(project_id: str, course_data: dict, user: dict = Depends(require_auth)):
     """Save course data"""
-    await load_authorized_project(project_id, user)
+    existing = await load_authorized_project(project_id, user)
+    from services.layout_recovery import layout_recovery_plan
+    # Do not replace a complete saved layout with a partial activity-only
+    # snapshot. Authoring metadata must survive saves as well as exports.
+    if not layout_recovery_plan(existing)[0] and layout_recovery_plan({'course':course_data})[0]:
+        raise HTTPException(409, 'O salvamento descartaria o enquadramento de atividades. O curso anterior foi preservado. Reabra o projeto antes de continuar.')
     await update_project(project_id, {"course": course_data})
     return {"message": "Course saved"}
 

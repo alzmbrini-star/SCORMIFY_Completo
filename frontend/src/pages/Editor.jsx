@@ -13,6 +13,7 @@ import { refinementModel } from '../utils/refinementModel';
 import { generateHtmlJob } from '../utils/htmlGenerationJob';
 import { fetchHtmlDiagnostic } from '../utils/htmlDiagnostic';
 import { getApiUrl } from '../utils/apiUrl';
+import LayoutRecoveryNotice from '../components/editor/LayoutRecoveryNotice';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { ScrollArea } from '../components/ui/scroll-area';
@@ -1346,6 +1347,7 @@ export default function Editor() {
       )}
       
       <div className="h-screen w-screen overflow-hidden flex flex-col bg-background">
+        <LayoutRecoveryNotice project={currentProject} onRecovered={fetchProject} />
         {/* Header */}
         <header className="h-16 border-b border-border bg-card flex items-center px-4 justify-between z-50">
           <div className="flex items-center gap-4">
