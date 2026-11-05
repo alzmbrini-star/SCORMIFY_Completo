@@ -14,7 +14,9 @@ function videoQuizProviderRuntime(scope, settings) {
   video.hidden=true;
   var frame=existingFrame||document.createElement('iframe');frame.id=existingFrame?'scormify-provider-'+Math.random().toString(36).slice(2):'provider-player';frame.title='Vídeo '+config.provider;
   frame.allow='autoplay; fullscreen; encrypted-media; picture-in-picture';frame.allowFullscreen=true;
-  frame.referrerPolicy=config.provider==='bunny'?'no-referrer':'strict-origin-when-cross-origin';frame.style.cssText='border:0;width:100%;height:100%;display:block;min-height:170px';
+  // Player.js Receiver identifies its parent from document.referrer. Unlike
+  // passive Insert Video, questions must send the origin (never the course URL).
+  frame.referrerPolicy=config.provider==='bunny'?'origin':'strict-origin-when-cross-origin';frame.style.cssText='border:0;width:100%;height:100%;display:block;min-height:170px';
   var barrier=document.createElement('p');barrier.setAttribute('role','status');barrier.textContent='Carregando player externo…';
   barrier.style.cssText='position:absolute;bottom:8px;left:8px;right:8px;margin:0;padding:8px;background:#142a43;color:#fff;font:14px system-ui;pointer-events:none';host.appendChild(barrier);
   function emit(name){video.dispatchEvent(new Event(name));}

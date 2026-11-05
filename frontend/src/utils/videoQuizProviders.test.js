@@ -49,7 +49,7 @@ describe('hosted video sources',()=>{
     const navigate=jest.spyOn(frame,'src','set');
     const handlers={};window.playerjs={Player:jest.fn(()=>({on:(name,cb)=>handlers[name]=cb,getDuration:cb=>cb(30),pause:()=>{throw new Error('detached iframe contentWindow');}}))};
     const dispose=videoQuizProviderRuntime(root,{src,provider:'bunny'});
-    expect(root.querySelector('iframe')).toBe(frame);expect(frame.getAttribute('src')).toBe(src);expect(frame.referrerPolicy).toBe('no-referrer');
+    expect(root.querySelector('iframe')).toBe(frame);expect(frame.getAttribute('src')).toBe(src);expect(frame.referrerPolicy).toBe('origin');
     document.querySelector('script[src="https://cdn.embed.ly/player-0.1.0.min.js"]').onload();
     expect(navigate).toHaveBeenCalledWith(src);expect(handlers.ready).toBeDefined();handlers.ready();
     expect(root.querySelector('video').duration).toBe(30);expect(dispose).not.toThrow();
