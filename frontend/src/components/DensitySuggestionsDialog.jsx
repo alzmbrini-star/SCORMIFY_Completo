@@ -226,7 +226,7 @@ export default function DensitySuggestionsDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <HeaderIcon className={`w-5 h-5 ${headerStyle.color}`} />
-            <span>{headerStyle.header}</span>
+            <span>{protectedActivity ? 'Atividade protegida' : headerStyle.header}</span>
             {density && (
               <span className={`text-xs ml-2 ${headerStyle.color} tabular-nums`}>
                 {density.score}/100
@@ -252,22 +252,22 @@ export default function DensitySuggestionsDialog({
         )}
 
         {/* Suggestions */}
-        {loading && (
+        {!protectedActivity && loading && (
           <div className="flex items-center justify-center py-12 text-slate-400">
             <Loader2 className="w-5 h-5 animate-spin mr-2" />
             Gerando sugestoes com o Agente IA...
           </div>
         )}
-        {error && !loading && (
+        {!protectedActivity && error && !loading && (
           <div className="text-center text-sm text-red-400 py-4">{error}</div>
         )}
-        {!loading && !error && suggestions.length === 0 && density?.label === "light" && (
+        {!protectedActivity && !loading && !error && suggestions.length === 0 && density?.label === "light" && (
           <div className="text-center py-6 text-slate-400">
             <p className="text-sm">Este conteudo ja esta equilibrado.</p>
             <p className="text-xs mt-1">Nenhuma sugestao adicional necessaria.</p>
           </div>
         )}
-        {!loading && !error && suggestions.length === 0 && density?.label !== "light" && (
+        {!protectedActivity && !loading && !error && suggestions.length === 0 && density?.label !== "light" && (
           <div className="text-center py-6 text-amber-300" data-testid="density-empty-warning">
             <p className="text-sm">A analise terminou, mas nenhuma sugestao foi gerada.</p>
             <p className="text-xs mt-1 text-slate-400">Feche e tente novamente. Se persistir, verifique a configuracao da OpenAI.</p>
@@ -441,7 +441,7 @@ export default function DensitySuggestionsDialog({
           </div>
         )}
 
-        {!loading && suggestions.length > 0 && (
+        {!protectedActivity && !loading && suggestions.length > 0 && (
           <div className="space-y-3" data-testid="density-suggestions-list">
             {suggestions.map((sug, i) => {
               const Icon = TYPE_ICONS[sug.type] || Sparkles;

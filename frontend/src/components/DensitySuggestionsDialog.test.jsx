@@ -17,5 +17,7 @@ test('failed save stays open, exposes error and never reports success by closing
 test('protected activity never requests paid suggestions or applies a rewrite',async()=>{
  const apply=jest.fn();await act(async()=>root.render(<DensitySuggestionsDialog open protectedActivity onApply={apply}/>));
  expect(fetch).not.toHaveBeenCalled();expect(container.textContent).toContain('Atividade interativa protegida');
+ expect(container.textContent).not.toContain('configuracao da OpenAI');
+ expect(container.textContent).not.toContain('Conteudo equilibrado');
  expect(container.querySelector('[data-testid="density-apply-0"]')).toBeNull();
 });

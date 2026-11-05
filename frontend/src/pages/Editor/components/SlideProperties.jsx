@@ -402,7 +402,7 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
       <div className="panel-section" data-testid="density-section">
         <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-fuchsia-500" />
-          Analise Visual (Agente IA)
+          Análise de texto e sugestões visuais
         </h4>
         <Button
           variant="outline"
