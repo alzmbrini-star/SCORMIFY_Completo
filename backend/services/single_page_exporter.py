@@ -1084,6 +1084,21 @@ window.addEventListener('resize',gameFit);[0,80,360,1100,1900].forEach(function(
 def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str,
                                  slide_idx: int, el_idx: int) -> str:
     raw = el.get("htmlContent") or el.get("content") or ""
+    hosted_video = False
+    snapshot = re.search(r'<script\b[^>]*\bid=["\']video-quiz-data["\'][^>]*>([\s\S]*?)</script>', raw, re.I)
+    if snapshot:
+        # Provider SDKs need a real embedding origin. Only a freshly rebuilt,
+        # data-only controlled player may receive srcdoc/same-origin capability;
+        # never reuse arbitrary author scripts or CSS with that capability.
+        from services.video_quiz import build_video_quiz
+        try:
+            candidate = json.loads(snapshot[1])
+            from services.video_quiz_sources import video_quiz_source
+            if video_quiz_source(candidate.get('src'))[1] != 'direct':
+                _, raw = build_video_quiz(candidate)
+                hosted_video = True
+        except (ValueError, TypeError, AttributeError):
+            pass
     from services.simulator_slide import upgrade_simulator_slide
     raw = upgrade_simulator_slide(raw)
     # Upgrade legacy interactive slides whose fit script prohibited upscaling.
@@ -1104,6 +1119,8 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
     # Element-level text-shadow — captured here so each branch below (iframe
     # / inline interactive / direct-inline) can apply it in the correct scope.
     shadow_value = ((el.get("style") or {}).get("textShadow") or "").strip()
+    if hosted_video:
+        shadow_value = ''
     if shadow_value == "none":
         shadow_value = ""
     has_global_styles = bool(re.search(r"<\s*(style|script|body|html|head)\b", raw, re.IGNORECASE))
@@ -1179,10 +1196,11 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
                     config = json.loads(match_config[1]) if match_config else el.get('videoQuizConfig',{})
                     video_quiz_key += f' data-video-quiz-graded="{"true" if config.get("graded") is True else "false"}" data-video-quiz-total="{len(config.get("checkpoints",[]))}"'
                 except (ValueError,TypeError): pass
+        frame_source = ('srcdoc="' + html.escape(raw_with_meta, quote=True) + '"') if hosted_video else f'src="data:text/html;charset=utf-8;base64,{b64}"'
         return (
             f'<div class="sp-html sp-interactive" data-interactive="html" data-required="true">'
             f'<iframe{video_quiz_key} sandbox="{sandbox}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen '
-            f'src="data:text/html;charset=utf-8;base64,{b64}" '
+            f'{frame_source} '
             f'style="width:100%;{iframe_height_css};border:0;border-radius:8px;background:#fff;display:block"></iframe>'
             f'<button type="button" class="sp-btn sp-btn-primary sp-iframe-done" '
             f'onclick="window.SP&&SP.markClicked(this.closest(\'.sp-interactive\'))" '

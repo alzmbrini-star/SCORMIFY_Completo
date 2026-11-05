@@ -39,3 +39,15 @@ def test_frontend_and_export_use_identical_provider_adapter():
 @pytest.mark.parametrize('value',['<iframe src="https://evil.test/x"></iframe>','https://vimeo.com/123/bad%3Cscript','https://user:pass@vimeo.com/123','https://youtube.com/playlist?list=abc'])
 def test_reject_untrusted_embed(value):
     with pytest.raises(ValueError):video_quiz_source(value)
+
+
+def test_single_page_provider_export_preserves_origin_without_author_scripts(tmp_path):
+    from services.single_page_exporter import _render_html_element_inner
+    _,doc=build_video_quiz(dict(src='https://youtu.be/M7lc1UVf-VE',checkpoints=[dict(at=4,question='Q',options=['A','B'],correctIndex=0,explanation='E')]))
+    dirty=doc.replace('</body>','<script>stealParentSecrets()</script></body>')
+    exported=_render_html_element_inner(dict(type='html',height=650,htmlContent=dirty,style={'textShadow':'</style><script>evil()</script>'}),'p1',str(tmp_path),'',0,0)
+    assert 'srcdoc="' in exported
+    assert 'data:text/html' not in exported
+    assert 'stealParentSecrets' not in exported
+    assert 'evil()' not in exported
+    assert 'video-quiz-providers-v1' in exported
