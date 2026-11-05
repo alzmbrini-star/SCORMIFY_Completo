@@ -16,10 +16,38 @@
   }
   window.VideoQuizHost = {
     configFor:configFor,
-    bindFrame:function(frame,element,onResult,onRetry) {
+    // The classic slide player must follow media time, not elapsed wall time.
+    // Recompute on every seek/replay as well as playback and question pauses.
+    createTimeline:function(slide) {
+      if (!(slide.elements || []).some(function(el){return !!configFor(el);})) return null;
+      var entries=[], time=0;
+      function update(value) {
+        if (!Number.isFinite(value) || value<0 || value>86400) return;
+        time=value;
+        entries.forEach(function(entry){
+          var start=Number(entry.item.startTime)||0, end=entry.item.endTime;
+          var visible=time>=start && (end==null || time<Number(end));
+          entry.node.style.visibility=visible?'visible':'hidden';
+          entry.node.style.opacity=visible?String(entry.opacity):'0';
+        });
+      }
+      return {update:update,add:function(node,item,opacity){entries.push({node:node,item:item,opacity:opacity});update(time);}};
+    },
+    bindFrame:function(frame,element,onResult,onRetry,onClock) {
       var config=configFor(element); if(!config)return;
       frame.dataset.videoQuizKey=config.key;
       registrations.set(frame,{config:config,onResult:onResult,onRetry:onRetry});
+      if (onClock) frame.addEventListener('load',function(){
+        // Classic SCORM uses same-origin srcdoc. Listen to the actual media
+        // bridge, including hosted providers; never accept clocks from other frames.
+        try {
+          var video=frame.contentDocument.getElementById('video');
+          if(!video)return;
+          function clock(){if(frame.isConnected)onClock(video.currentTime);}
+          ['loadedmetadata','timeupdate','seeked','play','pause','ended'].forEach(function(name){video.addEventListener(name,clock);});
+          clock();
+        } catch (_) { /* Other exporters retain their existing isolated transport. */ }
+      });
     }
   };
   window.addEventListener('message', function (event) {

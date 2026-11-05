@@ -857,6 +857,7 @@ var CoursePlayer = (function() {
         stopSlideProgress();
         
         var slide = course.slides[index];
+        var mediaTimeline = window.VideoQuizHost && VideoQuizHost.createTimeline(slide);
         var container = document.getElementById('slide-container');
         var wrapper = document.getElementById('slide-wrapper');
         
@@ -992,7 +993,7 @@ var CoursePlayer = (function() {
             // Note: visible=false elements from PPT import are still rendered
             // (the editor shows them too). Only skip if explicitly marked for exclusion.
             
-            var el = createElementNode(element);
+            var el = createElementNode(element, mediaTimeline && mediaTimeline.update);
             if (el) {
                 // Get the intended opacity from element style (default 1)
                 var elementOpacity = (element.style && element.style.opacity !== undefined && element.style.opacity !== null) 
@@ -1003,7 +1004,8 @@ var CoursePlayer = (function() {
                 var endTime = element.endTime !== undefined && element.endTime !== null ? element.endTime : slideDuration;
                 
                 // If element should not appear immediately, hide it
-                if (startTime > 0) {
+                if (mediaTimeline) mediaTimeline.add(el, element, elementOpacity);
+                if (!mediaTimeline && startTime > 0) {
                     el.style.opacity = '0';
                     el.style.visibility = 'hidden';
                     el.style.transition = 'opacity 0.3s ease-in-out';
@@ -1017,7 +1019,7 @@ var CoursePlayer = (function() {
                 }
                 
                 // Schedule element to hide at endTime (if endTime is before slide duration)
-                if (endTime < slideDuration) {
+                if (!mediaTimeline && endTime < slideDuration) {
                     var hideTimer = setTimeout(function() {
                         el.style.opacity = '0';
                         el.style.visibility = 'hidden';
@@ -1065,7 +1067,8 @@ var CoursePlayer = (function() {
                         var endTime = annotation.endTime !== undefined && annotation.endTime !== null ? annotation.endTime : slideDuration;
                         
                         // If annotation should not appear immediately, hide it
-                        if (startTime > 0) {
+                        if (mediaTimeline) mediaTimeline.add(annotationEl, annotation, 1);
+                        if (!mediaTimeline && startTime > 0) {
                             annotationEl.style.opacity = '0';
                             annotationEl.style.visibility = 'hidden';
                             annotationEl.style.transition = 'opacity 0.3s ease-in-out';
@@ -1079,7 +1082,7 @@ var CoursePlayer = (function() {
                         }
                         
                         // Schedule annotation to hide at endTime (if endTime is before slide duration)
-                        if (endTime < slideDuration) {
+                        if (!mediaTimeline && endTime < slideDuration) {
                             var hideTimer = setTimeout(function() {
                                 annotationEl.style.opacity = '0';
                                 annotationEl.style.visibility = 'hidden';
@@ -1105,7 +1108,7 @@ var CoursePlayer = (function() {
         }
         
         // Start slide timeline progress bar
-        startSlideProgress(slideDuration);
+        if (!mediaTimeline) startSlideProgress(slideDuration);
         
         // Apply scale for current device/orientation
         updateSlideScale();
@@ -1222,7 +1225,7 @@ var CoursePlayer = (function() {
         checkAndSetCompletion();
     }
     
-    function createElementNode(element) {
+    function createElementNode(element, onVideoClock) {
         var el;
         // `currentSlide` is the numeric index in the classic SCORM player.
         // Always resolve the actual slide before reading its type/dimensions;
@@ -1600,7 +1603,7 @@ var CoursePlayer = (function() {
                     });
                 }
                 el.style.overflow = 'hidden';
-                if(window.VideoQuizHost)window.VideoQuizHost.bindFrame(htmlIframe,element,function(score){onQuizComplete(element.id,score);},function(){onQuizRetry(element.id);});
+                if(window.VideoQuizHost)window.VideoQuizHost.bindFrame(htmlIframe,element,function(score){onQuizComplete(element.id,score);},function(){onQuizRetry(element.id);},onVideoClock);
                 el.appendChild(htmlIframe);
                 break;
             

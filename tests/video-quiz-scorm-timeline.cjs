@@ -1,0 +1,40 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const window={addEventListener(){}};
+vm.runInNewContext(fs.readFileSync('backend/services/export_assets/video-quiz-host.js','utf8'),{window,WeakMap,Number,Array,JSON});
+const host=window.VideoQuizHost;
+assert.equal(host.createTimeline({elements:[{type:'image'}]}),null);
+const timeline=host.createTimeline({elements:[{videoQuizConfig:{key:'12345678901234567890'}}]});
+const overlay={style:{}}, annotation={style:{}}, base={style:{}};
+timeline.add(overlay,{startTime:3.11,endTime:4.01},.8);
+timeline.add(annotation,{startTime:2,endTime:6},1);
+timeline.add(base,{startTime:0},1);
+assert.equal(overlay.style.visibility,'hidden');
+timeline.update(4);
+assert.equal(overlay.style.visibility,'visible');
+assert.equal(overlay.style.opacity,'0.8');
+// A question pause leaves the image in place indefinitely: no wall timer.
+timeline.update(4);
+assert.equal(overlay.style.visibility,'visible');
+timeline.update(4.02);
+assert.equal(overlay.style.visibility,'hidden');
+timeline.update(3.5); // seek backward restores it
+assert.equal(overlay.style.visibility,'visible');
+timeline.update(0); // free practice replay resets overlays
+assert.equal(overlay.style.visibility,'hidden');
+assert.equal(annotation.style.visibility,'hidden');
+assert.equal(base.style.visibility,'visible');
+timeline.update(NaN);
+assert.equal(base.style.visibility,'visible');
+const events={}, listeners={};
+const video={currentTime:4,addEventListener(name,fn){listeners[name]=fn;}};
+const frame={dataset:{},isConnected:true,contentDocument:{getElementById(){return video;}},addEventListener(name,fn){events[name]=fn;}};
+host.bindFrame(frame,{videoQuizConfig:{key:'12345678901234567890'}},null,null,timeline.update);
+events.load();
+assert.equal(overlay.style.visibility,'visible');
+video.currentTime=0;listeners.seeked();
+assert.equal(overlay.style.visibility,'hidden');
+frame.isConnected=false;video.currentTime=4;listeners.timeupdate();
+assert.equal(overlay.style.visibility,'hidden');
+console.log('SCORM media timeline: pause, seek, replay, annotations, stale-frame isolation passed');
