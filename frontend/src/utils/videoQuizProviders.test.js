@@ -14,7 +14,7 @@ describe('hosted video sources',()=>{
     ['https://www.youtube.com/watch?v=M7lc1UVf-VE&list=abc','youtube','https://www.youtube.com/embed/M7lc1UVf-VE'],
     ['https://vimeo.com/76979871/ab12cd','vimeo','https://player.vimeo.com/video/76979871?h=ab12cd'],
     ['<iframe src="https://player.vimeo.com/video/76979871?h=secret" onload="alert(1)"></iframe>','vimeo','https://player.vimeo.com/video/76979871?h=secret'],
-    ['https://iframe.mediadelivery.net/play/123/11111111-2222-3333-4444-555555555555?token=a%2Bb&expires=99','bunny','https://iframe.mediadelivery.net/embed/123/11111111-2222-3333-4444-555555555555?token=a%2Bb&expires=99'],
+    ['https://iframe.mediadelivery.net/play/123/11111111-2222-3333-4444-555555555555?token=a%2Bb&expires=99','bunny','https://iframe.mediadelivery.net/play/123/11111111-2222-3333-4444-555555555555?token=a%2Bb&expires=99'],
     ['/api/projects/p/assets/alpha.webm','direct','/api/projects/p/assets/alpha.webm']
   ])('normalizes %s without executing iframe markup',(url,provider,src)=>expect(videoQuizSource(url)).toEqual({provider,src}));
   test.each(['javascript:alert(1)','https://youtube.com.evil.test/video','<iframe src="https://evil.test/x"></iframe>','https://youtube.com/watch?v=bad','https://user:secret@vimeo.com/123'])('rejects unsafe/invalid embedding %s',url=>{
@@ -41,5 +41,17 @@ describe('hosted video sources',()=>{
     video.pause();expect(pause).toHaveBeenCalled();expect(video.paused).toBe(true);
     expect(video.hidden).toBe(true);expect(document.querySelector('iframe').getAttribute('src')).toContain('player.vimeo.com/video/76979871');
     window.dispatchEvent(new Event('pagehide'));document.body.innerHTML='';delete window.Vimeo;
+  });
+  test('connects to the existing Editor iframe without rewriting a Bunny signature',()=>{
+    const src='https://iframe.mediadelivery.net/play/123/11111111-2222-3333-4444-555555555555?token=a%2Bb&expires=99&autoplay=true';
+    document.body.innerHTML='<div id="preview"><video id="video"></video><iframe data-provider-frame></iframe></div>';
+    const root=document.getElementById('preview'),frame=root.querySelector('iframe');frame.src=src;
+    const handlers={};window.playerjs={Player:jest.fn(()=>({on:(name,cb)=>handlers[name]=cb,getDuration:cb=>cb(30),pause:jest.fn()}))};
+    const dispose=videoQuizProviderRuntime(root,{src,provider:'bunny'});
+    expect(root.querySelector('iframe')).toBe(frame);expect(frame.getAttribute('src')).toBe(src);expect(frame.referrerPolicy).toBe('no-referrer');
+    document.querySelector('script[src="https://cdn.embed.ly/player-0.1.0.min.js"]').onload();handlers.ready();
+    expect(root.querySelector('video').duration).toBe(30);dispose();
+    expect(root.querySelector('iframe')).toBe(frame);expect(root.querySelector('[role="status"]')).toBeNull();
+    document.body.innerHTML='';delete window.playerjs;
   });
 });

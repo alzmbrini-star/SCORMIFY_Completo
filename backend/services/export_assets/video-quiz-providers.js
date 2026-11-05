@@ -8,11 +8,13 @@ function videoQuizProviderRuntime(scope, settings) {
   if(source.protocol!=='https:'||source.hostname!==expected[config.provider])return;
   video.dataset.providerAdapter=config.provider;
   var current=0,duration=NaN,paused=true,ended=false,ready=false,disposed=false,player=null,poll=null,pending=null;
-  var host=document.createElement('div');host.id='hosted-video';host.style.cssText='position:relative;flex:1;min-height:0;width:100%;background:#080f1c;border-radius:9px;overflow:hidden';
-  video.hidden=true;video.parentNode.insertBefore(host,video);
-  var frame=document.createElement('iframe');frame.id='provider-player';frame.title='Vídeo '+config.provider;
+  var existingFrame=area.querySelector('iframe[data-provider-frame]');
+  var host=existingFrame?existingFrame.parentNode:document.createElement('div');
+  if(!existingFrame){host.id='hosted-video';host.style.cssText='position:relative;flex:1;min-height:0;width:100%;background:#080f1c;border-radius:9px;overflow:hidden';video.parentNode.insertBefore(host,video);}
+  video.hidden=true;
+  var frame=existingFrame||document.createElement('iframe');frame.id=existingFrame?'scormify-provider-'+Math.random().toString(36).slice(2):'provider-player';frame.title='Vídeo '+config.provider;
   frame.allow='autoplay; fullscreen; encrypted-media; picture-in-picture';frame.allowFullscreen=true;
-  frame.referrerPolicy='strict-origin-when-cross-origin';frame.style.cssText='border:0;width:100%;height:100%;display:block;min-height:170px';
+  frame.referrerPolicy=config.provider==='bunny'?'no-referrer':'strict-origin-when-cross-origin';frame.style.cssText='border:0;width:100%;height:100%;display:block;min-height:170px';
   var barrier=document.createElement('p');barrier.setAttribute('role','status');barrier.textContent='Carregando player externo…';
   barrier.style.cssText='position:absolute;bottom:8px;left:8px;right:8px;margin:0;padding:8px;background:#142a43;color:#fff;font:14px system-ui;pointer-events:none';host.appendChild(barrier);
   function emit(name){video.dispatchEvent(new Event(name));}
@@ -54,7 +56,8 @@ function videoQuizProviderRuntime(scope, settings) {
   video.pause=function(){if(player&&ready)player.pause();stopped();};
   function safe(promise){if(promise&&promise.catch)promise.catch(fail);}
   if(config.provider==='youtube'){
-    var id=source.pathname.split('/').pop(),mount=document.createElement('div');mount.id='youtube-mount';host.insertBefore(mount,barrier);
+    var id=source.pathname.split('/').pop(),mount=existingFrame||document.createElement('div');
+    if(!existingFrame){mount.id='youtube-mount';host.insertBefore(mount,barrier);}
     function start(){
       if(disposed)return;
       var yt=new window.YT.Player(mount,{videoId:id,width:'100%',height:'100%',playerVars:{playsinline:1,rel:0,autoplay:0},events:{
@@ -66,8 +69,8 @@ function videoQuizProviderRuntime(scope, settings) {
     }
     if(window.YT&&window.YT.Player)start();else {window.onYouTubeIframeAPIReady=start;script('https://www.youtube.com/iframe_api',function(){});}
   }else{
-    source.searchParams.set('autoplay','false');source.searchParams.set('loop','false');
-    frame.src=source.href;host.insertBefore(frame,barrier);
+    // Match Insert Video: never rebuild a signed Bunny URL or its query.
+    if(!existingFrame){frame.src=config.src;host.insertBefore(frame,barrier);}
     if(config.provider==='vimeo'){
       script('https://player.vimeo.com/api/player.js',function(){
         var v=new window.Vimeo.Player(frame);
@@ -91,7 +94,7 @@ function videoQuizProviderRuntime(scope, settings) {
       });
     }
   }
-  function dispose(){disposed=true;clearTimeout(timeout);clearInterval(poll);if(player)player.pause();window.removeEventListener('pagehide',dispose);}
+  function dispose(){disposed=true;clearTimeout(timeout);clearInterval(poll);if(player)player.pause();barrier.remove();window.removeEventListener('pagehide',dispose);}
   window.addEventListener('pagehide',dispose);
   return dispose;
 }

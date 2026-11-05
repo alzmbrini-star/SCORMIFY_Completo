@@ -10,7 +10,7 @@ from services.assessment_assets import inline_assessment_assets
     ('https://youtu.be/M7lc1UVf-VE','youtube','https://www.youtube.com/embed/M7lc1UVf-VE'),
     ('https://vimeo.com/76979871/ab12cd','vimeo','https://player.vimeo.com/video/76979871?h=ab12cd'),
     ('<iframe src="https://player.vimeo.com/video/76979871?h=abc" onload="alert(1)"></iframe>','vimeo','https://player.vimeo.com/video/76979871?h=abc'),
-    ('https://iframe.mediadelivery.net/play/123/11111111-2222-3333-4444-555555555555?token=a%2Bb&expires=99','bunny','https://iframe.mediadelivery.net/embed/123/11111111-2222-3333-4444-555555555555?token=a%2Bb&expires=99')
+    ('https://iframe.mediadelivery.net/play/123/11111111-2222-3333-4444-555555555555?token=a%2Bb&expires=99','bunny','https://iframe.mediadelivery.net/play/123/11111111-2222-3333-4444-555555555555?token=a%2Bb&expires=99')
 ])
 def test_sources(source,provider,expected,tmp_path):
     assert video_quiz_source(source)==(expected,provider)

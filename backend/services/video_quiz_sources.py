@@ -19,6 +19,7 @@ def video_quiz_source(value):
         if len(parser.sources) != 1:
             raise ValueError('Cole a URL ou um único iframe de Bunny, Vimeo ou YouTube.')
         source = parser.sources[0].strip()
+    source = re.sub('&amp;', '&', source, flags=re.I)
     u = urlsplit(source)
     if not source or not (u.scheme in ('https', 'http') and u.netloc or source.startswith('/api/')) or u.username or u.password:
         raise ValueError('Informe uma URL de vídeo válida.')
@@ -37,10 +38,12 @@ def video_quiz_source(value):
             raise ValueError('Hash do vídeo Vimeo inválido.')
         return 'https://player.vimeo.com/video/' + ident + ('?' + urlencode({'h':secret}) if secret else ''), 'vimeo'
     if host == 'iframe.mediadelivery.net':
+        if u.scheme != 'https':
+            raise ValueError('Use um link HTTPS do Bunny Stream.')
         if len(parts) != 3 or parts[0] not in ('embed','play') or not parts[1].isdigit() or not re.fullmatch(r'[a-fA-F0-9-]{36}', parts[2]):
             raise ValueError('Use o link Embed ou iframe completo do Bunny Stream.')
         # Keep signed query parameters byte-for-byte, including token/expires.
-        return urlunsplit(('https', host, '/embed/' + '/'.join(parts[1:]), u.query, '')), 'bunny'
+        return source, 'bunny'
     if str(value or '').strip().startswith('<'):
         raise ValueError('Iframe permitido somente para Bunny, Vimeo ou YouTube.')
     return source, 'direct'
