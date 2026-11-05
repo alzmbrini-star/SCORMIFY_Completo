@@ -30,6 +30,7 @@ describe.each([['split',SplitPreview,8],['course',CoursePreview,48]])('%s video 
     expect(JSON.parse(doc.getElementById('video-quiz-data').textContent)).toEqual({...config,src:getApiUrl()+config.src});
     expect(doc.getElementById('video-quiz-feedback-v1')).not.toBeNull();
     expect(doc.getElementById('video-quiz-responsive-v1')).not.toBeNull();
+    expect(doc.getElementById('video-quiz-preview-clock-v1')).not.toBeNull();
     const stage=container.querySelector(`[data-testid="${name}-preview-stage"]`);
     expect(stage.style.width).toBe((800-padding)+'px');expect(stage.style.transform).toBe('scale(1)');
     width=390;await act(async()=>resize());
@@ -43,5 +44,30 @@ describe.each([['split',SplitPreview,8],['course',CoursePreview,48]])('%s video 
     const stage=container.querySelector(`[data-testid="${name}-preview-stage"]`);
     expect(stage.style.width).toBe('1920px');expect(stage.style.transform).not.toBe('scale(1)');
     expect(container.querySelector('img')).toBeNull();
+    const frame=container.querySelector('iframe');
+    const clock=async(time,playing=false,source=frame.contentWindow,key=config.key)=>act(async()=>window.dispatchEvent(new MessageEvent('message',{source,data:{type:'scormify-video-preview-clock',key,time,duration:15,playing}})));
+    await clock(3.5,true);
+    expect(container.querySelector('img')).not.toBeNull();
+    expect(container.textContent).toContain('3.5s');
+    const send=jest.spyOn(frame.contentWindow,'postMessage');
+    await act(async()=>container.querySelector('button[aria-label="Pausar"]').click());
+    expect(send).toHaveBeenLastCalledWith(expect.objectContaining({action:'pause',key:config.key}),'*');
+    await act(async()=>container.querySelector('button[aria-label="Voltar ao início"]').click());
+    expect(send).toHaveBeenLastCalledWith(expect.objectContaining({action:'seek',time:0}),'*');
+    await act(async()=>container.querySelector('[data-testid="preview-timeline"]').dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:400})));
+    expect(send).toHaveBeenLastCalledWith(expect.objectContaining({action:'seek',time:7.5}),'*');
+    // Seeking is acknowledged by the activity, not optimistically applied by
+    // the parent: unanswered checkpoint gates remain authoritative.
+    expect(container.querySelector('img')).not.toBeNull();
+    await clock(0);
+    expect(container.querySelector('img')).toBeNull();
+    await clock(3.5,false,window);
+    await clock(3.5,false,frame.contentWindow,'wrong-key');
+    await clock(NaN);
+    expect(container.querySelector('img')).toBeNull();
+    await clock(12);
+    expect(container.querySelector('iframe')).toBe(frame);
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.textContent).toContain('12.0s');
   });
 });

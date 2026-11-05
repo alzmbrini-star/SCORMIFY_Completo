@@ -30,7 +30,7 @@ import { sanitizeHtmlForDisplay, getRtfContentStyles, wrapInteractiveFullbleed, 
 import { getApiUrl } from '../../utils/apiUrl';
 import { resolveHtmlAssetUrls } from '../../utils/htmlAssetUrls';
 import { videoQuizSnapshot } from '../../utils/videoQuizDraft';
-import { fluidVideoQuizSlide } from '../../utils/videoQuizPreview';
+import { fluidVideoQuizSlide, withVideoQuizPreviewTimeline, readVideoQuizPreviewClock, controlVideoQuizPreview } from '../../utils/videoQuizPreview';
 const API_URL = getApiUrl();
 
 // Helper to get full asset URL
@@ -240,6 +240,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
   const [isMuted, setIsMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [mediaDuration, setMediaDuration] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [slideScale, setSlideScale] = useState(1);
   const [viewport, setViewport] = useState({width:960,height:540});
@@ -258,17 +259,17 @@ const CoursePreview = ({ course, projectId, onClose }) => {
   // The avatar's own player owns time while its questions are in progress.
   // Never let a five-second slide timer remove a longer interactive video.
   const hasVideoQuiz = currentSlide?.elements?.some(el => Boolean(videoQuizSnapshot(el)));
+  const timelineDuration = hasVideoQuiz ? Math.max(slideDuration, mediaDuration) : slideDuration;
   const fluidVideo = fluidVideoQuizSlide(currentSlide);
   useEffect(() => {
-    if (hasVideoQuiz) setIsPlaying(false);
+    setMediaDuration(0);
     const receive = event => {
-      if (!hasVideoQuiz || event.data?.type !== 'scormify-video-quiz') return;
-      const frames = containerRef.current?.querySelectorAll('iframe') || [];
-      if ([...frames].some(frame => frame.contentWindow === event.source)) setIsPlaying(false);
+      const clock = readVideoQuizPreviewClock(event, slideWrapperRef.current, currentSlide);
+      if (clock) { setCurrentTime(clock.time); setIsPlaying(clock.playing); setMediaDuration(clock.duration); }
     };
     window.addEventListener('message', receive);
     return () => window.removeEventListener('message', receive);
-  }, [hasVideoQuiz, currentSlideIndex]);
+  }, [currentSlide]);
   
   // Calculate slide scale to fit in the available space
   const calculateScale = useCallback(() => {
@@ -502,6 +503,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
   
   // Check if element should be visible based on timeline
   const isElementVisible = (element) => {
+    if (videoQuizSnapshot(element)) return true;
     const startTime = element.startTime != null ? element.startTime : 0;
     const endTime = element.endTime != null ? element.endTime : slideDuration;
     const isVisible = currentTime >= startTime - 0.05 && currentTime <= endTime + 0.05;
@@ -510,6 +512,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
   
   // Get animation styles for element based on current time
   const getElementAnimationStyle = (element) => {
+    if (videoQuizSnapshot(element)) return {};
     const startTime = element.startTime != null ? element.startTime : 0;
     const endTime = element.endTime != null ? element.endTime : slideDuration;
     const entranceAnim = element.animation?.entrance;
@@ -895,7 +898,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                       if (element.assessmentConfig) return wrapInteractiveFullbleed(assessmentFrameDocument(element), element.htmlDisplayMode || 'fit');
                       const raw = processHtmlContent(element.htmlContent, projectId);
                       const isFullDoc = /<!doctype\s+html|<html[\s>]/i.test(raw);
-                      if (isFullDoc) return wrapInteractiveFullbleed(raw, element.htmlDisplayMode || 'page');
+                      if (isFullDoc) return withVideoQuizPreviewTimeline(wrapInteractiveFullbleed(raw, element.htmlDisplayMode || 'page'));
                       return `
                       <html>
                         <head>
@@ -982,7 +985,8 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                       msOverflowStyle: 'none'
                     }}
                     sandbox={element.assessmentConfig ? assessmentFrameSandbox : 'allow-scripts'}
-                    allow={element.assessmentConfig ? assessmentFrameAllow : undefined}
+                    allow={element.assessmentConfig ? assessmentFrameAllow : videoQuizSnapshot(element) ? 'autoplay; fullscreen; picture-in-picture' : undefined}
+                    data-video-quiz-key={videoQuizSnapshot(element)?.key}
                     allowFullScreen={Boolean(element.assessmentConfig)}
                     title="HTML Content"
                   />
@@ -1114,15 +1118,17 @@ const CoursePreview = ({ course, projectId, onClose }) => {
       {/* Controls Bar */}
       <div className="h-20 bg-black/50 backdrop-blur-sm border-t border-white/10 flex flex-col">
         {/* Progress Bar */}
-        <div className="h-1 bg-white/10 relative cursor-pointer" onClick={(e) => {
+        <div data-testid="preview-timeline" className="h-1 bg-white/10 relative cursor-pointer" onClick={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
           const x = e.clientX - rect.left;
           const percent = x / rect.width;
-          setCurrentTime(percent * slideDuration);
+          const time = Math.max(0, Math.min(1, percent)) * timelineDuration;
+          if (hasVideoQuiz) controlVideoQuizPreview(slideWrapperRef.current, 'seek', time);
+          else setCurrentTime(time);
         }}>
           <div 
             className="h-full bg-gradient-to-r from-purple-500 to-cyan-500 transition-all"
-            style={{ width: `${(currentTime / slideDuration) * 100}%` }}
+            style={{ width: `${Math.min(100, currentTime / timelineDuration * 100)}%` }}
           />
         </div>
         
@@ -1133,7 +1139,8 @@ const CoursePreview = ({ course, projectId, onClose }) => {
               variant="ghost"
               size="icon"
               className="text-white/80 hover:text-white hover:bg-white/10"
-              onClick={() => { setCurrentTime(0); setIsPlaying(false); }}
+              aria-label="Voltar ao início"
+              onClick={() => { if (hasVideoQuiz) controlVideoQuizPreview(slideWrapperRef.current, 'seek', 0); else { setCurrentTime(0); setIsPlaying(false); } }}
             >
               <SkipBack className="w-5 h-5" />
             </Button>
@@ -1141,14 +1148,13 @@ const CoursePreview = ({ course, projectId, onClose }) => {
               variant="ghost"
               size="icon"
               className="text-white/80 hover:text-white hover:bg-white/10 w-12 h-12"
-              disabled={hasVideoQuiz}
-              title={hasVideoQuiz ? 'Use Reproduzir dentro do vídeo interativo' : 'Reproduzir slide'}
-              onClick={() => setIsPlaying(!isPlaying)}
+              aria-label={isPlaying ? 'Pausar' : 'Reproduzir'}
+              onClick={() => hasVideoQuiz ? controlVideoQuizPreview(slideWrapperRef.current, isPlaying ? 'pause' : 'play') : setIsPlaying(!isPlaying)}
             >
               {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
             </Button>
             <span className="text-white/60 text-sm font-mono min-w-[80px]">
-              {currentTime.toFixed(1)}s / {slideDuration}s
+              {currentTime.toFixed(1)}s / {timelineDuration}s
             </span>
           </div>
           
