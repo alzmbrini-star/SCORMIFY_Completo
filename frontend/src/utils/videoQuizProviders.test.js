@@ -46,12 +46,14 @@ describe('hosted video sources',()=>{
     const src='https://iframe.mediadelivery.net/play/123/11111111-2222-3333-4444-555555555555?token=a%2Bb&expires=99&autoplay=true';
     document.body.innerHTML='<div id="preview"><video id="video"></video><iframe data-provider-frame></iframe></div>';
     const root=document.getElementById('preview'),frame=root.querySelector('iframe');frame.src=src;
-    const handlers={};window.playerjs={Player:jest.fn(()=>({on:(name,cb)=>handlers[name]=cb,getDuration:cb=>cb(30),pause:jest.fn()}))};
+    const navigate=jest.spyOn(frame,'src','set');
+    const handlers={};window.playerjs={Player:jest.fn(()=>({on:(name,cb)=>handlers[name]=cb,getDuration:cb=>cb(30),pause:()=>{throw new Error('detached iframe contentWindow');}}))};
     const dispose=videoQuizProviderRuntime(root,{src,provider:'bunny'});
     expect(root.querySelector('iframe')).toBe(frame);expect(frame.getAttribute('src')).toBe(src);expect(frame.referrerPolicy).toBe('no-referrer');
-    document.querySelector('script[src="https://cdn.embed.ly/player-0.1.0.min.js"]').onload();handlers.ready();
-    expect(root.querySelector('video').duration).toBe(30);dispose();
+    document.querySelector('script[src="https://cdn.embed.ly/player-0.1.0.min.js"]').onload();
+    expect(navigate).toHaveBeenCalledWith(src);expect(handlers.ready).toBeDefined();handlers.ready();
+    expect(root.querySelector('video').duration).toBe(30);expect(dispose).not.toThrow();
     expect(root.querySelector('iframe')).toBe(frame);expect(root.querySelector('[role="status"]')).toBeNull();
-    document.body.innerHTML='';delete window.playerjs;
+    document.body.innerHTML='';delete window.playerjs;navigate.mockRestore();
   });
 });

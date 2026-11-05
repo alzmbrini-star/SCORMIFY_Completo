@@ -85,16 +85,20 @@ export function videoQuizProviderRuntime(scope, settings) {
       script('https://cdn.embed.ly/player-0.1.0.min.js',function(){
         var b=new window.playerjs.Player(frame);
         b.on('ready',function(){
+          if(disposed||player)return;
           player={play:function(){b.play();},pause:function(){b.pause();},seek:function(t){b.setCurrentTime(t);}};
           b.on('play',playing);b.on('pause',stopped);b.on('ended',finish);b.on('error',fail);
           b.on('timeupdate',function(e){metadata(e.duration);tick(e.seconds);});
           b.on('seeked',function(){b.getCurrentTime(function(t){tick(t);emit('seeking');});});
           b.getDuration(metadata);poll=setInterval(function(){if(!ready)b.getDuration(metadata);},500);
         });
+        // React can finish loading the native iframe before the SDK arrives.
+        // Re-arm that same URL after its ready listener exists (no token edits).
+        frame.src=config.src;
       });
     }
   }
-  function dispose(){disposed=true;clearTimeout(timeout);clearInterval(poll);if(player)player.pause();barrier.remove();window.removeEventListener('pagehide',dispose);}
+  function dispose(){disposed=true;clearTimeout(timeout);clearInterval(poll);try{if(player)player.pause();}catch(_){/* React may already have detached the provider iframe. */}barrier.remove();window.removeEventListener('pagehide',dispose);}
   window.addEventListener('pagehide',dispose);
   return dispose;
 }
