@@ -27,6 +27,7 @@
         entries.forEach(function(entry){
           var start=Number(entry.item.startTime)||0, end=entry.item.endTime;
           var visible=time>=start && (end==null || time<Number(end));
+          entry.node.style.display=visible?'':'none';
           entry.node.style.visibility=visible?'visible':'hidden';
           entry.node.style.opacity=visible?String(entry.opacity):'0';
         });

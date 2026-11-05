@@ -14,6 +14,7 @@ assert.equal(overlay.style.visibility,'hidden');
 timeline.update(4);
 assert.equal(overlay.style.visibility,'visible');
 assert.equal(overlay.style.opacity,'0.8');
+assert.equal(overlay.style.display,'');
 // A question pause leaves the image in place indefinitely: no wall timer.
 timeline.update(4);
 assert.equal(overlay.style.visibility,'visible');
@@ -24,6 +25,10 @@ assert.equal(overlay.style.visibility,'visible');
 timeline.update(0); // free practice replay resets overlays
 assert.equal(overlay.style.visibility,'hidden');
 assert.equal(annotation.style.visibility,'hidden');
+assert.equal(annotation.style.display,'none');
+timeline.update(2.5);
+assert.equal(annotation.style.display,'');
+timeline.update(0);
 assert.equal(base.style.visibility,'visible');
 timeline.update(NaN);
 assert.equal(base.style.visibility,'visible');

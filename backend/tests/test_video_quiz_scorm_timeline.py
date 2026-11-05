@@ -4,6 +4,19 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[2]
 
+def test_html_export_uses_the_same_media_timeline():
+    import asyncio
+    import sys
+    sys.path.insert(0,str(ROOT/'backend'))
+    from services.html_exporter import generate_standalone_html
+    project={'id':'timeline-test','name':'Media timeline','enableVlibras':False,'course':{'metadata':{},'slides':[]}}
+    html=asyncio.run(generate_standalone_html(project=project,assets_dir='',backend_url=''))
+    assert (ROOT/'backend/services/export_assets/video-quiz-host.js').read_text(encoding='utf-8') in html
+    assert 'VideoQuizHost.createTimeline(slide)' in html
+    assert 'VideoQuizHost.bindFrame(itemFrame, item, null, null, mediaTimeline.update)' in html
+    assert 'mediaTimeline.add(element, elem, elementOpacity);' in html
+    assert 'mediaTimeline.add(annotation, ann, 1);' in html
+
 def test_scorm_media_timeline_runtime():
     result=subprocess.run([shutil.which('node'),str(ROOT/'tests/video-quiz-scorm-timeline.cjs')],cwd=ROOT,capture_output=True,text=True)
     assert result.returncode==0,result.stdout+result.stderr

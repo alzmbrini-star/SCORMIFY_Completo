@@ -786,6 +786,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     course_json = course_json.replace('</SCRIPT>', '<\\/SCRIPT>')
     
     video_viewport_js = (Path(__file__).parent / 'export_assets' / 'video-quiz-viewport.js').read_text(encoding='utf-8')
+    video_host_js = (Path(__file__).parent / 'export_assets' / 'video-quiz-host.js').read_text(encoding='utf-8')
     html = f'''<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -793,6 +794,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{title}</title>
     <script>{video_viewport_js}</script>
+    <script>{video_host_js}</script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lato:wght@300;400;700&family=Merriweather:wght@300;400;700&family=Montserrat:wght@300;400;500;600;700&family=Nunito:wght@300;400;600;700&family=Open+Sans:wght@300;400;600;700&family=Oswald:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=PT+Sans:wght@400;700&family=Raleway:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&family=Source+Sans+3:wght@300;400;600;700&family=Ubuntu:wght@300;400;500;700&family=Manrope:wght@400;600;700;800&family=Sora:wght@400;600;700&family=Fraunces:wght@400;600;700&family=Source+Serif+4:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Archivo:wght@400;600;700&display=swap" rel="stylesheet">
@@ -2617,6 +2619,15 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
 
                 container.innerHTML = html;
 
+                // Use the same media clock as classic SCORM. Wall timers must
+                // not run ahead while the video waits for a question answer.
+                var mediaTimeline = window.VideoQuizHost && VideoQuizHost.createTimeline(slide);
+                if (mediaTimeline) (slide.elements || []).forEach(function(item, itemIndex) {{
+                    var itemNode = document.getElementById('element-' + itemIndex);
+                    var itemFrame = itemNode && itemNode.querySelector('iframe');
+                    if (itemFrame) VideoQuizHost.bindFrame(itemFrame, item, null, null, mediaTimeline.update);
+                }});
+
                 // Kick off the zoom animation (Tutorial Agent imports). We
                 // schedule the start AFTER a brief settle so the slide is
                 // visible at scale 1 first, then magnifies into the hotspot.
@@ -2690,6 +2701,10 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         var elementOpacity = (elem.style && elem.style.opacity !== undefined && elem.style.opacity !== null) ? elem.style.opacity : 1;
                         
                         if (element) {{
+                            if (mediaTimeline) {{
+                                mediaTimeline.add(element, elem, elementOpacity);
+                                return;
+                            }}
                             // Check if this is an animation clip or mask element
                             var isClip = elem.type === 'animation_clip';
                             var isMask = elem.type === 'animation_mask';
@@ -2891,6 +2906,10 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         var annotation = document.getElementById('annotation-' + annIndex);
                         
                         if (annotation) {{
+                            if (mediaTimeline) {{
+                                mediaTimeline.add(annotation, ann, 1);
+                                return;
+                            }}
                             // Schedule annotation to appear at startTime
                             if (startTime > 0) {{
                                 var showTimer = setTimeout(function() {{
