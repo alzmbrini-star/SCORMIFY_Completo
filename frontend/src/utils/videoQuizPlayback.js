@@ -62,9 +62,34 @@ export function videoQuizPlaybackRuntime() {
   idle();
 }
 
+export function videoQuizFeedbackLayoutRuntime() {
+  'use strict';
+  var panel = document.getElementById('panel');
+  if (!panel || !document.getElementById('video-quiz-data') || document.getElementById('video-quiz-feedback-style')) return;
+  var feedback = document.getElementById('feedback');
+  var message = document.getElementById('message');
+  if (feedback) {
+    if (message && message.parentNode === panel) message.insertAdjacentElement('afterend', feedback);
+    else panel.appendChild(feedback);
+  }
+  var loading = document.getElementById('video-load-status');
+  if (loading) panel.appendChild(loading);
+  var style = document.createElement('style');
+  style.id = 'video-quiz-feedback-style';
+  style.textContent = '#panel #feedback{max-height:none;overflow:visible;overflow-wrap:anywhere;margin:10px 0;padding:12px}#panel #video-load-status{overflow-wrap:anywhere;margin:10px 0}#panel #message{overflow-wrap:anywhere}';
+  document.head.appendChild(style);
+}
+
 export function upgradeVideoQuizPlayback(html) {
-  if (typeof html !== 'string' || !/id=["']video-quiz-data["']/.test(html) || html.includes('id="video-quiz-playback-v2"')) return html;
+  if (typeof html !== 'string' || !/id=["']video-quiz-data["']/.test(html)) return html;
+  if (!html.includes('id="video-quiz-playback-v2"')) {
   html = html.replace(/<script\b[^>]*\bid=["']video-quiz-playback-v1["'][^>]*>[\s\S]*?<\/script>/gi, '');
   const snippet = '<script id="video-quiz-playback-v2">(' + videoQuizPlaybackRuntime.toString() + ')();</script>';
-  return /<\/body>/i.test(html) ? html.replace(/<\/body>/i, snippet + '</body>') : html + snippet;
+  html = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, snippet + '</body>') : html + snippet;
+  }
+  if (!html.includes('id="video-quiz-feedback-v1"')) {
+    const layout = '<script id="video-quiz-feedback-v1">(' + videoQuizFeedbackLayoutRuntime.toString() + ')();</script>';
+    html = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, layout + '</body>') : html + layout;
+  }
+  return html;
 }

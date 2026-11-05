@@ -21,6 +21,9 @@ function setup(html,saved='{}') {
 }
 function finish(t){t.tick(5);t.answer(1);t.next();t.tick(10);t.answer(0);t.answer(0);t.next();t.tick(30);t.v.dispatchEvent(new t.w.Event('ended'));}
 let t=setup(ungraded);finish(t);
+assert.equal(t.d.getElementById('feedback').parentNode.id,'panel','explanation belongs beside the video');
+assert.equal(t.d.getElementById('video-load-status').parentNode.id,'panel','network feedback never reduces video height');
+assert(!t.d.querySelector('.avatar #feedback'));
 assert(!t.messages.some(m=>m.action==='result'),'ungraded never reports a score');
 assert(!t.writes.some(([k])=>/score|lesson_status/.test(k)));
 const completed=t.saved();t.dom.window.close();

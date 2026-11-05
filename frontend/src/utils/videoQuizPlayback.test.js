@@ -1,4 +1,4 @@
-import { videoQuizPlaybackRuntime, upgradeVideoQuizPlayback } from './videoQuizPlayback';
+import { videoQuizPlaybackRuntime, videoQuizFeedbackLayoutRuntime, upgradeVideoQuizPlayback } from './videoQuizPlayback';
 
 describe('recorded avatar buffering feedback', () => {
   let video, button, paused, currentTime, ready;
@@ -71,4 +71,33 @@ describe('recorded avatar buffering feedback', () => {
     expect(next).not.toContain('oldRuntime()');
     expect(next.match(/id="video-quiz-playback-v2"/g)).toHaveLength(1);
   });
+});
+
+test('moves live feedback and loading regions to the question panel without replacing nodes', () => {
+  document.body.innerHTML = '<script id="video-quiz-data" type="application/json">{}</script><section class="avatar"><video id="video"></video><div class="controls"><button id="play">Reproduzir</button></div><p id="feedback" hidden role="status" aria-live="polite"></p><p id="video-load-status" hidden></p></section><section id="panel"><p id="message"></p><button id="continue">Continuar</button></section>';
+  const feedback = document.getElementById('feedback'), loading = document.getElementById('video-load-status');
+  const avatar = document.querySelector('.avatar');
+  videoQuizFeedbackLayoutRuntime();
+  const unchangedVideoArea = avatar.innerHTML;
+  ['Acertou!', 'Tente novamente.', 'Explicação longa para revisão.'].forEach(text => {
+    feedback.hidden = false; feedback.textContent = text;
+    loading.hidden = false; loading.textContent = 'Carregando';
+    expect(avatar.innerHTML).toBe(unchangedVideoArea);
+    expect(feedback.parentNode.id).toBe('panel');
+    expect(loading.parentNode.id).toBe('panel');
+  });
+  expect(feedback.nextElementSibling.id).toBe('continue');
+  expect(feedback.getAttribute('aria-live')).toBe('polite');
+  videoQuizFeedbackLayoutRuntime();
+  expect(document.querySelectorAll('#video-quiz-feedback-style')).toHaveLength(1);
+  expect(document.getElementById('feedback')).toBe(feedback);
+  document.body.innerHTML=''; document.getElementById('video-quiz-feedback-style').remove();
+});
+
+test('saved playback-v2 documents also get the new feedback layout', () => {
+  const old='<body><script id="video-quiz-data" type="application/json">{"key":"keep"}</script><script id="video-quiz-playback-v2">existing();</script></body>';
+  const upgraded=upgradeVideoQuizPlayback(old);
+  expect(upgraded).toContain('existing();');
+  expect(upgraded).toContain('id="video-quiz-feedback-v1"');
+  expect(upgradeVideoQuizPlayback(upgraded)).toBe(upgraded);
 });
