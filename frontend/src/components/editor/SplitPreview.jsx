@@ -26,6 +26,9 @@ import ScenarioPlayer from '../scenario/ScenarioPlayer';
 import { sanitizeHtmlForDisplay, getRtfContentStyles, wrapInteractiveFullbleed, fitGameElementToSlide } from '../../utils/htmlUtils';
 
 import { getApiUrl } from '../../utils/apiUrl';
+import { resolveHtmlAssetUrls } from '../../utils/htmlAssetUrls';
+import { videoQuizSnapshot } from '../../utils/videoQuizDraft';
+import { fluidVideoQuizSlide } from '../../utils/videoQuizPreview';
 const API_URL = getApiUrl();
 
 const getAssetUrl = (src, projectId) => {
@@ -42,7 +45,7 @@ const getAssetUrl = (src, projectId) => {
 
 const processHtmlContent = (htmlContent, projectId) => {
   if (!htmlContent || typeof htmlContent !== 'string') return '<p>HTML</p>';
-  let processed = htmlContent;
+  let processed = resolveHtmlAssetUrls(htmlContent, API_URL);
   processed = processed.replace(/src="(https?:\/\/[^"]+\/api\/assets\/[^"]+)"/g, (match, url) => {
     const m = url.match(/https?:\/\/[^/]+\/api\/assets\/(.+)/);
     return m ? `src="${API_URL}/api/assets/${m[1]}"` : match;
@@ -159,6 +162,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [slideScale, setSlideScale] = useState(1);
+  const [viewport, setViewport] = useState({width:960,height:540});
   const [showMiniSidebar, setShowMiniSidebar] = useState(false);
 
   const slideWrapperRef = useRef(null);
@@ -169,9 +173,10 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
   const slides = course?.slides || [];
   const currentSlide = slides[currentSlideIndex];
   const slideDuration = currentSlide?.duration || 10;
-  const hasVideoQuiz = currentSlide?.elements?.some(el => el.videoQuizConfig);
-  const slideWidth = currentSlide?.width || 960;
-  const slideHeight = currentSlide?.height || 540;
+  const hasVideoQuiz = currentSlide?.elements?.some(el => Boolean(videoQuizSnapshot(el)));
+  const fluidVideo = fluidVideoQuizSlide(currentSlide);
+  const slideWidth = fluidVideo ? viewport.width : currentSlide?.width || 960;
+  const slideHeight = fluidVideo ? viewport.height : currentSlide?.height || 540;
 
   // Calculate scale to fit panel
   const calculateScale = useCallback(() => {
@@ -180,15 +185,22 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
     const rect = wrapper.getBoundingClientRect();
     const availW = rect.width - 8;
     const availH = rect.height - 8;
+    if (fluidVideo) {
+      setViewport({width:Math.max(1,availW),height:Math.max(1,availH)});
+      setSlideScale(1);
+      return;
+    }
     const scaleX = availW / (currentSlide.width || 960);
     const scaleY = availH / (currentSlide.height || 540);
     setSlideScale(Math.min(scaleX, scaleY, 1));
-  }, [currentSlide]);
+  }, [currentSlide, fluidVideo]);
 
   useEffect(() => {
     calculateScale();
     window.addEventListener('resize', calculateScale);
-    return () => window.removeEventListener('resize', calculateScale);
+    const observer=typeof ResizeObserver!=='undefined'?new ResizeObserver(calculateScale):null;
+    if(observer && slideWrapperRef.current)observer.observe(slideWrapperRef.current);
+    return () => {window.removeEventListener('resize', calculateScale);observer?.disconnect();};
   }, [calculateScale, currentSlideIndex]);
 
   // Recalculate when mini sidebar toggles
@@ -324,6 +336,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
           }}>
             <div
               className="relative"
+              data-testid="split-preview-stage"
               style={{
                 width: slideWidth,
                 height: slideHeight,
@@ -339,7 +352,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
 
             {/* Elements */}
             {currentSlide.elements?.filter(el => el.visible !== false && isElementVisible(el)).map((element) => {
-              const displayElement = fitGameElementToSlide(element, slideWidth, slideHeight);
+              const displayElement = fluidVideo ? {...element,x:0,y:0,width:slideWidth,height:slideHeight} : fitGameElementToSlide(element, slideWidth, slideHeight);
               const elOpacity = element.style?.opacity != null && element.style.opacity > 0 ? element.style.opacity : 1;
               const isFullscreen = displayElement.objectFit === 'cover' && displayElement.width >= slideWidth * 0.95 && displayElement.height >= slideHeight * 0.95;
               return (

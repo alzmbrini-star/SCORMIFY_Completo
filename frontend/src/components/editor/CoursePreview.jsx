@@ -28,6 +28,9 @@ import ScenarioPlayer from '../scenario/ScenarioPlayer';
 import { sanitizeHtmlForDisplay, getRtfContentStyles, wrapInteractiveFullbleed, fitGameElementToSlide } from '../../utils/htmlUtils';
 
 import { getApiUrl } from '../../utils/apiUrl';
+import { resolveHtmlAssetUrls } from '../../utils/htmlAssetUrls';
+import { videoQuizSnapshot } from '../../utils/videoQuizDraft';
+import { fluidVideoQuizSlide } from '../../utils/videoQuizPreview';
 const API_URL = getApiUrl();
 
 // Helper to get full asset URL
@@ -79,7 +82,7 @@ const processHtmlContent = (htmlContent, projectId) => {
   if (!htmlContent || typeof htmlContent !== 'string') return '<p>HTML</p>';
   
   // Fix image src URLs
-  let processed = htmlContent;
+  let processed = resolveHtmlAssetUrls(htmlContent, API_URL);
   
   // Replace old domain URLs for global assets (/api/assets/)
   processed = processed.replace(
@@ -239,6 +242,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [slideScale, setSlideScale] = useState(1);
+  const [viewport, setViewport] = useState({width:960,height:540});
   
   const containerRef = useRef(null);
   const globalAudioRef = useRef(null);
@@ -253,7 +257,8 @@ const CoursePreview = ({ course, projectId, onClose }) => {
 
   // The avatar's own player owns time while its questions are in progress.
   // Never let a five-second slide timer remove a longer interactive video.
-  const hasVideoQuiz = currentSlide?.elements?.some(el => el.videoQuizConfig);
+  const hasVideoQuiz = currentSlide?.elements?.some(el => Boolean(videoQuizSnapshot(el)));
+  const fluidVideo = fluidVideoQuizSlide(currentSlide);
   useEffect(() => {
     if (hasVideoQuiz) setIsPlaying(false);
     const receive = event => {
@@ -277,19 +282,26 @@ const CoursePreview = ({ course, projectId, onClose }) => {
     // Account for padding
     const availableWidth = wrapperRect.width - 48; // p-6 = 24px * 2
     const availableHeight = wrapperRect.height - 48;
+    if (fluidVideo) {
+      setViewport({width:Math.max(1,availableWidth),height:Math.max(1,availableHeight)});
+      setSlideScale(1);
+      return;
+    }
     
     const scaleX = availableWidth / slideWidth;
     const scaleY = availableHeight / slideHeight;
     const scale = Math.min(scaleX, scaleY, 1);
     
     setSlideScale(scale);
-  }, [currentSlide]);
+  }, [currentSlide, fluidVideo]);
   
   // Update scale on mount, resize, and slide change
   useEffect(() => {
     calculateScale();
     window.addEventListener('resize', calculateScale);
-    return () => window.removeEventListener('resize', calculateScale);
+    const observer=typeof ResizeObserver!=='undefined'?new ResizeObserver(calculateScale):null;
+    if(observer && slideWrapperRef.current)observer.observe(slideWrapperRef.current);
+    return () => {window.removeEventListener('resize', calculateScale);observer?.disconnect();};
   }, [calculateScale, currentSlideIndex]);
   
   // Initialize global audio
@@ -684,10 +696,11 @@ const CoursePreview = ({ course, projectId, onClose }) => {
         >
           <div 
             ref={slideContainerRef}
+            data-testid="course-preview-stage"
             className="relative shadow-2xl rounded-lg overflow-hidden"
             style={{
-              width: currentSlide?.width || 960,
-              height: currentSlide?.height || 540,
+              width: fluidVideo ? viewport.width : currentSlide?.width || 960,
+              height: fluidVideo ? viewport.height : currentSlide?.height || 540,
               flexShrink: 0,
               backgroundColor: currentSlide?.background || '#FFFFFF',
               transform: `scale(${slideScale})`,
@@ -730,7 +743,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
               const animStyle = getElementAnimationStyle(element);
               const slideWidth = currentSlide?.width || 960;
               const slideHeight = currentSlide?.height || 540;
-              const displayElement = fitGameElementToSlide(element, slideWidth, slideHeight);
+              const displayElement = fluidVideo ? {...element,x:0,y:0,width:viewport.width,height:viewport.height} : fitGameElementToSlide(element, slideWidth, slideHeight);
               // Use element opacity only if > 0, otherwise default to 1
               const elementOpacity = element.style?.opacity != null && element.style.opacity > 0 
                 ? element.style.opacity 
