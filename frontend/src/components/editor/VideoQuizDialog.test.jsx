@@ -39,12 +39,12 @@ describe('interactive avatar video authoring', () => {
     await act(async () => [...container.querySelectorAll('button')].find(b => b.textContent === 'Cancelar').click());
     expect(fetch).not.toHaveBeenCalled(); expect(apply).not.toHaveBeenCalled(); expect(close).toHaveBeenCalledWith(false);
   });
-  test('embedded videos offer a provider preview without suppressing its srcdoc referrer',async()=>{
+  test('embedded videos offer a direct provider preview, not nested srcdoc',async()=>{
     await act(async()=>root.render(<VideoQuizDialog open element={{id:'embedded',type:'video',embedUrl:'https://vimeo.com/76979871'}} onApply={jest.fn()} onOpenChange={jest.fn()}/>));
     expect(container.querySelector('[aria-label="Link ou iframe do vídeo"]').value).toBe('https://vimeo.com/76979871');
-    const frame=container.querySelector('iframe[title="Prévia do vídeo externo"]');
-    expect(frame).not.toBeNull();expect(frame.hasAttribute('referrerpolicy')).toBe(false);
-    expect(frame.getAttribute('srcdoc')).toContain('player.vimeo.com/video/76979871');
+    const frame=container.querySelector('iframe[title="Vídeo vimeo"]');
+    expect(frame).not.toBeNull();expect(frame.hasAttribute('srcdoc')).toBe(false);
+    expect(frame.getAttribute('src')).toContain('player.vimeo.com/video/76979871');
     expect(fetch).not.toHaveBeenCalled();
   });
   test('project video URLs point at the backend rather than the separate static frontend', async () => {

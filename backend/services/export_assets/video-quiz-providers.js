@@ -1,7 +1,7 @@
-function videoQuizProviderRuntime() {
+function videoQuizProviderRuntime(scope, settings) {
   'use strict';
-  var video=document.getElementById('video'),data=document.getElementById('video-quiz-data'),config;
-  try{config=JSON.parse(data.textContent);}catch(_){return;}
+  var area=scope||document,video=area.querySelector('#video'),data=area.querySelector('#video-quiz-data'),config;
+  try{config=settings||JSON.parse(data.textContent);}catch(_){return;}
   if(!video||video.dataset.providerAdapter||['youtube','vimeo','bunny'].indexOf(config.provider)<0)return;
   var source;try{source=new URL(config.src);}catch(_){return;}
   var expected={youtube:'www.youtube.com',vimeo:'player.vimeo.com',bunny:'iframe.mediadelivery.net'};
@@ -56,7 +56,8 @@ function videoQuizProviderRuntime() {
   if(config.provider==='youtube'){
     var id=source.pathname.split('/').pop(),mount=document.createElement('div');mount.id='youtube-mount';host.insertBefore(mount,barrier);
     function start(){
-      var yt=new window.YT.Player('youtube-mount',{videoId:id,width:'100%',height:'100%',playerVars:{playsinline:1,rel:0,autoplay:0},events:{
+      if(disposed)return;
+      var yt=new window.YT.Player(mount,{videoId:id,width:'100%',height:'100%',playerVars:{playsinline:1,rel:0,autoplay:0},events:{
         onReady:function(){frame=yt.getIframe();frame.style.cssText='border:0;width:100%;height:100%;display:block;min-height:170px';player={play:function(){yt.playVideo();},pause:function(){yt.pauseVideo();},seek:function(t){yt.seekTo(t,true);}};
           metadata(yt.getDuration());poll=setInterval(function(){metadata(yt.getDuration());tick(yt.getCurrentTime());},150);},
         onStateChange:function(e){if(e.data===1)playing();else if(e.data===2)stopped();else if(e.data===0)finish();else if(e.data===3)emit('waiting');},
@@ -90,7 +91,9 @@ function videoQuizProviderRuntime() {
       });
     }
   }
-  window.addEventListener('pagehide',function(){disposed=true;clearTimeout(timeout);clearInterval(poll);if(player)player.pause();});
+  function dispose(){disposed=true;clearTimeout(timeout);clearInterval(poll);if(player)player.pause();window.removeEventListener('pagehide',dispose);}
+  window.addEventListener('pagehide',dispose);
+  return dispose;
 }
 
 videoQuizProviderRuntime();
