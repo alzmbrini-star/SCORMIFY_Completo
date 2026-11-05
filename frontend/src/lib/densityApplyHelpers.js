@@ -43,6 +43,11 @@ export function densityProtected(slide) {
     /<(?:script|iframe|canvas|video|audio|button|input|select|textarea)\b|\bon[a-z]+\s*=|data-sim-engine|video-quiz-data/i.test(densitySource(el)));
 }
 
+export function densityHasVisual(slide) {
+  return !!slide?.backgroundImage || (slide?.elements || []).some(el=>!el.isBrandLogo &&
+    (['image','video','avatar','iframe','flipbook'].includes((el.type||'').toLowerCase()) || /<(?:img|video|iframe|svg|canvas)\b/i.test(densitySource(el))));
+}
+
 export function assertDensitySafe(slide,suggestion) {
   if (densityProtected(slide)) throw new Error('Atividade interativa protegida: a análise não substitui simuladores, perguntas, vídeos ou suas regras. Edite a atividade pela ferramenta própria.');
   if (!buildSuggestionPlainText(suggestion).trim()) throw new Error('A sugestão não contém conteúdo aplicável. Nada foi alterado.');

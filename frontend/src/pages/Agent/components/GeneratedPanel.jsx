@@ -31,7 +31,7 @@ import {
   pickReadableTextColor,
   buildSuggestionHtml,
   buildSuggestionPlainText,
-  densityVisibleText, densityProtected, assertDensitySafe, densityBodyElements,
+  densityVisibleText, densityProtected, assertDensitySafe, densityBodyElements, densityHasVisual,
 } from '../../../lib/densityApplyHelpers';
 
 const API = getApiUrl();
@@ -526,7 +526,7 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
           .map(densityVisibleText)
           .join(' ')}
         bullets={[]}
-        hasImage={(densityDialog.slide?.elements || []).some(e => ['image','video','avatar'].includes((e.type||'').toLowerCase()) && !e.isBrandLogo) || !!densityDialog.slide?.backgroundImage}
+        hasImage={densityHasVisual(densityDialog.slide)}
         preloadedDensity={densityDialog.slide && slideDensity[densityDialog.slide.id]}
         onApply={async (sug) => {
           // Patch the project: rewrite the largest textual element of this slide.

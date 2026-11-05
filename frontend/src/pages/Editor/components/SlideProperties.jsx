@@ -10,7 +10,7 @@ import {
   pickReadableTextColor,
   buildSuggestionHtml,
   buildSuggestionPlainText,
-  densityVisibleText, densityProtected, assertDensitySafe, densityBodyElements,
+  densityVisibleText, densityProtected, assertDensitySafe, densityBodyElements, densityHasVisual,
 } from '../../../lib/densityApplyHelpers';
 import { getApiUrl } from '../../../utils/apiUrl';
 
@@ -57,7 +57,7 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
   const collectDensityInput = () => {
     const texts = [];
     const bullets = [];
-    let hasImage = !!slide.backgroundImage;
+    let hasImage = densityHasVisual(slide);
     (slide.elements || []).forEach((el) => {
       if (el.isBrandLogo) return;
       const t = (el.type || '').toLowerCase();
