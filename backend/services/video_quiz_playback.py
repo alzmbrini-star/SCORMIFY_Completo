@@ -4,6 +4,11 @@ from pathlib import Path
 
 
 def _feedback_layout(document):
+    if 'id="video-quiz-responsive-v1"' not in document:
+        css = (Path(__file__).parent / 'export_assets/video-quiz-responsive.css').read_text(encoding='utf-8')
+        snippet = '<style id="video-quiz-responsive-v1">' + css + '</style>'
+        head = re.search(r'</head>', document, re.I)
+        document = document[:head.start()] + snippet + document[head.start():] if head else document + snippet
     if 'id="video-quiz-feedback-v1"' in document:
         return document
     runtime = (Path(__file__).parent / 'export_assets/video-quiz-feedback.js').read_text(encoding='utf-8')

@@ -65,7 +65,7 @@ function courseSession(document) {
  w.matchMedia=()=>({matches:false,addListener(){},addEventListener(){}});w.fetch=()=>new Promise(()=>{});
  w.HTMLMediaElement.prototype.pause=function(){};w.HTMLMediaElement.prototype.play=function(){return Promise.resolve();};
  w.API={LMSInitialize:()=> 'true',LMSGetValue:k=>values[k]||'',LMSSetValue:(k,v)=>{values[k]=v;return'true';},LMSCommit:()=> 'true',LMSFinish:()=> 'true'};
- w.eval(fs.readFileSync(path.join(assets,'scorm-api.js'),'utf8'));w.eval(host);w.eval(fs.readFileSync(path.join(assets,'player.js'),'utf8'));
+ w.eval(fs.readFileSync(path.join(assets,'scorm-api.js'),'utf8'));w.eval(host);w.eval(fs.readFileSync(path.join(assets,'video-quiz-viewport.js'),'utf8'));w.eval(fs.readFileSync(path.join(assets,'player.js'),'utf8'));
  const config=JSON.parse(/<script id="video-quiz-data" type="application\/json">([\s\S]*?)<\/script>/.exec(document)[1]);
  w.CoursePlayer.load({metadata:{title:'Video test'},slides:[{id:'s',title:'Slide',width:960,height:540,elements:[{id:'video',type:'html',x:0,y:0,width:960,height:540,videoQuizConfig:config,htmlContent:document}]}]});
  const frame=w.document.querySelector('iframe[data-video-quiz-key]');assert(frame,'classic player registers video frame');
@@ -90,3 +90,15 @@ sw.SP.recordVideoQuizResult(key,1,2);assert.equal(spScores.at(-1),50);assert.equ
 sw.SP.retryVideoQuiz(key);assert(!savedState.quizScores['videoquiz:'+key]);
 sw.SP.recordVideoQuizResult(key,2,2);assert.equal(spScores.at(-1),100);assert.equal(spResults.at(-1),true,'singlepage retake can recover failure without relocking sections');
 spdom.window.close();
+
+const vp=new JSDOM('<div id="wrapper"><div id="stage"><div class="slide-element"><iframe></iframe></div></div></div>',{runScripts:'outside-only'});
+vp.window.eval(fs.readFileSync(path.join(assets,'video-quiz-viewport.js'),'utf8'));
+const stage=vp.window.document.getElementById('stage'),wrapper=vp.window.document.getElementById('wrapper');
+let rect={width:390,height:720};wrapper.getBoundingClientRect=()=>rect;
+const slide={width:1920,height:820,elements:[{type:'html',x:0,y:0,width:1920,height:820,htmlContent:graded}]},original=JSON.stringify(slide);
+assert(vp.window.VideoQuizViewport.fit(stage,wrapper,slide));assert.equal(stage.style.width,'378px');assert.equal(stage.style.transform,'none');assert.equal(stage.querySelector('.slide-element').style.width,'100%');
+rect={width:1100,height:600};assert(vp.window.VideoQuizViewport.fit(stage,wrapper,slide));assert.equal(stage.style.width,'1088px');
+assert.equal(JSON.stringify(slide),original,'responsive rendering never mutates authored geometry/questions');
+assert(!vp.window.VideoQuizViewport.fit(stage,wrapper,{...slide,elements:[...slide.elements,{type:'text'}]}),'custom multi-element slides retain authored layout');
+assert(!vp.window.VideoQuizViewport.fit(stage,wrapper,{...slide,annotations:[{}]}),'annotated canvases retain authored layout');
+vp.window.close();

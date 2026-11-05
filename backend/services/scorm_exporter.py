@@ -508,6 +508,7 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     
     with open(package_dir / "scripts" / "player.js", 'w', encoding='utf-8') as f:
         f.write(_read_asset("video-quiz-host.js") + '\n')
+        f.write(_read_asset("video-quiz-viewport.js") + '\n')
         f.write(_read_asset("player.js"))
     
     # Write quiz controller script

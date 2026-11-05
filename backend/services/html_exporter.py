@@ -785,12 +785,14 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     course_json = course_json.replace('</Script>', '<\\/Script>')
     course_json = course_json.replace('</SCRIPT>', '<\\/SCRIPT>')
     
+    video_viewport_js = (Path(__file__).parent / 'export_assets' / 'video-quiz-viewport.js').read_text(encoding='utf-8')
     html = f'''<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{title}</title>
+    <script>{video_viewport_js}</script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lato:wght@300;400;700&family=Merriweather:wght@300;400;700&family=Montserrat:wght@300;400;500;600;700&family=Nunito:wght@300;400;600;700&family=Open+Sans:wght@300;400;600;700&family=Oswald:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=PT+Sans:wght@400;700&family=Raleway:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&family=Source+Sans+3:wght@300;400;600;700&family=Ubuntu:wght@300;400;500;700&family=Manrope:wght@400;600;700;800&family=Sora:wght@400;600;700&family=Fraunces:wght@400;600;700&family=Source+Serif+4:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Archivo:wght@400;600;700&display=swap" rel="stylesheet">
@@ -981,16 +983,22 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             }}
             
             #header {{
-                display: none !important;
+                display: flex !important;
+                height:48px;flex-shrink:0;padding:0 10px;
             }}
+            #header h1 {{font-size:16px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}}
             
             #sidebar {{
                 display: none !important;
             }}
             
             #controls {{
-                display: none !important;
+                display: flex !important;
+                flex-shrink:0;height:54px;padding:0 6px;
             }}
+            #controls .volume-control,#controls .progress-container {{display:none;}}
+            #controls .nav-buttons {{gap:4px;}}
+            #controls button {{min-height:44px;padding:8px;font-size:12px;}}
         }}
         
         /* Mobile floating controls - always available on mobile landscape */
@@ -2991,7 +2999,12 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 var isSmallScreen = window.innerWidth < 1024;
                 var isMobile = isMobileDevice || (isSmallScreen && isTouchDevice);
                 
-                // Detect portrait orientow.innerWidth;
+                // Use the actual viewport, including resized desktop windows.
+                var isPortrait = window.innerHeight > window.innerWidth;
+                container.style.flexShrink = '0';
+                wrapper.style.padding = '';
+                wrapper.style.paddingTop = '';
+                if (window.VideoQuizViewport && VideoQuizViewport.fit(container, wrapper, slide)) return;
                 var isMobilePortrait = isMobile && isPortrait;
                 var isMobileLand = isMobileLandscape();
                 
@@ -3030,6 +3043,8 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     container.style.transform = 'scale(' + scaleForWidth + ')';
                     container.style.transformOrigin = 'left top';
                     container.style.marginLeft = '0';
+                    container.style.marginRight = -(slideWidth * (1 - scaleForWidth)) + 'px';
+                    container.style.marginBottom = -(slideHeight * (1 - scaleForWidth)) + 'px';
                     container.style.boxShadow = 'none';
                     
                     console.log('[Scale] Mobile portrait - scale:', scaleForWidth.toFixed(3));
@@ -3248,7 +3263,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 var dismissed = false;
                 try {{ dismissed = sessionStorage.getItem('orientation_overlay_dismissed') === 'true'; }} catch(e) {{}}
                 
-                if (isMobile && isPortrait && !dismissed) {{
+                if (isMobile && isPortrait && !dismissed && !document.querySelector('[data-video-quiz-fluid]')) {{
                     overlay.style.display = 'flex';
                     playerContainer.style.display = 'none';
                 }} else {{

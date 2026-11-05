@@ -82,7 +82,7 @@ function checkMobileOrientation() {
     
     var wasHidden = playerContainer.style.display === 'none';
     
-    if (shouldShowOverlay && !overlayDismissed) {
+    if (shouldShowOverlay && !overlayDismissed && !document.querySelector('[data-video-quiz-fluid]')) {
         overlay.style.display = 'flex';
         playerContainer.style.display = 'none';
     } else {
@@ -578,6 +578,8 @@ var CoursePlayer = (function() {
         var slideWidth = slide.width || 960;
         var slideHeight = slide.height || 540;
         var slideAspectRatio = slideWidth / slideHeight;
+        if (window.VideoQuizViewport && VideoQuizViewport.fit(container, wrapper, slide)) return;
+        container.style.flexShrink = '0';
         
         // Detect mobile device
         var isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);

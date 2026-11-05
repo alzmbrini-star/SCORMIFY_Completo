@@ -1,0 +1,3 @@
+main,.avatar,#panel{min-width:0}header{min-width:0;flex-wrap:wrap}header h1{min-width:0;overflow-wrap:anywhere}#panel{overflow-wrap:anywhere}.controls{flex-shrink:0}#panel .option{overflow-wrap:anywhere;min-width:0}
+body.large #panel{font-size:20px}
+@media(max-width:650px){html,body{overflow-x:hidden}body{gap:8px}header{gap:6px}header h1{flex-basis:100%;font-size:20px}main{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(170px,.9fr) minmax(180px,1.1fr);gap:8px;flex-shrink:0}.avatar{padding:6px}button{min-height:44px;padding:8px 10px}#panel{font-size:16px;padding:12px}#panel h2{font-size:19px}.controls{gap:6px}#seek{min-width:60px;width:0}footer{font-size:11px;overflow-wrap:anywhere}}
