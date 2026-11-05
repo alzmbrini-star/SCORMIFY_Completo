@@ -7,6 +7,7 @@ import { getAnimationInitialStyle, getAnimationFinalStyle, getAnimationTransitio
 
 import { getApiUrl } from '../../utils/apiUrl';
 import { resolveHtmlAssetUrls } from '../../utils/htmlAssetUrls';
+import { hostedVideoQuizConfig } from '../../utils/videoQuizHostedDocument';
 const API_URL = getApiUrl();
 
 // Helper to get full asset URL
@@ -1060,7 +1061,7 @@ const SlideCanvas = ({
                       if (element.assessmentConfig) return wrapInteractiveFullbleed(assessmentFrameDocument(element), element.htmlDisplayMode || 'fit');
                       const raw = sanitizeHtmlForDisplay(resolveHtmlContentUrls(element.htmlContent)) || '<p>HTML Content</p>';
                       const isFullDoc = /<!doctype\s+html|<html[\s>]/i.test(raw);
-                      if (isFullDoc) {
+                      if (isFullDoc || hostedVideoQuizConfig(element)) {
                         return wrapInteractiveFullbleed(raw, element.htmlDisplayMode || 'page');
                       }
                       // Choose default text color based on slide background luminance.
@@ -1126,8 +1127,8 @@ const SlideCanvas = ({
                       </html>`;
                     })()}
                     className="border-0"
-                    sandbox={element.assessmentConfig ? assessmentFrameSandbox : 'allow-scripts allow-forms'}
-                    allow={element.assessmentConfig ? assessmentFrameAllow : undefined}
+                    sandbox={element.assessmentConfig ? assessmentFrameSandbox : hostedVideoQuizConfig(element) ? 'allow-scripts allow-same-origin' : 'allow-scripts allow-forms'}
+                    allow={element.assessmentConfig ? assessmentFrameAllow : /video-quiz-data/.test(element.htmlContent || '') ? 'autoplay; fullscreen; encrypted-media; picture-in-picture' : undefined}
                     allowFullScreen={Boolean(element.assessmentConfig)}
                     title="Página HTML interativa"
                     style={{

@@ -128,7 +128,7 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
         </div>
       </div>
 
-      {(element.type === 'video' && !element.embedUrl || videoQuizSnapshot(element)) && <div className="panel-section">
+      {(element.type === 'video' || videoQuizSnapshot(element)) && <div className="panel-section">
         <h4 className="text-sm font-medium mb-2">Vídeo interativo</h4>
         <Button className="w-full" onClick={() => setVideoQuizOpen(true)}>Perguntas durante o vídeo</Button>
         <p className="text-xs text-muted-foreground mt-2">Pausas, respostas e explicação no painel de perguntas.</p>

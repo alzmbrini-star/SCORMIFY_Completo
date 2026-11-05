@@ -9,12 +9,8 @@ from urllib.parse import urlsplit
 def normalize_video_quiz(raw):
     if not isinstance(raw, dict):
         raise ValueError('Configuração de vídeo inválida.')
-    source = str(raw.get('src') or '').strip()
-    parsed = urlsplit(source)
-    if not source or len(source) > 12000 or not (parsed.scheme in ('https', 'http') and parsed.netloc or source.startswith('/api/')):
-        raise ValueError('Selecione um vídeo direto (MP4/WebM ou vídeo HeyGen), não um iframe.')
-    if parsed.hostname in ('youtube.com', 'www.youtube.com', 'youtu.be', 'vimeo.com', 'player.vimeo.com', 'iframe.mediadelivery.net'):
-        raise ValueError('Este player exige o arquivo/link direto do vídeo, não a página ou iframe do provedor.')
+    from services.video_quiz_sources import video_quiz_source
+    source, provider = video_quiz_source(raw.get('src'))
     checkpoints = raw.get('checkpoints')
     if not isinstance(checkpoints, list) or not 1 <= len(checkpoints) <= 12:
         raise ValueError('Adicione de 1 a 12 perguntas ao vídeo.')
@@ -51,6 +47,8 @@ def normalize_video_quiz(raw):
         raise ValueError('Cada pergunta precisa de um momento diferente.')
     result = dict(version=1, src=source, title=str(raw.get('title') or 'Vídeo com perguntas')[:200], checkpoints=clean,
                   instanceId=str(raw.get('instanceId') or '')[:100])
+    if provider != 'direct':
+        result['provider'] = provider
     if raw.get('graded') is True:
         result['graded'] = True  # Different grading modes never share learner state.
     result['key'] = hashlib.sha256(json.dumps(result, sort_keys=True).encode()).hexdigest()[:20]

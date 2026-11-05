@@ -29,6 +29,7 @@ import { getApiUrl } from '../../utils/apiUrl';
 import { resolveHtmlAssetUrls } from '../../utils/htmlAssetUrls';
 import { videoQuizSnapshot } from '../../utils/videoQuizDraft';
 import { fluidVideoQuizSlide, withVideoQuizPreviewTimeline, readVideoQuizPreviewClock, controlVideoQuizPreview } from '../../utils/videoQuizPreview';
+import { hostedVideoQuizConfig } from '../../utils/videoQuizHostedDocument';
 const API_URL = getApiUrl();
 
 const getAssetUrl = (src, projectId) => {
@@ -429,7 +430,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
                         if (element.assessmentConfig) return wrapInteractiveFullbleed(assessmentFrameDocument(element), element.htmlDisplayMode || 'fit');
                         const raw = processHtmlContent(element.htmlContent, projectId);
                         const isFullDoc = /<!doctype\s+html|<html[\s>]/i.test(raw);
-                        if (isFullDoc) return withVideoQuizPreviewTimeline(wrapInteractiveFullbleed(raw, element.htmlDisplayMode || 'page'));
+                        if (isFullDoc || hostedVideoQuizConfig(element)) return withVideoQuizPreviewTimeline(wrapInteractiveFullbleed(raw, element.htmlDisplayMode || 'page'));
                         return `<html><head><style>
                         ${getRtfContentStyles({ textColor: '#f1f5f9', backgroundColor: 'transparent' })}
                         body { padding: ${isFullscreen ? '0' : '8px'}; overflow: ${isFullscreen ? 'hidden' : 'auto'}; }
@@ -445,7 +446,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
                       })()}
                       className="w-full h-full border-0 rounded"
                       style={{ background: 'transparent', scrollbarWidth: 'none' }}
-                      sandbox={element.assessmentConfig ? assessmentFrameSandbox : 'allow-scripts'}
+                      sandbox={element.assessmentConfig ? assessmentFrameSandbox : hostedVideoQuizConfig(element) ? 'allow-scripts allow-same-origin' : 'allow-scripts'}
                       allow={element.assessmentConfig ? assessmentFrameAllow : videoQuizSnapshot(element) ? 'autoplay; fullscreen; picture-in-picture' : undefined}
                       data-video-quiz-key={videoQuizSnapshot(element)?.key}
                       allowFullScreen={Boolean(element.assessmentConfig)}

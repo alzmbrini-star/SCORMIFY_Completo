@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -7,6 +7,8 @@ import { authHeaders } from '../../contexts/AuthContext';
 import { getApiUrl } from '../../utils/apiUrl';
 import { absoluteVideoQuestions, nextVideoQuestionTime, prepareVideoQuizDraft, videoQuizSnapshot } from '../../utils/videoQuizDraft';
 import { toast } from 'sonner';
+import { videoQuizSource } from '../../utils/videoQuizProviders';
+import VideoSourcePreview from './VideoSourcePreview';
 
 const blank = () => ({at: 10, relative: false, question: '', options: ['', '', '', ''], correctIndex: 0, explanation: '', maxAttempts: 3});
 
@@ -15,12 +17,16 @@ export default function VideoQuizDialog({ open, onOpenChange, element, onApply, 
   const [script, setScript] = useState(''), [bank, setBank] = useState([]), [search, setSearch] = useState('');
   const [duration, setDuration] = useState(0), [validationErrors, setValidationErrors] = useState([]), [savePhase, setSavePhase] = useState('');
   const sessionRef = useRef(null), durationRef = useRef(0), formRef = useRef(null), saveRef = useRef(false);
+  const source = useMemo(()=>{try{return videoQuizSource(draft.src);}catch(e){return {error:e.message};}},[draft.src]);
+  function loadedDuration(d) {
+    if (Number.isFinite(d) && d > 0) { durationRef.current = d; setDuration(d); setDraft(prev => ({...prev, checkpoints: absoluteVideoQuestions(prev.checkpoints, d)})); }
+  }
   useEffect(() => {
     if (!open) { sessionRef.current = null; return; }
     const identity = element.id || 'current-video';
     if (sessionRef.current === identity) return;
     sessionRef.current = identity;
-    const initial = videoQuizSnapshot(element) || {title: 'Vídeo com perguntas', src: element.src || '', instanceId: element.id, graded:false, checkpoints: [blank()]};
+    const initial = videoQuizSnapshot(element) || {title: 'Vídeo com perguntas', src: element.embedUrl || element.src || '', instanceId: element.id, graded:false, checkpoints: [blank()]};
     setDraft({...JSON.parse(JSON.stringify(initial)), src: initial.src?.startsWith('/api/') ? `${getApiUrl()}${initial.src}` : initial.src});
     durationRef.current = 0; setDuration(0); setValidationErrors([]); setSavePhase('');
     setError(''); setScript(''); setBank([]); setSearch('');
@@ -37,6 +43,8 @@ export default function VideoQuizDialog({ open, onOpenChange, element, onApply, 
   async function save() {
     if (saveRef.current) return;
     const prepared = prepareVideoQuizDraft(draft, durationRef.current);
+    if(source.error)prepared.errors.unshift({message:source.error});
+    else prepared.config.src=source.src;
     setValidationErrors(prepared.errors); setError('');
     if (prepared.errors.length) return;
     saveRef.current = true; setBusy(true); setSavePhase('Preparando as perguntas…');
@@ -76,11 +84,13 @@ export default function VideoQuizDialog({ open, onOpenChange, element, onApply, 
       <label className="block text-sm">Título<Input value={draft.title || ''} onChange={e => setDraft({...draft, title: e.target.value})} /></label>
       <label className="block text-sm">Vale nota?<select aria-label="Vale nota?" className="block w-full mt-1 rounded border border-input bg-background p-2" disabled={busy} value={draft.graded===true?'yes':'no'} onChange={e=>setDraft({...draft,graded:e.target.value==='yes'})}><option value="no">Não — prática e revisão livre</option><option value="yes">Sim — atividade avaliativa</option></select></label>
       <p className="text-xs text-muted-foreground">{draft.graded===true ? 'Cada pergunta acertada dentro do limite de tentativas tem o mesmo peso. A explicação após esgotar as tentativas não pontua. A nota é enviada ao concluir o vídeo e compõe o resultado do curso no SCORM. Uma nova tentativa avaliativa precisa ser iniciada explicitamente.' : 'Não altera nota, aprovação ou reprovação. O aluno pode usar “Rever vídeo e perguntas” para começar de novo e responder novamente, inclusive após concluir. A revisão não bloqueia novamente as seções já liberadas.'}</p>
-      <label className="block text-sm">Vídeo direto (HeyGen, MP4 ou WebM)<Input disabled={busy} value={draft.src || ''} onChange={e => { durationRef.current = 0; setDuration(0); setDraft({...draft, src: e.target.value}); }} /></label>
+      <label className="block text-sm">Vídeo — Bunny, Vimeo, YouTube, HeyGen, MP4 ou WebM<Input aria-label="Link ou iframe do vídeo" placeholder="Cole uma URL ou o iframe completo do provedor" disabled={busy} value={draft.src || ''} onChange={e => { durationRef.current = 0; setDuration(0); setDraft({...draft, src: e.target.value}); }} /></label>
       <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={draft.preserveTransparency !== false} onChange={e => setDraft({...draft, preserveTransparency: e.target.checked})} />Preservar fundo transparente do vídeo</label>
       <p className="text-xs text-muted-foreground">Mantém o canal alfa do arquivo original (por exemplo, WebM transparente do HeyGen), sem converter o vídeo. Não remove um fundo que já esteja gravado no vídeo. O painel de perguntas mantém o contraste.</p>
-      <p className="text-xs text-muted-foreground">Não aceita iframe de YouTube/Vimeo/Bunny. Links externos exigem conexão e podem expirar. Revise os tempos assistindo ao vídeo; prefira pausas ao final das frases. A atividade passa a ocupar este elemento no slide.</p>
-      {draft.src && <video src={draft.src} controls preload="metadata" className="w-full max-h-48 bg-black" onLoadedMetadata={e => { const d = e.currentTarget.duration; if (Number.isFinite(d) && d > 0) { durationRef.current = d; setDuration(d); setDraft(prev => ({...prev, checkpoints: absoluteVideoQuestions(prev.checkpoints, d)})); } }} />}
+      <p className="text-xs text-muted-foreground">Aceita URL ou iframe de Bunny Stream, Vimeo e YouTube. As perguntas controlam a pausa e a retomada dentro do slide. Vídeos externos exigem internet também no HTML/SCORM. Não use transmissões ao vivo. Prefira pausas ao final das frases.</p>
+      <p className="text-xs text-amber-300">Bunny protegido: cole o iframe completo para manter token e expires e autorize os domínios do Editor e do LMS no provedor. Vimeo não listado: mantenha o hash do link. YouTube precisa permitir incorporação e ser aberto em HTTPS (arquivos locais podem ser bloqueados). O provedor pode exibir seus próprios controles e avisos.</p>
+      {draft.src && source.error && <p role="alert" className="text-sm text-amber-300">{source.error}</p>}
+      {draft.src && !source.error && (source.provider==='direct' ? <video src={source.src} controls preload="metadata" className="w-full max-h-48 bg-black" onLoadedMetadata={e => loadedDuration(e.currentTarget.duration)} /> : <VideoSourcePreview source={source} onDuration={loadedDuration} />)}
       {duration > 0 && <p className="text-xs text-muted-foreground">Duração do vídeo: {duration.toFixed(1)} segundos. Cada pergunta deve ter um momento diferente, antes do final.</p>}
       <details><summary>Gerar perguntas com IA a partir do roteiro</summary><p className="text-xs text-muted-foreground">Usa os créditos de IA configurados e substitui o rascunho de perguntas. Revise as respostas e os momentos sugeridos antes de aplicar.</p><Textarea aria-label="Roteiro para gerar perguntas" value={script} onChange={e => setScript(e.target.value)} placeholder="Cole a fala do personagem..." /><Button disabled={busy || script.trim().length < 40} onClick={generate}>Gerar duas perguntas com IA</Button></details>
       <details><summary>Usar perguntas do Banco</summary><Button onClick={loadBank} disabled={busy}>Carregar Banco do projeto</Button><Input aria-label="Buscar questão no Banco" placeholder="Buscar questão..." value={search} onChange={e => setSearch(e.target.value)} />{bank.filter(q => { const opts = q.alternatives || q.options || []; return opts.length >= 2 && opts.filter(o => o.isCorrect).length === 1 && String(q.text || q.prompt || q.title || '').toLowerCase().includes(search.toLowerCase()); }).slice(0, 30).map(q => <Button key={q.id} variant="outline" className="block w-full text-left truncate mt-1" disabled={questions.length >= 12} onClick={() => importQuestion(q)}>{q.text || q.prompt || q.title}</Button>)}</details>

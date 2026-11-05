@@ -20,6 +20,10 @@ def _feedback_layout(document):
 def upgrade_video_quiz_playback(document):
     if not isinstance(document, str) or not re.search(r'id=[\"\']video-quiz-data[\"\']', document):
         return document
+    if 'id="video-quiz-providers-v1"' not in document:
+        provider = (Path(__file__).parent / 'export_assets/video-quiz-providers.js').read_text(encoding='utf-8')
+        document = re.sub(r'(<script\b[^>]*\bid=[\"\']video-quiz-data[\"\'][^>]*>[\s\S]*?</script>)',
+                          lambda m: m[0] + '<script id="video-quiz-providers-v1">' + provider + '</script>', document, count=1, flags=re.I)
     if 'id="video-quiz-runtime-v2"' not in document:
         runtime = (Path(__file__).parent / 'export_assets/video-quiz.js').read_text(encoding='utf-8')
         def upgrade(match):

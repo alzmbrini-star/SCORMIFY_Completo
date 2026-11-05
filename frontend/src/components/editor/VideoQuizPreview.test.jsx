@@ -37,6 +37,16 @@ describe.each([['split',SplitPreview,8],['course',CoursePreview,48]])('%s video 
     expect(stage.style.width).toBe((390-padding)+'px');
     expect(container.querySelector('iframe')).toBe(frame);
     expect(JSON.stringify(slide)).toBe(original);
+    expect(frame.getAttribute('sandbox')).not.toContain('allow-same-origin');
+  });
+  test('hosted providers use a trusted rebuilt player, never author script with same-origin privileges',async()=>{
+    const hosted={...config,src:'https://vimeo.com/76979871',provider:'vimeo'};
+    const html='<script id="video-quiz-data" type="application/json">'+JSON.stringify(hosted)+'</script><script>stealParentSecrets()</script>';
+    await renderSlide({...slide,elements:[{...element,htmlContent:html}]});
+    const frame=container.querySelector('iframe');
+    expect(frame.getAttribute('sandbox')).toContain('allow-same-origin');
+    expect(frame.getAttribute('srcdoc')).not.toContain('stealParentSecrets()');
+    expect(frame.getAttribute('srcdoc')).toContain('video-quiz-runtime-v2');
   });
   test('does not reflow overlays and retains their timing/geometry',async()=>{
     const custom={...slide,elements:[element,{id:'image',type:'image',src:'https://example.org/image.png',x:300,y:200,width:100,height:80,startTime:3}]};
