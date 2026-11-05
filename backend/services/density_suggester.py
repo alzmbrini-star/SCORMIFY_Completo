@@ -26,7 +26,7 @@ from services.llm_config import openai_api_key, openai_text_model
 logger = logging.getLogger(__name__)
 
 
-SUGGESTION_TYPES = ("summarize", "split", "bullets", "comparison", "infographic", "diagram")
+SUGGESTION_TYPES = ("summarize", "bullets", "comparison", "infographic", "diagram")
 
 
 def _build_prompt(title: str, text: str, bullets: List[str], reasons: List[str]) -> str:
@@ -43,7 +43,9 @@ Corpo:
 Bullets:
 {bullet_block}
 
-Sua tarefa: gerar 3 sugestoes DISTINTAS para tornar este slide mais visual e engajante. Para cada sugestao, escolha um tipo entre: summarize, split, bullets, comparison, infographic, diagram.
+Sua tarefa: gerar 3 sugestoes DISTINTAS e executáveis para tornar este slide mais visual e engajante. Para cada sugestao, escolha um tipo entre: summarize, bullets, comparison, infographic, diagram.
+Preserve os fatos, condições, alertas e objetivos do conteúdo. Não invente números, normas ou conclusões. Não prometa criar slides, jogos ou animações: esta ferramenta aplica texto, tabelas e imagem estática ao slide atual.
+Para comparison, inclua também table: {{"headers":["Critério","Opção A","Opção B"],"rows":[["Critério real","Fato A","Fato B"]]}}. Use comparação somente quando há dados comparáveis no conteúdo. A tabela será realmente renderizada. Não repita a mesma informação em transformedText e transformedBullets.
 
 Responda EXCLUSIVAMENTE com um JSON valido no formato:
 {{
@@ -63,7 +65,8 @@ Responda EXCLUSIVAMENTE com um JSON valido no formato:
 Regras importantes:
 - transformedText em pt-BR, conciso, voz ativa.
 - transformedBullets em pt-BR, no maximo 5 itens, frases curtas (≤8 palavras).
-- Se a sugestao for "split", coloque a primeira metade em transformedText e a segunda metade no segundo objeto de suggestion (use 2 sugestoes consecutivas).
+- Não use split: a divisão automática em novos slides não faz parte desta tela.
+- Cada alternativa deve reduzir a carga de leitura com uma estratégia diferente, não apenas trocar o título. Prefira até 80 palavras e 5 tópicos, sem omitir instruções críticas.
 - Para "diagram" e "infographic" deixe requiresImage=true e preencha imagePrompt em **PORTUGUES BRASILEIRO (pt-BR)** (max 35 palavras). Sempre termine o imagePrompt com: ". Todos os rotulos, titulos e legendas em portugues do Brasil. NAO usar texto em ingles." — essa instrucao final e OBRIGATORIA quando requiresImage=true.
 - Nunca repita o texto original quase identico — uma sugestao deve transformar de verdade.
 
@@ -126,6 +129,8 @@ async def generate_visual_suggestions(
             if not isinstance(sug, dict):
                 continue
             t = (sug.get("type") or "summarize").lower().strip()
+            if t == 'split':
+                continue  # Do not promise a multi-slide operation the UI cannot apply.
             if t not in SUGGESTION_TYPES:
                 t = "summarize"
             image_prompt = (sug.get("imagePrompt") or "").strip()[:400]
@@ -148,18 +153,28 @@ async def generate_visual_suggestions(
                     f"Ilustracao educacional visual sobre {subject}. Composicao clara, "
                     "profissional, com icones e formas, sem blocos longos de texto."
                 )[:400]
+            table = sug.get('table') or {}
+            headers = [str(h)[:100] for h in table.get('headers',[])][:4] if isinstance(table,dict) and isinstance(table.get('headers'),list) else []
+            rows = [[str(cell)[:240] for cell in row[:len(headers)]] for row in table.get('rows',[]) if isinstance(row,list) and len(row)>=len(headers)][:6] if headers and isinstance(table.get('rows'),list) else []
+            if t == 'comparison' and not rows:
+                continue  # A "table" suggestion must contain a real renderable table.
+            transformed_text = str(sug.get('transformedText') or '').strip()
+            transformed_bullets = [b.strip() for b in (sug.get('transformedBullets') or []) if isinstance(b,str) and b.strip()][:6]
+            if not transformed_text and not transformed_bullets and not rows:
+                continue
             normalized.append({
                 "id": f"sug-{i}",
                 "type": t,
                 "title": (sug.get("title") or "").strip()[:80],
                 "description": (sug.get("description") or "").strip()[:240],
-                "transformedText": (sug.get("transformedText") or "").strip(),
+                "transformedText": transformed_text,
                 "transformedBullets": [
                     b.strip() for b in (sug.get("transformedBullets") or [])
                     if isinstance(b, str) and b.strip()
                 ][:6],
                 "imagePrompt": image_prompt,
                 "requiresImage": requires_image,
+                "table": {"headers": headers,"rows": rows} if rows else None,
             })
         return normalized or _fallback_suggestions(text, bullets)
     except Exception as e:
@@ -175,10 +190,14 @@ def _fallback_suggestions(text: str, bullets: List[str]) -> List[Dict]:
     if text:
         # Truncate to ~half the original length, ending at a sentence boundary
         target = max(80, len(text) // 2)
-        cut = text[:target]
-        last_dot = max(cut.rfind("."), cut.rfind("!"), cut.rfind("?"))
-        if last_dot > target * 0.4:
-            cut = cut[:last_dot + 1]
+        import re
+        sentences = re.split(r'(?<=[.!?])\s+',text.strip())
+        selected=[]
+        for sentence in sentences:
+            if selected and sum(map(len,selected))+len(sentence)>target:
+                break
+            selected.append(sentence)
+        cut = ' '.join(selected)
         out.append({
             "id": "fb-summarize",
             "type": "summarize",
@@ -188,6 +207,7 @@ def _fallback_suggestions(text: str, bullets: List[str]) -> List[Dict]:
             "transformedBullets": [],
             "imagePrompt": "",
             "requiresImage": False,
+            "requiresReview": True,
         })
     if text and not bullets:
         # Naive bullet extraction: one bullet per sentence (up to 5)
@@ -202,5 +222,6 @@ def _fallback_suggestions(text: str, bullets: List[str]) -> List[Dict]:
             "transformedBullets": sentences,
             "imagePrompt": "",
             "requiresImage": False,
+            "requiresReview": True,
         })
     return out

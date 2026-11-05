@@ -10,6 +10,7 @@ import {
   pickReadableTextColor,
   buildSuggestionHtml,
   buildSuggestionPlainText,
+  densityVisibleText, densityProtected, assertDensitySafe, densityBodyElements,
 } from '../../../lib/densityApplyHelpers';
 import { getApiUrl } from '../../../utils/apiUrl';
 
@@ -61,9 +62,7 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
       if (el.isBrandLogo) return;
       const t = (el.type || '').toLowerCase();
       if (['text', 'html', 'paragraph', 'title', 'heading'].includes(t)) {
-        const content = (el.htmlContent
-          ? (() => { const d = document.createElement('div'); d.innerHTML = el.htmlContent; return d.textContent || d.innerText || ''; })()
-          : (el.content || el.text || ''));
+        const content = densityVisibleText(el);
         const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
         const bs = lines.filter(l => l.startsWith('•') || l.startsWith('-') || l.startsWith('*'))
           .map(l => l.replace(/^[•\-*]\s*/, '').trim());
@@ -416,8 +415,9 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
           Analisar densidade e sugerir melhorias
         </Button>
         <p className="text-[10px] text-muted-foreground mt-1">
-          O agente verifica se o slide esta muito textual e sugere alternativas mais visuais.
+          Analisa o texto visível, não capturas de tela. Atividades interativas são protegidas.
         </p>
+        {slide.densityPreviousElements && <Button variant="outline" size="sm" className="w-full mt-2" onClick={()=>onUpdate({elements:slide.densityPreviousElements,densityPreviousElements:null})}>Restaurar antes da sugestão</Button>}
       </div>
 
       {/* Brand Library picker — mounted at the root of SlideProperties so
@@ -487,11 +487,12 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
           element are preserved. */}
       <DensitySuggestionsDialog
         open={densityOpen}
+        protectedActivity={densityProtected(slide)}
         onClose={() => setDensityOpen(false)}
         {...collectDensityInput()}
         onApply={async (sug) => {
+          assertDensitySafe(slide,sug);
           const elements = [...(slide.elements || [])];
-          const TEXTUAL_TYPES = ['text', 'html', 'paragraph', 'title', 'heading'];
           const SLIDE_WIDTH = Number(slide.width) || 1920;
           const SLIDE_HEIGHT = Number(slide.height) || 1080;
           const toPixels = (value, total, fallback = 0) => {
@@ -510,9 +511,7 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
           // HEADER strip at index 0 (1920x50 banner) and the BODY at index 1
           // (1760x700). We MUST pick the largest as survivor — otherwise the
           // new prose would be squashed into the header strip (broken UX).
-          const textualEls = elements
-            .map((el, i) => ({ el, i }))
-            .filter(({ el }) => TEXTUAL_TYPES.includes((el.type || '').toLowerCase()) && !el.isBrandLogo);
+          const textualEls = densityBodyElements(elements);
 
           // If the suggestion promised an image (infographic/diagram types),
           // generate it FIRST — applying the text-only rewrite without the
@@ -635,9 +634,10 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
               imgH = uh;
             }
 
-            const isHtmlType = (survivor.el.type || '').toLowerCase() === 'html';
+            const isHtmlType = (survivor.el.type || '').toLowerCase() === 'html' || sug.type==='comparison';
             elements[survivor.i] = {
               ...survivor.el,
+              type: isHtmlType ? 'html' : survivor.el.type,
               x: textX, y: textY, width: textW, height: textH,
               // Update BOTH content and htmlContent so whichever the renderer
               // reads (depends on slide template), the new prose shows.
@@ -660,13 +660,13 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
                 generatedBy: 'density-analyzer',
               });
             }
-            onUpdate({ elements: cleaned });
+            onUpdate({ elements: cleaned, densityPreviousElements:slide.elements });
           } else {
             // No existing textual element — just append the new prose, and
             // the image if it was generated.
             elements.push({
               id: `text-${Date.now()}`,
-              type: 'text',
+              type: sug.type==='comparison'?'html':'text',
               content: plainText,
               htmlContent,
               x: 80, y: 80,
@@ -685,7 +685,7 @@ export function SlideProperties({ slide, onUpdate, project, onApplyShadowToAllSl
                 generatedBy: 'density-analyzer',
               });
             }
-            onUpdate({ elements });
+            onUpdate({ elements, densityPreviousElements:slide.elements });
           }
           // Confirm visually so the author knows something happened
           try {

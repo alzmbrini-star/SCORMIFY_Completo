@@ -31,6 +31,7 @@ import {
   pickReadableTextColor,
   buildSuggestionHtml,
   buildSuggestionPlainText,
+  densityVisibleText, densityProtected, assertDensitySafe, densityBodyElements,
 } from '../../../lib/densityApplyHelpers';
 
 const API = getApiUrl();
@@ -468,7 +469,7 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
           lets the author open the Editor pre-targeted at that slide, or open
           the suggestions dialog right here for a quick rewrite. */}
       {(() => {
-        const items = Object.values(slideDensity);
+        const items = Object.values(slideDensity).filter(d=>!densityProtected(d._slide));
         if (items.length === 0) return null;
         const heavy = items.filter(d => d.label === 'heavy');
         const medium = items.filter(d => d.label === 'medium');
@@ -478,7 +479,7 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-fuchsia-400" />
-                <span>Analise Visual</span>
+                <span>Análise de texto e sugestões visuais</span>
                 <Badge variant="outline" className="text-[9px] border-fuchsia-700/50 text-fuchsia-300">
                   {heavy.length + medium.length} slide(s)
                 </Badge>
@@ -486,7 +487,7 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
             </CardHeader>
             <CardContent className="space-y-2">
               <p className="text-xs text-slate-400">
-                O Agente IA identificou slides que podem ficar mais visuais. Clique em um para ver sugestoes.
+                A análise de densidade identificou slides textuais que podem melhorar. Não avalia capturas de tela. Atividades interativas são preservadas.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-72 overflow-y-auto">
                 {[...heavy, ...medium].map((d, idx) => (
@@ -522,13 +523,7 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
             const t = (e.type || '').toLowerCase();
             return ['text', 'html', 'paragraph', 'title', 'heading'].includes(t) && !e.isBrandLogo;
           })
-          .map(e => {
-            if (e.htmlContent) {
-              const d = document.createElement('div'); d.innerHTML = e.htmlContent;
-              return d.textContent || '';
-            }
-            return e.content || e.text || '';
-          })
+          .map(densityVisibleText)
           .join(' ')}
         bullets={[]}
         hasImage={(densityDialog.slide?.elements || []).some(e => ['image','video','avatar'].includes((e.type||'').toLowerCase()) && !e.isBrandLogo) || !!densityDialog.slide?.backgroundImage}
@@ -550,17 +545,17 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
           const slide = densityDialog.slide;
           if (!slide?.id) return;
           try {
+            assertDensitySafe(slide,sug);
             // Pull the full project, mutate the matching slide, save.
             const pr = await fetch(`${API}/api/projects/${project.projectId}`, { headers: authHeaders() });
+            if (!pr.ok) throw new Error(`Não foi possível carregar o projeto (HTTP ${pr.status}).`);
             const proj = await pr.json();
             const slides = proj?.course?.slides || [];
             const target = slides.find(s => s.id === slide.id);
-            if (!target) return;
+            if (!target) throw new Error('O slide não está mais disponível. Reabra o projeto.');
+            assertDensitySafe(target,sug);
             const elements = [...(target.elements || [])];
-            const TEXTUAL_TYPES = ['text', 'html', 'paragraph', 'title', 'heading'];
-            const textualEls = elements
-              .map((el, i) => ({ el, i }))
-              .filter(({ el }) => TEXTUAL_TYPES.includes((el.type || '').toLowerCase()) && !el.isBrandLogo);
+            const textualEls = densityBodyElements(elements);
 
             // If suggestion promised an image (infographic/diagram types),
             // generate it via the user-selected provider (Gemini default,
@@ -577,7 +572,7 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
                     projectId: project.projectId,
                     imagePrompt: sug.imagePrompt,
                     suggestionId: sug.id,
-                    provider: sug.imageProvider || 'gemini',
+                    provider: sug.imageProvider || 'openai',
                     kreaModelId: sug.kreaModelId || 'flux-1-dev',
                     imageStyle: sug.imageStyle || 'infographic',
                     saveToLibrary: sug.saveToLibrary !== false,
@@ -585,7 +580,13 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
                 });
                 if (r.ok) {
                   const j = await r.json();
-                  generatedImageUrl = j?.url || null;
+                  const rawUrl = j?.url;
+                  if(rawUrl) {
+                    const absolute=/^https?:\/\//i.test(rawUrl)?rawUrl:`${API}${rawUrl.startsWith('/')?'':'/'}${rawUrl}`;
+                    const readable=await fetch(absolute,{headers:authHeaders(),cache:'no-store'});
+                    if(readable.ok) generatedImageUrl=absolute;
+                    else imageError=`O arquivo gerado não ficou disponível (HTTP ${readable.status}).`;
+                  }
                   if (j?.savedToLibrary) sug._savedToLibrary = true;
                 } else {
                   try {
@@ -596,6 +597,8 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
               } catch (_e) { imageError = 'Falha de rede ao gerar imagem.'; }
             }
 
+            if (sug.requiresImage && !generatedImageUrl) throw new Error(`Imagem não gerada: ${imageError || 'arquivo indisponível'}. O slide não foi alterado.`);
+            target.densityPreviousElements=target.elements;
             const plainText = buildSuggestionPlainText(sug);
             // Pre-pick text color from slide-level hints. Will be re-resolved
             // when we know the survivor (to honor any per-element color override).
@@ -641,9 +644,10 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
                 imgH = uh;
               }
 
-              const isHtmlType = (survivor.el.type || '').toLowerCase() === 'html';
+              const isHtmlType = (survivor.el.type || '').toLowerCase() === 'html' || sug.type==='comparison';
               elements[survivor.i] = {
                 ...survivor.el,
+                type: isHtmlType ? 'html' : survivor.el.type,
                 x: ux, y: uy, width: textW, height: uh,
                 content: plainText,
                 htmlContent: isHtmlType || survivor.el.htmlContent ? htmlContent : undefined,
@@ -664,7 +668,7 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
             } else if (plainText) {
               elements.push({
                 id: `text-${Date.now()}`,
-                type: 'text',
+                type: sug.type==='comparison'?'html':'text',
                 content: plainText,
                 htmlContent,
                 x: 80, y: 80,
@@ -685,11 +689,12 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
               target.elements = elements;
             }
             // PUT the project back
-            await fetch(`${API}/api/projects/${project.projectId}`, {
+            const saved = await fetch(`${API}/api/projects/${project.projectId}`, {
               method: 'PUT',
               headers: authHeaders({ 'Content-Type': 'application/json' }),
               body: JSON.stringify(proj),
             });
+            if (!saved.ok) throw new Error(`Não foi possível salvar a sugestão (HTTP ${saved.status}).`);
             if (generatedImageUrl) {
               toast.success(sug._savedToLibrary
                 ? 'Sugestao aplicada. Imagem gerada e salva na Biblioteca de Marca.'
@@ -701,14 +706,15 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
             } else {
               toast.success('Sugestao aplicada. O conteudo do slide foi substituido.');
             }
-            // Re-analyze locally
-            setSlideDensity(prev => {
-              const next = { ...prev };
-              delete next[slide.id];
-              return next;
-            });
-          } catch (_e) {
-            toast.error('Falha ao aplicar sugestao.');
+            // Re-score the saved content instead of hiding the warning merely
+            // because Apply was clicked. This call is deterministic, not paid AI.
+            try {
+              const report=await fetch(`${API}/api/density/analyze-project`,{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({slides:[target]})});
+              if(report.ok){const result=await report.json();const revised=result.slides?.[0];if(revised)setSlideDensity(prev=>({...prev,[slide.id]:{...revised,_slide:target}}));}
+            } catch (_) { /* Preserve prior diagnostic if refresh is unavailable. */ }
+          } catch (error) {
+            toast.error(error.message || 'Falha ao aplicar sugestão.');
+            throw error;
           }
         }}
       />

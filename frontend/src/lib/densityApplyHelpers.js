@@ -16,6 +16,46 @@ const escapeHtml = (s) => String(s)
   .replace(/</g, '&lt;')
   .replace(/>/g, '&gt;');
 
+export function densitySource(element) {
+  let raw=element?.htmlContent || element?.content || element?.text || '';
+  if (typeof raw!=='string') return '';
+  if (raw.startsWith('__B64__:')) {
+    try { raw=new TextDecoder().decode(Uint8Array.from(atob(raw.slice(8)),c=>c.charCodeAt(0))); }
+    catch (_) { return ''; }
+  }
+  return raw;
+}
+
+export function densityVisibleText(element) {
+  const raw=densitySource(element);
+  if (!/<[a-z!/]/i.test(raw)) return raw;
+  const doc=new DOMParser().parseFromString(raw,'text/html');
+  doc.querySelectorAll('script,style,head,template,noscript,[hidden],[aria-hidden="true"]').forEach(n=>n.remove());
+  doc.querySelectorAll('[style]').forEach(n=>{if(/display\s*:\s*none|visibility\s*:\s*hidden/i.test(n.getAttribute('style')))n.remove();});
+  doc.querySelectorAll('br,p,div,li,section,article,h1,h2,h3').forEach(n=>{n.appendChild(doc.createTextNode('\n'));});
+  return (doc.body.textContent || '').replace(/\u00a0/g,' ').trim();
+}
+
+export function densityProtected(slide) {
+  return (slide?.elements || []).some(el=>el.assessmentConfig || el.videoQuizConfig || el.gameConfig || el.simulatorConfig ||
+    (typeof el.htmlContent==='string' && el.htmlContent.startsWith('__B64__:') && !densitySource(el)) ||
+    ['game','simulator','quiz','scenario','whiteboard','video','avatar','iframe','flipbook'].includes((el.type||'').toLowerCase()) ||
+    /<(?:script|iframe|canvas|video|audio|button|input|select|textarea)\b|\bon[a-z]+\s*=|data-sim-engine|video-quiz-data/i.test(densitySource(el)));
+}
+
+export function assertDensitySafe(slide,suggestion) {
+  if (densityProtected(slide)) throw new Error('Atividade interativa protegida: a análise não substitui simuladores, perguntas, vídeos ou suas regras. Edite a atividade pela ferramenta própria.');
+  if (!buildSuggestionPlainText(suggestion).trim()) throw new Error('A sugestão não contém conteúdo aplicável. Nada foi alterado.');
+  if (suggestion.type==='split') throw new Error('Divisão automática em slides não suportada nesta tela. Escolha outra sugestão.');
+}
+
+export function densityBodyElements(elements) {
+  const candidates=elements.map((el,i)=>({el,i})).filter(({el})=>
+    ['text','html','paragraph'].includes((el.type||'').toLowerCase()) && !el.isBrandLogo);
+  const max=Math.max(0,...candidates.map(({el})=>(Number(el.width)||0)*(Number(el.height)||0)));
+  return candidates.filter(({el})=>!max||(Number(el.width)||0)*(Number(el.height)||0)>=max*.3);
+}
+
 /** Parse a color string into [r,g,b] (0-255). Accepts #rgb, #rrggbb,
  *  rgb(...). Returns null when input is unparsable so callers can fall
  *  back. */
@@ -66,7 +106,7 @@ export function pickReadableTextColor(slide, survivor) {
   const explicit = survivor?.style?.color || survivor?.style?.fontColor;
   if (explicit && _parseColor(explicit)) return explicit;
   if (slide?.globalTextColor && _parseColor(slide.globalTextColor)) return slide.globalTextColor;
-  const bg = slide?.backgroundColor;
+  const bg = slide?.backgroundColor || slide?.background;
   const bgRgb = _parseColor(bg);
   if (bgRgb) {
     const L = _relativeLuminance(bgRgb);
@@ -85,6 +125,11 @@ export function pickReadableTextColor(slide, survivor) {
 export function buildSuggestionHtml(sug, color) {
   const c = color || '#0f172a';
   let html = '';
+  if (sug.type==='comparison' && sug.table?.headers?.length && sug.table?.rows?.length) {
+    return `<table style="width:100%;border-collapse:collapse;color:${c};font:24px/1.5 system-ui"><thead><tr>`+
+      sug.table.headers.map(h=>`<th style="text-align:left;border:1px solid #94a3b8;padding:12px;background:#e2e8f0;color:#0f172a">${escapeHtml(h)}</th>`).join('')+
+      '</tr></thead><tbody>'+sug.table.rows.map(row=>'<tr>'+row.map(cell=>`<td style="border:1px solid #94a3b8;padding:12px;color:${c}">${escapeHtml(cell)}</td>`).join('')+'</tr>').join('')+'</tbody></table>';
+  }
   if (sug.transformedBullets?.length) {
     html = `<ul style="margin:0;padding-left:1.2em;font-size:24px;line-height:1.5;color:${c}">` +
       sug.transformedBullets.map(b =>
@@ -106,8 +151,7 @@ export function buildSuggestionHtml(sug, color) {
 }
 
 export function buildSuggestionPlainText(sug) {
-  return sug.transformedText
-    || (sug.transformedBullets?.length
-        ? sug.transformedBullets.map(b => `• ${b}`).join('\n')
-        : '');
+  if(sug.type==='comparison'&&sug.table?.headers?.length&&sug.table?.rows?.length)
+    return [sug.table.headers.join(' | '),...sug.table.rows.map(r=>r.join(' | '))].join('\n');
+  return [sug.transformedText,(sug.transformedBullets||[]).map(b=>`• ${b}`).join('\n')].filter(Boolean).join('\n\n');
 }

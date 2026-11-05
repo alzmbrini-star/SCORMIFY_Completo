@@ -20,9 +20,41 @@ Labels:
 """
 from typing import Dict, List, Optional
 import re
+import base64
+from html.parser import HTMLParser
 
 
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+class _ReadableHTML(HTMLParser):
+    """Static text only: scripts, styles, metadata and hidden UI are not prose."""
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts = []
+        self.stack = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        hidden = (tag in {'script','style','head','template','noscript'} or 'hidden' in attrs
+                  or attrs.get('aria-hidden','').lower() == 'true'
+                  or re.search(r'(?:display\s*:\s*none|visibility\s*:\s*hidden)',attrs.get('style',''),re.I))
+        if tag not in {'br','hr','img','input','meta','link','source','wbr','area','embed','param','track','col','base'}:
+            self.stack.append((tag, bool(hidden) or any(h for _,h in self.stack)))
+        if tag in {'br','p','div','li','section','article','h1','h2','h3'} and not any(h for _,h in self.stack):
+            self.parts.append('\n')
+
+    def handle_endtag(self, tag):
+        for i in range(len(self.stack)-1,-1,-1):
+            if self.stack[i][0] == tag:
+                self.stack = self.stack[:i]
+                break
+        if tag in {'p','div','li','section','article','h1','h2','h3'}:
+            self.parts.append('\n')
+
+    def handle_data(self, text):
+        if not any(h for _,h in self.stack):
+            self.parts.append(text)
 
 
 def _plain_element_text(element: Dict) -> str:
@@ -30,11 +62,15 @@ def _plain_element_text(element: Dict) -> str:
     raw = element.get("htmlContent") or element.get("content") or element.get("text") or ""
     if not isinstance(raw, str):
         return str(raw)
+    if raw.startswith('__B64__:'):
+        try:
+            raw = base64.b64decode(raw[8:],validate=True).decode('utf-8')
+        except (ValueError,UnicodeError):
+            return ''
     if "<" in raw and ">" in raw:
-        raw = re.sub(r"</(?:p|div|li|h[1-6]|section|article)>|<br\s*/?>", "\n", raw, flags=re.I)
-        raw = _HTML_TAG_RE.sub(" ", raw)
-        raw = (raw.replace("&nbsp;", " ").replace("&amp;", "&")
-               .replace("&lt;", "<").replace("&gt;", ">"))
+        parser = _ReadableHTML()
+        parser.feed(raw)
+        raw = ''.join(parser.parts).replace('\xa0',' ')
         raw = "\n".join(re.sub(r"[ \t]+", " ", line).strip() for line in raw.splitlines())
     return raw.strip()
 
@@ -184,6 +220,11 @@ def analyze_slide(slide: Dict) -> Dict:
             if non_bullets:
                 text_parts.append(" ".join(non_bullets))
             html = el.get("htmlContent") or ""
+            if isinstance(html,str) and html.startswith('__B64__:'):
+                try:
+                    html=base64.b64decode(html[8:],validate=True).decode('utf-8')
+                except (ValueError,UnicodeError):
+                    html=''
             if isinstance(html, str) and re.search(r"<(?:img|video|iframe|svg|canvas)\b", html, re.I):
                 has_image = True
         elif etype in ("image", "video", "avatar", "iframe", "flipbook"):

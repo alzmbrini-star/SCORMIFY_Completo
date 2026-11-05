@@ -72,6 +72,7 @@ export default function DensitySuggestionsDialog({
   text = "",
   bullets = [],
   hasImage = false,
+  protectedActivity = false,
   // Caller-controlled apply
   onApply,
   // Optional pre-loaded density (skip the analyze roundtrip)
@@ -121,7 +122,7 @@ export default function DensitySuggestionsDialog({
   // returns instantly. We do it once per open so admin-side toggles
   // (e.g. adding KREA_API_KEY) are picked up without a page refresh.
   useEffect(() => {
-    if (!open) return;
+    if (!open || protectedActivity) return;
     (async () => {
       try {
         const [pr, sr] = await Promise.all([
@@ -142,6 +143,7 @@ export default function DensitySuggestionsDialog({
 
   useEffect(() => {
     if (!open) return;
+    if (protectedActivity) { setLoading(false); setSuggestions([]); return; }
     let cancelled = false;
     setError("");
     setSuggestions([]);
@@ -172,10 +174,10 @@ export default function DensitySuggestionsDialog({
       }
     })();
     return () => { cancelled = true; };
-  }, [open, title, text, JSON.stringify(bullets), hasImage]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, title, text, JSON.stringify(bullets), hasImage, protectedActivity]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleApply = async (sug) => {
-    if (!onApply) return;
+    if (!onApply || protectedActivity || applyingId) return;
     setApplyingId(sug.id);
     setError("");
     try {
@@ -232,10 +234,11 @@ export default function DensitySuggestionsDialog({
             )}
           </DialogTitle>
           <DialogDescription className="text-slate-400 text-xs">
-            O Agente IA analisou este conteudo. Veja sugestoes para torna-lo mais visual.
+            Análise de densidade textual, não de captura de tela. Confira a prévia antes de aplicar. Sugestões e imagens com IA podem consumir créditos.
           </DialogDescription>
         </DialogHeader>
 
+        {protectedActivity && <p role="status">Atividade interativa protegida. Esta ferramenta não substitui simuladores, vídeos, avaliações ou suas regras. Use a edição própria da atividade.</p>}
         {/* Diagnostics — why we flagged this slide */}
         {density?.reasons?.length > 0 && (
           <div className="bg-slate-800/50 rounded p-3 border border-slate-700" data-testid="density-reasons">
@@ -271,7 +274,7 @@ export default function DensitySuggestionsDialog({
           </div>
         )}
 
-        {!loading && suggestions.length > 0 && (
+        {!protectedActivity && !loading && suggestions.length > 0 && (
           <div className="space-y-2">
             <label
               className="flex items-center gap-2 p-3 rounded border border-cyan-500/40 bg-cyan-500/10 cursor-pointer"
@@ -467,6 +470,8 @@ export default function DensitySuggestionsDialog({
                       <p className="text-xs text-slate-400 mt-1">{sug.description}</p>
 
                       {/* Preview of transformed content */}
+                      {sug.table?.headers?.length > 0 && <div className="overflow-auto mt-2"><table className="text-xs w-full"><thead><tr>{sug.table.headers.map((h,i)=><th key={i} className="border border-slate-600 p-2">{h}</th>)}</tr></thead><tbody>{sug.table.rows.map((row,i)=><tr key={i}>{row.map((cell,j)=><td key={j} className="border border-slate-600 p-2">{cell}</td>)}</tr>)}</tbody></table></div>}
+                      {sug.requiresReview && <p className="text-xs text-amber-300 mt-2">Alternativa automática sem IA. Revise a seleção de conteúdo antes de aplicar.</p>}
                       {(sug.transformedText || sug.transformedBullets?.length > 0) && (
                         <div className="mt-2 bg-slate-950/50 border border-slate-700/50 rounded p-2 text-xs text-slate-300 max-h-32 overflow-y-auto">
                           {sug.transformedText && <p className="whitespace-pre-wrap">{sug.transformedText}</p>}
@@ -483,7 +488,7 @@ export default function DensitySuggestionsDialog({
                     <Button
                       size="sm"
                       onClick={() => handleApply(sug)}
-                      disabled={applyingId === sug.id || !onApply}
+                      disabled={!!applyingId || !onApply || protectedActivity || sug.type==='split'}
                       data-testid={`density-apply-${i}`}
                       className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
                     >
