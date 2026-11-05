@@ -2,7 +2,7 @@ import json
 import unittest
 from pathlib import Path
 from services.assessment_renderer import refresh_assessment_documents
-from services.editorial_text_colors import apply_editorial_text_colors, RULES
+from services.editorial_text_colors import apply_editorial_text_colors, RULES, EDITORIAL_CARDS, CHROME
 
 
 class AssessmentTextColorsTests(unittest.TestCase):
@@ -39,6 +39,8 @@ class AssessmentTextColorsTests(unittest.TestCase):
     def test_frontend_backend_selector_parity(self):
         frontend = Path(__file__).resolve().parents[2]/'frontend/src/utils/editorialTextColors.js'
         source = frontend.read_text(encoding='utf-8')
+        self.assertIn(EDITORIAL_CARDS,source)
+        source=source.replace('${EDITORIAL_CARDS}',EDITORIAL_CARDS).replace('${CHROME}',CHROME)
         for selector in RULES.values():
             self.assertIn(selector,source)
 

@@ -25,3 +25,12 @@ test('complete documents keep override inside head',()=>{
   const html=applyEditorialTextColors('<html><head></head><body><h1>Resumo</h1></body></html>',{title:'#112233'});
   expect(html.indexOf('scormify-editorial-text-colors')).toBeLessThan(html.indexOf('</head>'));
 });
+test('card overrides target dynamic item divs, not only list tags',()=>{
+  const raw='<html><head></head><body><div id="bank"></div><script>function restart(){bank.innerHTML="<div class=item>Cartão</div>"}restart()</script></body></html>';
+  const result=applyEditorialTextColors(raw,{text:'#172c49',card:'#ffffff',cardBackground:'#263b55'});
+  expect(result).toContain('li,.item,.card,');
+  expect(result).toContain('background:#263b55!important');
+  expect(result).toContain(':not(:is(');
+  expect(result).toContain(raw.match(/<script>[\s\S]*?<\/script>/)[0]);
+  expect(applyEditorialTextColors(result,{})).toBe(raw);
+});

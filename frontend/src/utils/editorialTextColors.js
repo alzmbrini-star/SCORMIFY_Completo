@@ -1,11 +1,13 @@
 const ID = 'scormify-editorial-text-colors';
 const BLOCK = /<style\b[^>]*\bid=["']scormify-editorial-text-colors["'][^>]*>[\s\S]*?<\/style>/gi;
 const HEX = /^#[0-9a-f]{6}$/i;
+export const EDITORIAL_CARDS = 'li,.item,.card,.list-item,.choice,.option,.answer-option,.task,.action,[data-editorial-card]';
+const CHROME = 'button,button *,input,textarea,select,.score,.score *,.badge,.badge *,.counter,.counter *,.hud,.hud *,.controls,.controls *';
 const RULES = {
-  text: 'body,body :is(p,span,strong,b,em,div,blockquote,a,label,small,button,input,textarea,td,th,dt,dd,figcaption,summary,code,pre)',
+  text: `body,body :is(p,span,strong,b,em,div,blockquote,a,label,small,button,input,textarea,td,th,dt,dd,figcaption,summary,code,pre):not(:is(${EDITORIAL_CARDS},:is(${EDITORIAL_CARDS}) *,${CHROME}))`,
   title: 'body :is(h1,h2,h3,h4,h5,h6),body :is(h1,h2,h3,h4,h5,h6) *',
-  card: 'body li,body li *',
-  cardBackground: 'body li',
+  card: `body li,body li *,body :is(${EDITORIAL_CARDS}),body :is(${EDITORIAL_CARDS}) *`,
+  cardBackground: `body :is(${EDITORIAL_CARDS})`,
 };
 
 export function readEditorialTextColors(html = '') {

@@ -3,6 +3,7 @@ import { assessmentFrameDocument, assessmentFrameSandbox, assessmentFrameAllow }
 import { useProject } from '../../contexts/ProjectContext';
 import { Trash2, Move, RotateCw } from 'lucide-react';
 import { sanitizeHtmlForDisplay, getRtfContentStyles, wrapInteractiveFullbleed } from '../../utils/htmlUtils';
+import { withEditorialColorProbe } from '../../utils/editorialColorProbe';
 import { getAnimationInitialStyle, getAnimationFinalStyle, getAnimationTransition } from '../../lib/animations';
 
 import { getApiUrl } from '../../utils/apiUrl';
@@ -1057,7 +1058,7 @@ const SlideCanvas = ({
               {element.type === 'html' && (
                 <div className={`w-full h-full relative ${element.objectFit === 'cover' ? '' : 'rounded'}`} style={{ background: 'transparent', overflow: 'hidden', contain: 'strict', isolation: 'isolate' }}>
                   <iframe
-                    srcDoc={(() => {
+                    srcDoc={withEditorialColorProbe((() => {
                       if (element.assessmentConfig) return wrapInteractiveFullbleed(assessmentFrameDocument(element), element.htmlDisplayMode || 'fit');
                       const raw = sanitizeHtmlForDisplay(resolveHtmlContentUrls(element.htmlContent)) || '<p>HTML Content</p>';
                       const isFullDoc = /<!doctype\s+html|<html[\s>]/i.test(raw);
@@ -1125,7 +1126,7 @@ const SlideCanvas = ({
                         </head>
                         <body><div class="content-wrapper">${raw}</div></body>
                       </html>`;
-                    })()}
+                    })())}
                     className="border-0"
                     sandbox={element.assessmentConfig ? assessmentFrameSandbox : hostedVideoQuizConfig(element) ? 'allow-scripts allow-same-origin' : 'allow-scripts allow-forms'}
                     allow={element.assessmentConfig ? assessmentFrameAllow : /video-quiz-data/.test(element.htmlContent || '') ? 'autoplay; fullscreen; encrypted-media; picture-in-picture' : undefined}
