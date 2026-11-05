@@ -56,7 +56,7 @@ export default function Admin() {
   const location=useLocation();
   useEffect(()=>{
     const tab=new URLSearchParams(location.search).get('tab');
-    const allowed=['users','game_questions','tutor','tutor_dashboard','batch_export',...(isSuperAdmin?['companies','cost_report','integrations_health','data_migration','plates_cleanup']:[])];
+    const allowed=['users','game_questions','tutor','tutor_dashboard','batch_export','reports',...(isSuperAdmin?['companies','cost_report','integrations_health','data_migration','plates_cleanup']:[])];
     if(allowed.includes(tab))setActiveTab(tab);
   },[location.search,isSuperAdmin]);
   const [companies, setCompanies] = useState([]);

@@ -6,6 +6,43 @@ def entry(ident,title,keywords,steps,target='editor',action='',access='author'):
     return dict(id=ident,title=title,keywords=keywords,steps=steps,target=target,action=action,access=access)
 
 GUIDE=[
+ entry('batch-export','Exportar cursos SCORM em lote','exportação exportacao exportar cursos lote massa vários varios múltiplos multiplos bulk pacotes zip administração',[
+  'Sim, existe exportação em lote: abra Administração → Exportação em Lote. Está disponível para Super Admin e Admin da Empresa; não é necessário exportar cada curso individualmente no Editor.',
+  'Busque os cursos pelo nome e marque os desejados. Selecionar todos marca os cursos da lista filtrada. Confira a seleção e clique em Exportar SCORM (quantidade). O limite é 100 cursos por lote.',
+  'Os cursos são processados sequencialmente para controlar o uso de memória. Acompanhe o progresso e o resultado de cada curso no painel; uma falha não interrompe os demais.',
+  'Cada curso concluído tem seu próprio ZIP para download. Não é um único ZIP reunindo todos os cursos. Aguarde o lote ativo terminar antes de iniciar outro.',
+  'Admin da Empresa só pode exportar cursos autorizados da própria empresa; Super Admin pode trabalhar com os cursos disponíveis de todas as empresas. O Tutor apenas orienta: não seleciona, inicia exportações nem baixa arquivos por você.',
+  'Este painel exporta SCORM. Para HTML ou outros formatos, use Exportar no Editor do curso. Teste os pacotes no LMS após o download.'],'admin','batch_export','admin'),
+ entry('batch-export-access','Solicitar exportação em lote','exportação exportacao exportar cursos lote massa vários varios múltiplos multiplos bulk administração',[
+  'O SCORMIFY possui exportação SCORM em lote em Administração → Exportação em Lote. Ela exige perfil Super Admin ou Admin da Empresa.',
+  'Seu perfil não tem esse acesso administrativo. Solicite a um administrador autorizado a exportação dos cursos. A exportação individual continua disponível no Editor conforme suas permissões.',
+  'A função em lote processa até 100 cursos sequencialmente e disponibiliza um ZIP SCORM por curso. O Tutor não altera perfis nem contorna permissões.'],'here','','nonadmin'),
+ entry('admin-overview','Conhecer as opções de Administração','administração administracao painel administrativo menus opções opcoes recursos gestão',[
+  'Na Administração, Admin da Empresa e Super Admin encontram Usuários, Questões dos Jogos, Tutor IA, Relatórios, Dashboard Tutor e Exportação em Lote.',
+  'Usuários reúne cadastros, perfis e permissões; Questões dos Jogos reúne o banco administrativo de jogos; Tutor IA configura o Tutor dos alunos e Dashboard Tutor acompanha seus registros. Relatórios apresenta os registros disponíveis.',
+  'Exportação em Lote gera um ZIP SCORM por curso selecionado. Os dados e ações disponíveis respeitam sua empresa e as permissões do servidor.',
+  'Alguns menus adicionais exigem Super Admin. Abrir uma aba pelo Tutor só navega: não salva cadastros, altera permissões, inicia exportação nem executa manutenção.'],'admin','users','admin'),
+ entry('companies','Administrar empresas e Biblioteca de Marca','empresa empresas organização limites biblioteca marca brand permissões',[
+  'Como Super Admin, abra Administração → Empresas para consultar ou gerenciar cadastros e limites de empresas.',
+  'Nas ações da empresa, confira as opções disponíveis, como Biblioteca de Marca e permissões. Revise o cadastro antes de salvar. Administradores de empresa não têm acesso à gestão global de empresas.'],'admin','companies','super'),
+ entry('admin-game-bank','Administrar Questões dos Jogos','questões questoes jogos banco administração importar planilha filtrar exportar',[
+  'Em Administração → Questões dos Jogos, consulte e filtre o banco administrativo de jogos. Super Admin pode selecionar a empresa; os demais administradores trabalham no escopo autorizado.',
+  'Use os controles disponíveis de importação, modelo de planilha e atualização do banco. Revise os dados antes de confirmar importações ou remoções. Este banco não é o mesmo fluxo de montar Avaliações interativas no Editor.'],'admin','game_questions','admin'),
+ entry('admin-reports','Consultar Relatórios administrativos','relatórios relatorios administração registros relatórios administrativos',[
+  'Abra Administração → Relatórios e use Atualizar para carregar os registros disponíveis. A aba apresenta os relatórios de geração disponíveis na plataforma; não é uma garantia de notas ou conclusão de alunos no LMS.',
+  'Para dados de alunos, notas e matrículas, confira os relatórios do LMS de destino. O Tutor não altera nem inventa esses resultados.'],'admin','reports','admin'),
+ entry('admin-tutor-dashboard','Consultar Dashboard Tutor','dashboard tutor alunos conversas registros indicadores feedback histórico historico',[
+  'Abra Administração → Dashboard Tutor para acompanhar os registros e indicadores disponíveis do Tutor dos cursos.',
+  'Para alterar a configuração do Tutor dos alunos, use a aba Tutor IA. Este Tutor do Criador apenas orienta o uso e não é o mesmo assistente dos cursos exportados.'],'admin','tutor_dashboard','admin'),
+ entry('admin-integrations','Verificar integrações administrativas','integrações integracoes diagnóstico diagnostico api conexão provedores',[
+  'Como Super Admin, abra Administração → Integrações para consultar o diagnóstico das integrações e provedores disponíveis.',
+  'Disponibilidade depende da configuração do serviço. Não envie chaves, senhas ou tokens ao Tutor. Para consumo e custos, consulte Custos por Empresa; créditos são gerenciados no provedor correspondente.'],'admin','integrations_health','super'),
+ entry('admin-migration','Revisar Migração de dados','migração migracao dados campos manutenção manutencao scan dry run',[
+  'Como Super Admin, abra Administração → Migração. Execute primeiro Scan (Dry Run) e revise o relatório sem aplicar mudanças.',
+  'Aplicar Migração grava correções nos projetos e pede confirmação. Faça backup e avalie o impacto antes de confirmar; o Tutor não executa essa operação.'],'admin','data_migration','super'),
+ entry('admin-cleanup','Revisar Limpeza de metadados antigos','limpeza metadados antigos manutenção manutencao placas fundos scan dry run',[
+  'Como Super Admin, abra Administração → Limpeza para revisar a limpeza de metadados visuais antigos. Não é a exclusão geral de cursos ou imagens.',
+  'Comece pelo Scan (Dry Run), confira o que será afetado e mantenha backup antes de aplicar qualquer correção. O Tutor não executa a limpeza nem confirma ações por você.'],'admin','plates_cleanup','super'),
  entry('video-quiz','Criar perguntas durante o vídeo do avatar','heygen avatar vídeo video quiz pausa pergunta tentativas feedback continuar',[
   'No Editor, selecione um vídeo direto já inserido (por exemplo HeyGen). Em Properties, abra Perguntas durante o vídeo. A mesma opção reabre uma atividade de vídeo interativo já salva.',
   'Preservar fundo transparente do vídeo mantém o canal alfa do arquivo original e remove o fundo pintado pelo player na área do avatar. Não remove um fundo gravado em vídeos opacos. O arquivo não é convertido e o painel de perguntas mantém contraste.',
@@ -132,12 +169,17 @@ def allowed(user,access):
     r=roles(user);admin=bool(r&{'super_admin','company_admin'})
     if access=='super':return 'super_admin' in r
     if access=='admin':return admin
+    if access=='nonadmin':return not admin
     if access=='approval':return admin or 'aprovador' in r
     if access=='agent':return 'super_admin' in r or 'aprovador' in r or bool((user.get('company') or {}).get('permissions',{}).get('agentAccess'))
     if access=='simulator':return can_create_simulators(user) and ('aprovador' not in r or admin)
     return 'aprovador' not in r or admin
 
 def normalize(value):return ''.join(c for c in unicodedata.normalize('NFKD',value.lower()) if not unicodedata.combining(c))
+
+def batch_export_question(question):
+    text=normalize(question)
+    return bool(re.search(r'export|scorm',text) and re.search(r'\blote\b|\bmassa\b|\bvarios\b|\bmultipl\w*|\bbulk\b|\btodos\b|de uma (?:so |unica )?vez|simultane',text))
 def current_editor(path):return path if re.fullmatch(r'/editor/[A-Za-z0-9_-]{1,100}',path or '') else None
 def link(topic,path):
     target=topic['target'];action=topic['action']
@@ -160,7 +202,8 @@ def search_topics(question,topics,history=()):
     def score(t):
         keys=normalize(t['keywords']+' '+t['title']);text=normalize(' '.join(t['steps']))
         def weight(w):return 5 if w in keys else 1 if w in text else 0
-        return sum(weight(w) for w in words)+.15*sum(weight(w) for w in context)
+        priority=50 if batch_export_question(question) and t['id'] in ('batch-export','batch-export-access') else 0
+        return priority+sum(weight(w) for w in words)+.15*sum(weight(w) for w in context)
     ranked=sorted(topics,key=score,reverse=True)
     best=score(ranked[0]) if ranked else 0
     matches=[t for t in ranked if score(t)>0 and score(t)>=best*.55][:6]

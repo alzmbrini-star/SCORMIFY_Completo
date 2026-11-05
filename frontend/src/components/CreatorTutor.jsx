@@ -6,8 +6,8 @@ import { getApiUrl } from '../utils/apiUrl';
 import './CreatorTutor.css';
 
 const API = getApiUrl();
-const welcome = {role:'assistant', text:'Olá! Sou o Tutor do Criador. Posso orientar você no Agente, no Editor e nos recursos do SCORMIFY. Escolha um guia rápido ou escreva sua dúvida. Não altero nem salvo seus cursos.', links:[], mode:'guide'};
-const quickIds=['start','agent','assessment','video','export','simulators','simulator-access','approvals'];
+const welcome = {role:'assistant', text:'Olá! Sou o Tutor do Criador. Posso orientar você no Agente, no Editor e na Administração, conforme seu perfil. Escolha um guia rápido ou escreva sua dúvida. Não altero nem salvo seus cursos.', links:[], mode:'guide'};
+const quickIds=['start','agent','assessment','video','export','simulators','simulator-access','approvals','admin-overview','batch-export','batch-export-access','users','admin-game-bank','student-tutor','admin-tutor-dashboard','admin-reports','companies','costs','admin-integrations','admin-migration','admin-cleanup'];
 const settingsKey=id=>`scormify-creator-tutor-reading-v1:${id}`;
 function preferences(id) {
   try {const p=JSON.parse(localStorage.getItem(settingsKey(id))||'{}');return {font:[16,18,20,22,24,26,28].includes(p.font)?p.font:18, palette:['dark','light','contrast'].includes(p.palette)?p.palette:'dark'};}
@@ -73,7 +73,7 @@ export default function CreatorTutor() {
   };
   // Only locally verified product destinations are clickable. The server also
   // derives links from its guide, never from raw model-generated URLs.
-  const safeLink=href=>typeof href==='string'&&/^\/(?:\?help=(?:new-project|import))?$|^\/agent$|^\/admin\?tab=(?:users|companies|game_questions|tutor|tutor_dashboard|cost_report|integrations_health|batch_export)$|^\/editor\/[A-Za-z0-9_-]{1,100}(?:\?help=(?:export|video|assessment|games|html|text-colors|template|preview|image|tts|scenario|whiteboard|pdf))?$/.test(href);
+  const safeLink=href=>typeof href==='string'&&/^\/(?:\?help=(?:new-project|import))?$|^\/agent$|^\/admin\?tab=(?:users|companies|game_questions|tutor|tutor_dashboard|cost_report|integrations_health|batch_export|reports|data_migration|plates_cleanup)$|^\/editor\/[A-Za-z0-9_-]{1,100}(?:\?help=(?:export|video|assessment|games|html|text-colors|template|preview|image|tts|scenario|whiteboard|pdf))?$/.test(href);
   const follow=(event,href)=>{
     if(path.startsWith('/editor/')&&href.split('?')[0]!==path)return; // new tab preserves the open course
     event.preventDefault();navigate(href);close();
