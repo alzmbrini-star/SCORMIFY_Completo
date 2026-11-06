@@ -6,6 +6,18 @@ def entry(ident,title,keywords,steps,target='editor',action='',access='author'):
     return dict(id=ident,title=title,keywords=keywords,steps=steps,target=target,action=action,access=access)
 
 GUIDE=[
+ entry('agent-faithful','Converter PDF pelo Agente em Modo Fiel','modo fiel faithful converter conversão conversao pdf páginas paginas apresentação preservar layout original sem reescrever',[
+  'Sim, o Agente permite converter um PDF em curso usando o Modo Fiel. Abra o Agente IA, crie ou abra a sessão de trabalho e envie o PDF na etapa Conteúdo.',
+  'No painel do PDF enviado, clique em Gerar em Modo Fiel. Acompanhe o processamento; cada página do PDF gera um slide. Esse caminho pula a geração por IA de análise, estrutura e storyboard: não exige reescrever o material para converter.',
+  'O Modo Fiel preserva a aparência das páginas — textos, cores, imagens, diagramas e logotipos — como imagem de fundo de cada slide. Não promete transformar os textos ou desenhos do PDF em objetos editáveis separados. Texto extraído, quando disponível, fica nas notas.',
+  'Ao concluir, o fluxo abre o Editor. Confira o enquadramento e a leitura; você pode acrescentar textos, áudio, perguntas e outros elementos sobre o fundo, sem que isso torne editável o texto original da página.',
+  'Depois, no Editor, use Exportar para gerar HTML ou SCORM e teste o resultado. Vídeos, animações e interações do documento original não são recriados automaticamente pela imagem da página.',
+  'Esse Modo Fiel é para PDF. Para uma apresentação PowerPoint, você pode exportá-la para PDF e usar este caminho para preservar o visual; para importar a apresentação para edição, existe também Importar PPT no painel de projetos, com revisão da conversão.',
+  'A conversão fiel não usa geração de texto por IA, mas requer processamento e acesso autorizado ao Agente. Se o PDF não estiver mais disponível na sessão, pode ser necessário reenviá-lo. Abrir o Agente pelo atalho apenas navega; o Tutor não envia arquivos nem inicia a conversão.'],'agent','','agent'),
+ entry('agent-faithful-access','Solicitar acesso ao Modo Fiel','modo fiel faithful converter conversão conversao pdf preservar layout original',[
+  'O SCORMIFY possui Modo Fiel no Agente: após enviar um PDF na etapa Conteúdo, Gerar em Modo Fiel cria um slide por página, preservando o visual como imagem de fundo, sem reescrita por IA.',
+  'Seu perfil não tem acesso autorizado ao Agente. Peça à Administração que verifique o acesso ao Agente IA da sua empresa. O Tutor não altera permissões nem contorna esse bloqueio.',
+  'A página preservada não se transforma em textos ou desenhos editáveis separados. Após a conversão por um usuário autorizado, o curso pode ser revisado e exportado no Editor conforme suas permissões.'],'here','','agent-denied'),
  entry('batch-export','Exportar cursos SCORM em lote','exportação exportacao exportar cursos lote massa vários varios múltiplos multiplos bulk pacotes zip administração',[
   'Sim, existe exportação em lote: abra Administração → Exportação em Lote. Está disponível para Super Admin e Admin da Empresa; não é necessário exportar cada curso individualmente no Editor.',
   'Busque os cursos pelo nome e marque os desejados. Selecionar todos marca os cursos da lista filtrada. Confira a seleção e clique em Exportar SCORM (quantidade). O limite é 100 cursos por lote.',
@@ -64,6 +76,7 @@ GUIDE=[
   'No Editor, use a barra de ferramentas para adicionar elementos ao slide; selecione-os para ajustar propriedades.',
   'Salve o trabalho antes de sair do Editor. Abrir a janela de criação não cria nem salva um projeto automaticamente.'],'dashboard','new-project'),
  entry('agent','Criar um curso com o Agente IA','agente ia conteúdo arquivo análise configurar estrutura storyboard gerar curso',[
+  'Se o objetivo é converter um PDF preservando o visual, envie o PDF em Conteúdo e use Gerar em Modo Fiel no painel do arquivo. Cada página vira um slide com imagem de fundo, sem reescrita por IA; é um caminho diferente da criação pedagógica abaixo.',
   'Abra o Agente IA e forneça o conteúdo de referência. Execute a análise e revise o resultado.',
   'Configure público, objetivos e recursos. Gere e revise a estrutura e, em seguida, aprove a geração do storyboard.',
   'Revise conteúdo e mídia antes de gerar o curso. As etapas que geram conteúdo podem consumir créditos das APIs configuradas.',
@@ -137,6 +150,7 @@ GUIDE=[
   'Revise as páginas, o enquadramento e a leitura na prévia. Para documentos importados, confira também as imagens.'],'editor','pdf'),
  entry('import','Importar apresentação e tutoriais','importar powerpoint ppt pptx tutorial apresentação arquivo',[
   'No painel de projetos, use Importar PPT para trazer uma apresentação para edição.',
+  'Outra opção para preservar a aparência de uma apresentação é exportá-la para PDF, enviá-la ao Agente e escolher Gerar em Modo Fiel. Cada página fica como imagem de fundo de um slide, não como objetos editáveis separados.',
   'A opção de importar tutoriais usa a integração de tutoriais disponível no produto.',
   'Confira a diagramação, imagens e interações do conteúdo importado antes de exportar.'],'dashboard','import'),
  entry('preview','Visualizar o curso','prévia preview visualizar player responsivo testar singlepage',[
@@ -172,6 +186,7 @@ def allowed(user,access):
     if access=='nonadmin':return not admin
     if access=='approval':return admin or 'aprovador' in r
     if access=='agent':return 'super_admin' in r or 'aprovador' in r or bool((user.get('company') or {}).get('permissions',{}).get('agentAccess'))
+    if access=='agent-denied':return not allowed(user,'agent')
     if access=='simulator':return can_create_simulators(user) and ('aprovador' not in r or admin)
     return 'aprovador' not in r or admin
 
@@ -180,6 +195,10 @@ def normalize(value):return ''.join(c for c in unicodedata.normalize('NFKD',valu
 def batch_export_question(question):
     text=normalize(question)
     return bool(re.search(r'export|scorm',text) and re.search(r'\blote\b|\bmassa\b|\bvarios\b|\bmultipl\w*|\bbulk\b|\btodos\b|de uma (?:so |unica )?vez|simultane',text))
+
+def faithful_question(question):
+    text=normalize(question)
+    return bool(re.search(r'\b(?:modo\s+)?fiel\b|\bfaithful\b',text) or ('pdf' in text and re.search(r'preserv\w*.*(?:visual|layout|original)|sem reescrev',text)))
 def current_editor(path):return path if re.fullmatch(r'/editor/[A-Za-z0-9_-]{1,100}',path or '') else None
 def link(topic,path):
     target=topic['target'];action=topic['action']
@@ -202,7 +221,7 @@ def search_topics(question,topics,history=()):
     def score(t):
         keys=normalize(t['keywords']+' '+t['title']);text=normalize(' '.join(t['steps']))
         def weight(w):return 5 if w in keys else 1 if w in text else 0
-        priority=50 if batch_export_question(question) and t['id'] in ('batch-export','batch-export-access') else 0
+        priority=50 if batch_export_question(question) and t['id'] in ('batch-export','batch-export-access') or faithful_question(question) and t['id'] in ('agent-faithful','agent-faithful-access') else 0
         return priority+sum(weight(w) for w in words)+.15*sum(weight(w) for w in context)
     ranked=sorted(topics,key=score,reverse=True)
     best=score(ranked[0]) if ranked else 0
