@@ -1,5 +1,31 @@
 """Reconcile existing avatar jobs with their original slides. Never generates."""
 import copy
+import re
+
+
+def bind_slide_id(pending, slide_index, slide_id, elements):
+    """Use one ID in both the provider job and its in-slide placeholder."""
+    for item in pending:
+        if item.get('slideIndex') == slide_index:
+            old_marker = f'data-heygen-slide="{item["slideId"]}"'
+            new_marker = f'data-heygen-slide="{slide_id}"'
+            for element in elements:
+                if old_marker in (element.get('htmlContent') or ''):
+                    element['htmlContent'] = element['htmlContent'].replace(old_marker, new_marker)
+            item['slideId'] = slide_id
+            break
+
+
+def original_placeholder(element, slide_id):
+    html = element.get('htmlContent') or ''
+    if f'data-heygen-slide="{slide_id}"' in html:
+        return True
+    # Legacy builder replaced the slide ID AFTER creating its placeholder.
+    # Recover only the exact question block, never a title/index-based guess.
+    pending = element.get('videoQuizPending') or {}
+    return bool(element.get('id') and pending.get('instanceId') == element['id']
+        and re.search(r'data-heygen-slide="[0-9a-f-]{36}"', html, re.I)
+        and 'Gerando vídeo com Avatar IA' in html and not re.search(r'<video\b|video-quiz-data', html, re.I))
 
 
 async def reconcile_project(database, project, fetch_status, apply_video):
@@ -32,7 +58,7 @@ async def reconcile_project(database, project, fetch_status, apply_video):
                         if item.get('attachmentStatus') != 'attached':
                             applied = await apply_video(slide_id, url, data, item)
                             if applied is False:
-                                raise ValueError('O slide original foi alterado. Nenhuma edição foi substituída.')
+                                raise ValueError('Não foi possível identificar o bloco original com segurança. Nenhuma edição foi substituída.')
                         item.update(status='completed', videoUrl=url, attachmentStatus='attached')
                         await database.heygen_videos.update_one(query | {'video_id':video_id},
                             {'$set': {'status':'completed', 'video_url':url}})

@@ -2844,6 +2844,7 @@ async def agent_heygen_status(project_id: str, user: dict = Depends(require_auth
 
 async def _update_slide_with_heygen_video(project_id: str, slide_id: str, video_url: str, metadata: dict = None):
     """Replace the HeyGen processing element with actual video player."""
+    from services.heygen_recovery import original_placeholder
     project = await db.projects.find_one({"id": project_id}, {"_id": 0})
     if not project:
         return False
@@ -2851,12 +2852,14 @@ async def _update_slide_with_heygen_video(project_id: str, slide_id: str, video_
     slides = project.get("course", {}).get("slides", [])
     for si, slide in enumerate(slides):
         if slide.get("id") == slide_id:
+            if sum(original_placeholder(element, slide_id) for element in slide.get('elements', [])) > 1:
+                return False  # Ambiguous copies: never choose a block by position.
             # Find and replace the heygen processing element
             for ei, el in enumerate(slide.get("elements", [])):
                 html = el.get("htmlContent", "")
                 if not el.get('videoQuizPending') and ((el.get('videoQuizConfig') or {}).get('src') == video_url or f'<video src="{video_url}"' in html):
                     return True  # Already attached: do not reset edited questions.
-                if f'data-heygen-slide="{slide_id}"' in html:
+                if original_placeholder(el, slide_id):
                     if el.get('videoQuizPending'):
                         from services.video_quiz import build_video_quiz
                         from services.video_lesson import resolve_lesson_timing

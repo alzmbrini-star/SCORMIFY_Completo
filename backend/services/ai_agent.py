@@ -4000,10 +4000,8 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         actual_slide_id = generate_id()
         # Update heygen pending with the actual slide id
         if stype == "content" and slide_media.get(i, {}).get("type") == "heygen":
-            for hp in heygen_pending:
-                if hp["slideIndex"] == i:
-                    hp["slideId"] = actual_slide_id
-                    break
+            from services.heygen_recovery import bind_slide_id
+            bind_slide_id(heygen_pending, i, actual_slide_id, slide_elements)
         if stype == "content" and slide_media.get(i, {}).get("type") == "kling":
             for kp in kling_pending:
                 if kp["slideIndex"] == i:

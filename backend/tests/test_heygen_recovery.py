@@ -64,7 +64,7 @@ def test_ambiguous_cross_project_and_author_edits_are_not_replaced():
     result=asyncio.run(reconcile_project(Store(p,[row,dict(row,video_id='v2')]),p,fetch,apply))
     assert 'mais de um' in result['videos'][0]['error'] and apply.await_count==0
     result=asyncio.run(reconcile_project(Store(p,[row]),p,fetch,apply))
-    assert result['status']=='partial_failed' and 'alterado' in result['videos'][0]['error']
+    assert result['status']=='partial_failed' and 'identificar' in result['videos'][0]['error']
     assert p['heygenPending'][0]['status']=='failed'
 
 
@@ -100,6 +100,25 @@ def test_callback_restores_questions_and_never_overwrites_changed_block():
     p['course']['slides'][0]['elements'][0]={'htmlContent':'<p>Author changed this block</p>'}
     assert asyncio.run(fn('p1','s1','https://example.org/alpha.webm')) is False
     assert len(writes)==1
+
+
+def test_legacy_placeholder_id_mismatch_is_recovered_only_with_exact_question_element_identity():
+    from services.heygen_recovery import original_placeholder, bind_slide_id
+    old_id='11111111-2222-3333-4444-555555555555'
+    element={'id':'e1','htmlContent':f'<div data-heygen-slide="{old_id}">Gerando vídeo com Avatar IA...</div>',
+             'videoQuizPending':{'instanceId':'e1','checkpoints':[]}}
+    assert original_placeholder(element,'actual-slide')
+    wrong=copy.deepcopy(element);wrong['videoQuizPending']['instanceId']='other-element'
+    assert not original_placeholder(wrong,'actual-slide')
+    wrong=copy.deepcopy(element);wrong['htmlContent']='<p>My edited block</p>'
+    assert not original_placeholder(wrong,'actual-slide')
+    wrong=copy.deepcopy(element);wrong['htmlContent']+='<video src="custom.webm"></video>'
+    assert not original_placeholder(wrong,'actual-slide')
+    pending=[{'slideIndex':2,'slideId':old_id}]
+    bind_slide_id(pending,2,'actual-slide',[element])
+    assert pending[0]['slideId']=='actual-slide'
+    assert 'data-heygen-slide="actual-slide"' in element['htmlContent']
+    assert old_id not in element['htmlContent']
 
 
 def test_worker_creates_and_closes_own_client_on_each_event_loop_and_reuses_jobs(monkeypatch):
