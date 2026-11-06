@@ -75,10 +75,11 @@ GUIDE=[
   'No painel de projetos, clique em Novo Projeto, informe um nome e confirme a criação.',
   'No Editor, use a barra de ferramentas para adicionar elementos ao slide; selecione-os para ajustar propriedades.',
   'Salve o trabalho antes de sair do Editor. Abrir a janela de criação não cria nem salva um projeto automaticamente.'],'dashboard','new-project'),
- entry('agent','Criar um curso com o Agente IA','agente ia conteúdo arquivo análise configurar estrutura storyboard gerar curso',[
+ entry('agent','Criar um curso com o Agente IA','agente ia conteúdo arquivo análise configurar estrutura storyboard gerar curso idioma português espanhol títulos',[
   'Se o objetivo é converter um PDF preservando o visual, envie o PDF em Conteúdo e use Gerar em Modo Fiel no painel do arquivo. Cada página vira um slide com imagem de fundo, sem reescrita por IA; é um caminho diferente da criação pedagógica abaixo.',
   'Abra o Agente IA e forneça o conteúdo de referência. Execute a análise e revise o resultado.',
   'Configure público, objetivos e recursos. Gere e revise a estrutura e, em seguida, aprove a geração do storyboard.',
+  'Na Estrutura, os tipos de slide aparecem com rótulos em português, como Conteúdo, Jogo e Questionário. Os textos gerados recebem orientação de pt-BR e correção local de desvios conhecidos do espanhol, sem uma nova chamada de IA. Ao retomar a sessão, essa correção é exibida sem regravar ou regenerar o rascunho. Revise os títulos antes de aprovar; nomes próprios e termos técnicos são preservados.',
   'Revise conteúdo e mídia antes de gerar o curso. As etapas que geram conteúdo podem consumir créditos das APIs configuradas.',
   'Após a geração, abra o curso no Editor para conferir diagramação, atividades e exportação.'],'agent','', 'agent'),
  entry('storyboard','Revisar o storyboard','storyboard revisar aprovação estrutura etapas erro geração',[

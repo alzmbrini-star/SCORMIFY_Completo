@@ -529,6 +529,10 @@ async def get_agent_session(session_id: str, request: Request, user: dict = Depe
     s = await db.agent_sessions.find_one({"id": session_id}, exclude)
     if not s:
         raise HTTPException(404, "Session not found")
+    # Presentation cleanup only: resuming must not write or regenerate a draft.
+    if s.get('structure'):
+        from services.agent_language import normalize_structure_language
+        s['structure'] = normalize_structure_language(s['structure'], s.get('config'))
     return s
 
 
@@ -851,7 +855,8 @@ async def agent_generate_structure(session_id: str, request: Request, user: dict
     # If already structured, return cached result (unless forced redo).
     if (not force and s.get("structure")
             and s.get("step") in ("structured", "storyboarded", "generated")):
-        return restrict_structure(s["structure"],user)
+        from services.agent_language import normalize_structure_language
+        return restrict_structure(normalize_structure_language(s["structure"], s.get('config')),user)
 
     # If already generating, check if stuck (> 3 min)
     if s.get("step") == "structuring":

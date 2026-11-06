@@ -791,7 +791,8 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
     if config.get('simulatorsAllowed') is False:
         from services.simulator_permissions import restrict_structure
         structure=restrict_structure(structure,{'permissions':{'createSimulators':False}})
-    return structure
+    from services.agent_language import normalize_structure_language
+    return normalize_structure_language(structure, config)
 
 
 async def generate_structure(session_id: str, content_text: str, config: dict) -> dict:
@@ -938,6 +939,8 @@ REGRAS GERAIS:
 - CUMPRA a distribuição acima com precisão. Conte os slides de cada tipo antes de finalizar.
 - Distribua os recursos de forma INTERCALADA - não agrupe todos os quizzes no final, etc."""
 
+    from services.agent_language import language_instruction
+    prompt += '\n\n' + language_instruction(config)
     models = [PRIMARY_MODEL, FALLBACK_MODEL]
     last_error = ""
     for provider, model in models:
@@ -957,6 +960,8 @@ REGRAS GERAIS:
 
 async def generate_storyboard(session_id: str, content_text: str, structure: dict, config: dict, progress_callback=None) -> dict:
     """Step 3: Generate detailed storyboard - processes slides in batches to avoid timeouts."""
+    from services.agent_language import normalize_structure_language
+    structure = normalize_structure_language(structure, config)
     if config.get('simulatorsAllowed') is False:
         from services.simulator_permissions import restrict_structure
         structure=restrict_structure(structure,{'permissions':{'createSimulators':False}})
@@ -4784,6 +4789,8 @@ Siga a estrutura do template mas adapte ao conteúdo fornecido. Primeiro slide=c
 Quando Jogos Educativos estiver habilitado, inclua pelo menos 1 slide type="game" por módulo; game é uma experiência gamificada completa com missão, HUD, XP, vidas, rodadas, vitória/derrota e conquista.
 Quando Simuladores estiver habilitado, inclua pelo menos 1 slide type="simulator" por módulo; simulator é uma ferramenta de prática e tomada de decisão, não um quiz comum."""
     
+    from services.agent_language import language_instruction
+    prompt += '\n\n' + language_instruction(config)
     response = await chat.send_message(UserMessage(text=prompt))
     return _premiumize_course_structure(_extract_json(response) or {}, config)
 

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import {agentSlideLabel} from '../utils/agentSlideLabels';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { authHeaders } from '../contexts/AuthContext';
@@ -1855,7 +1856,7 @@ function StructurePanel({ structure, loading, onApprove, progressMsg }) {
             {mod.slides?.map((sl, si) => (
               <div key={si} className="flex items-center gap-2 text-sm py-1 px-2 rounded bg-slate-800/50">
                 <Badge variant="outline" className={`text-[10px] ${sl.type === 'quiz' ? 'border-amber-500 text-amber-400' : sl.type === 'title' ? 'border-blue-500 text-blue-400' : sl.type === 'summary' ? 'border-purple-500 text-purple-400' : 'border-slate-600 text-slate-400'}`}>
-                  {sl.type}
+                  {agentSlideLabel(sl.type)}
                 </Badge>
                 <span className="text-slate-300">{sl.title}</span>
                 <span className="text-xs text-slate-500 ml-auto">{sl.estimatedDuration}s</span>
