@@ -91,7 +91,7 @@ const TEMPLATE_ICONS = {
 
 export default function Agent() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { isSuperAdmin, hasPermission, loading: authLoading, isAprovador, user: authUser, logout } = useAuth();
   
   // Check access to AI Agent
@@ -275,11 +275,11 @@ export default function Agent() {
 
   // Rehydrate the whole wizard from a persisted agent session — used by
   // the "Reabrir no Assistente" flows (?resume={projectId} or course list).
-  const hydrateWizardFromSession = async (lightSession) => {
+  const hydrateWizardFromSession = async (lightSession, alreadyFull=false) => {
     let session = lightSession;
     try {
-      const fr = await fetch(`${API}/api/agent/sessions/${lightSession.id}?full=1`, { headers: authHeaders() });
-      if (fr.ok) session = await fr.json();
+      if(!alreadyFull){const fr = await fetch(`${API}/api/agent/sessions/${lightSession.id}?full=1`, { headers: authHeaders() });
+      if (fr.ok) session = await fr.json();}
     } catch { /* fall back to the light session */ }
     setSessionId(session.id);
     setMode('create');
@@ -305,7 +305,28 @@ export default function Agent() {
       : session.structure ? 3 : session.analysis ? 2 : 1;
     setCurrentStep(landing);
     addChatMsg('agent', 'Sessão do curso recarregada! Clique nas etapas no topo para navegar. Você pode modificar e re-executar qualquer fase — as etapas seguintes serão refeitas na sequência normal.');
+    if(session.storyboardRecovery?.status==='interrupted')addChatMsg('agent',session.error);
   };
+
+  const draftId=searchParams.get('draft');
+  useEffect(()=>{
+    if(!draftId||mode||authLoading||!accessChecked||!hasAgentAccess)return;
+    const controller=new AbortController();setLoading(true);
+    (async()=>{
+      try{
+        const response=await fetch(`${API}/api/agent/drafts/${encodeURIComponent(draftId)}`,{headers:authHeaders(),signal:controller.signal});
+        if(!response.ok)throw new Error(response.status===404?'Rascunho não encontrado para este usuário.':'Não foi possível abrir o rascunho. Entre novamente e tente o mesmo link.');
+        await hydrateWizardFromSession(await response.json(),true);
+      }catch(error){if(error.name!=='AbortError')toast.error(error.message);}
+      finally{if(!controller.signal.aborted)setLoading(false);}
+    })();
+    return ()=>controller.abort();
+  },[draftId,authLoading,accessChecked,hasAgentAccess]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(()=>{
+    if(mode!=='create'||!sessionId||searchParams.get('editMedia')||searchParams.get('resume')||draftId===sessionId)return;
+    setSearchParams(previous=>{const next=new URLSearchParams(previous);next.set('draft',sessionId);return next;},{replace:true});
+  },[mode,sessionId,draftId,setSearchParams,searchParams]);
 
   // Handle ?resume={projectId} — reopen the wizard for an existing course.
   useEffect(() => {
@@ -1434,7 +1455,7 @@ export default function Agent() {
         <div className={`flex-1 flex flex-col min-w-0 ${showChat ? 'hidden md:flex' : 'flex'}`}>
           <ScrollArea className="flex-1">
             <div className="p-6 max-w-4xl mx-auto space-y-6">
-              {!mode && <ModeSelector onSelect={handleSelectMode} showApprovalQueue={isSuperAdmin || isAprovador} isAprovadorOnly={isAprovador && !isSuperAdmin} />}
+              {!mode && (draftId&&loading ? <p role="status">Abrindo seu rascunho salvo…</p> : <ModeSelector onSelect={handleSelectMode} showApprovalQueue={isSuperAdmin || isAprovador} isAprovadorOnly={isAprovador && !isSuperAdmin} />)}
 
               {/* APPROVAL QUEUE MODE */}
               {mode === 'approval' && <ApprovalQueuePanel onResumeSession={handleResumeApprovedSession} />}

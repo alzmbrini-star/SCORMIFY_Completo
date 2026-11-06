@@ -540,6 +540,26 @@ async def get_agent_session(session_id: str, request: Request, user: dict = Depe
     return s
 
 
+@router.get('/agent/drafts/{session_id}')
+async def get_owned_agent_draft(session_id: str, user: dict = Depends(require_agent_access)):
+    """Resume an ungenerated draft by URL, strictly for the authenticated owner."""
+    owner = user.get('user_id')
+    if not owner:
+        raise HTTPException(401, 'Sua sessão expirou.')
+    session = await db.agent_sessions.find_one({'id': session_id, 'userId': owner},
+                                             {'_id': 0, 'pdfPageImages': 0})
+    if not session:
+        raise HTTPException(404, 'Rascunho não encontrado para este usuário.')
+    from services.agent_language import normalize_structure_language
+    from services.storyboard_jobs import recover_session_view
+    if session.get('structure'):
+        session['structure'] = normalize_structure_language(session['structure'], session.get('config'))
+    if session.get('step') == 'storyboarding':
+        run = await db.agent_storyboard_runs.find_one({'_id': session_id})
+        session = recover_session_view(session, run)
+    return session
+
+
 @router.post("/agent/sessions/{session_id}/upload")
 async def agent_upload_content(session_id: str, request: Request, file: UploadFile = File(None), text: str = Form(None), url: str = Form(None), user: dict = Depends(require_agent_access)):
     """Upload content to agent session (file, text, or URL).

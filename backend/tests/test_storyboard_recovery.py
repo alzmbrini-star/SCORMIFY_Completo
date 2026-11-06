@@ -187,6 +187,28 @@ async def test_session_get_exposes_legacy_interruption_without_writing(monkeypat
 
 
 @pytest.mark.asyncio
+async def test_draft_url_only_reads_the_authenticated_owners_saved_session(monkeypatch):
+    from routes import agent
+    from fastapi import HTTPException
+    saved={'id':'s','userId':'u','contentText':'Referência salva','step':'storyboarding',
+           'structure':{'modules':[{'title':'Simulación','slides':[]}]}}
+    queries=[]
+    async def find(query,projection):
+        queries.append((query,projection))
+        return copy.deepcopy(saved) if query=={'id':'s','userId':'u'} else None
+    sessions=SimpleNamespace(find_one=find,update_one=AsyncMock())
+    monkeypatch.setattr(agent,'db',SimpleNamespace(agent_sessions=sessions,
+        agent_storyboard_runs=SimpleNamespace(find_one=AsyncMock(return_value=None))))
+    result=await agent.get_owned_agent_draft('s',{'user_id':'u'})
+    assert result['step']=='structured' and result['contentText']=='Referência salva'
+    assert result['structure']['modules'][0]['title']=='Simulação'
+    assert queries[0][1]['pdfPageImages']==0
+    with pytest.raises(HTTPException) as captured:await agent.get_owned_agent_draft('s',{'user_id':'other'})
+    assert captured.value.status_code==404
+    assert saved['step']=='storyboarding';sessions.update_one.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_endpoint_deduplicates_clicks_before_starting_any_ai(monkeypatch):
     from routes import agent
     db=Database();initial={'_id':'s','id':'s','userId':'u','step':'structured','updatedAt':'before',
