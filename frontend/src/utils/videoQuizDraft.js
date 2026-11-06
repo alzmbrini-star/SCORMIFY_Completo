@@ -32,6 +32,7 @@ export function nextVideoQuestionTime(checkpoints, duration) {
 
 export function prepareVideoQuizDraft(draft, duration) {
   const errors = [];
+  if (draft.timingReviewRequired && draft.timingReviewConfirmed !== true) errors.push({message:'Escute as frases de transição, informe os tempos e confirme a revisão das pausas.'});
   const rows = absoluteVideoQuestions(draft.checkpoints || [], duration);
   if (!rows.length || rows.length > 12) errors.push({message: 'Adicione de 1 a 12 perguntas.'});
   const seen = new Set();
@@ -52,5 +53,11 @@ export function prepareVideoQuizDraft(draft, duration) {
     if (!Number.isInteger(cp.maxAttempts) || cp.maxAttempts < 1 || cp.maxAttempts > 10) report('Máximo de tentativas da pergunta', 'o limite deve ser de 1 a 10 tentativas.');
     return {...cp, question, explanation, options: retained.map(o => o.text), correctIndex};
   });
-  return {config: {...draft, checkpoints}, errors};
+  const config = {...draft, checkpoints};
+  if (draft.timingReviewRequired && draft.timingReviewConfirmed === true && !errors.length) {
+    delete config.timingReviewRequired; delete config.timingReviewMessage;
+    config.checkpoints = checkpoints.map(cp => ({...cp, relative:false, timingStatus:'author-reviewed'}));
+  }
+  delete config.timingReviewConfirmed;
+  return {config, errors};
 }

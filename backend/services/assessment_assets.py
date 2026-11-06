@@ -19,6 +19,8 @@ def inline_assessment_assets(document: str, assets_dir: str) -> str:
 
     def replace(match):
         data = json.loads(match.group(2))
+        if data.get('timingReviewRequired') is True:
+            raise ValueError('Vídeo com perguntas: revise e confirme os tempos de pausa no Editor antes de exportar. Roteiro e perguntas foram preservados.')
         cache = {}
 
         def visit(value):

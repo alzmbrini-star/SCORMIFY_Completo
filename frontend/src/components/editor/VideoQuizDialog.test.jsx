@@ -26,6 +26,26 @@ describe('interactive avatar video authoring', () => {
     expect(apply).toHaveBeenCalledWith(expect.objectContaining({type: 'html', videoQuizConfig: config, htmlDisplayMode: 'page'}));
     expect(close).toHaveBeenCalledWith(false);
   });
+  test('speech cue drafts require listening, actual seconds and explicit author confirmation', async () => {
+    const pending={...config,timingReviewRequired:true,narrationScript:'Explicação. Antes de continuar, pense nesta situação.',checkpoints:[{...config.checkpoints[0],at:null,relative:false,pauseCue:'Antes de continuar, pense nesta situação.'}]};
+    const apply=jest.fn(async payload=>payload),close=jest.fn();
+    jest.spyOn(HTMLMediaElement.prototype,'pause').mockImplementation(()=>{});
+    await act(async()=>root.render(<VideoQuizDialog open element={{id:'review',videoQuizConfig:pending}} onApply={apply} onOpenChange={close}/>));
+    expect(container.querySelector('[aria-label="Tempo da pergunta 1"]').value).toBe('');
+    expect(container.textContent).toContain(pending.checkpoints[0].pauseCue);
+    const click=text=>[...container.querySelectorAll('button')].find(b=>b.textContent===text).click();
+    await act(async()=>click('Aplicar ao vídeo'));
+    expect(fetch).not.toHaveBeenCalled();expect(apply).not.toHaveBeenCalled();
+    const video=container.querySelector('video');video.currentTime=4.75;
+    await act(async()=>click('Usar tempo atual do vídeo — pergunta 1'));
+    expect(container.querySelector('[aria-label="Tempo da pergunta 1"]').value).toBe('4.75');
+    await act(async()=>container.querySelector('[aria-label="Confirmar revisão das pausas"]').click());
+    fetch.mockImplementation(async(url,options)=>({ok:true,json:async()=>({config:JSON.parse(options.body),htmlContent:'<html>reviewed</html>'})}));
+    await act(async()=>click('Aplicar ao vídeo'));
+    const saved=apply.mock.calls[0][0].videoQuizConfig;
+    expect(saved.timingReviewRequired).toBeUndefined();expect(saved.checkpoints[0]).toMatchObject({at:4.75,timingStatus:'author-reviewed'});
+    expect(close).toHaveBeenCalledWith(false);
+  });
   test('failed validation preserves the course and displays the error', async () => {
     const apply = jest.fn();
     await act(async () => root.render(<VideoQuizDialog open element={{src: config.src}} onApply={apply} onOpenChange={() => {}} />));

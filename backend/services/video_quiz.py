@@ -15,6 +15,7 @@ def normalize_video_quiz(raw):
     if not isinstance(checkpoints, list) or not 1 <= len(checkpoints) <= 12:
         raise ValueError('Adicione de 1 a 12 perguntas ao vídeo.')
     clean = []
+    review_required = raw.get('timingReviewRequired') is True
     for i, cp in enumerate(checkpoints):
         if not isinstance(cp, dict):
             raise ValueError('Pergunta inválida.')
@@ -30,25 +31,39 @@ def normalize_video_quiz(raw):
             raise ValueError(f'Pergunta {i+1}: informe de 2 a 6 alternativas completas.')
         if type(correct) is not int or not 0 <= correct < len(options):
             raise ValueError(f'Pergunta {i+1}: selecione uma resposta correta.')
-        if type(at) not in (int, float) or not math.isfinite(at) or at < 0 or at > 86400:
+        unresolved = review_required and at is None and bool(cp.get('pauseCue'))
+        if not unresolved and (type(at) not in (int, float) or not math.isfinite(at) or at < 0 or at > 86400):
             raise ValueError(f'Pergunta {i+1}: tempo inválido.')
         relative = cp.get('relative') is True
+        if unresolved and relative:
+            raise ValueError('Uma pausa ainda não confirmada não pode ser proporcional.')
         if relative and not 0 < at < 1:
             raise ValueError('A posição proporcional deve estar entre 0 e 1.')
         if type(attempts) is not int or not 1 <= attempts <= 10:
             raise ValueError('O limite deve ser de 1 a 10 tentativas.')
-        clean.append(dict(id=f'q{i+1}', at=at, relative=relative, question=question,
+        row = dict(id=f'q{i+1}', at=at, relative=relative, question=question,
                           explanation=explanation, options=[s.strip() for s in options],
-                          correctIndex=correct, maxAttempts=attempts))
+                          correctIndex=correct, maxAttempts=attempts)
+        if cp.get('pauseCue'):
+            row['pauseCue'] = str(cp['pauseCue'])[:240]
+            row['timingStatus'] = str(cp.get('timingStatus') or 'pending')[:40]
+        clean.append(row)
     if len({cp['relative'] for cp in clean}) > 1:
         raise ValueError('Use segundos ou posições proporcionais, sem misturar os dois.')
-    clean.sort(key=lambda c: c['at'])
-    if len({cp['at'] for cp in clean}) != len(clean):
+    if not review_required:
+        clean.sort(key=lambda c: c['at'])
+    known_times = [cp['at'] for cp in clean if cp['at'] is not None]
+    if len(set(known_times)) != len(known_times):
         raise ValueError('Cada pergunta precisa de um momento diferente.')
     result = dict(version=1, src=source, title=str(raw.get('title') or 'Vídeo com perguntas')[:200], checkpoints=clean,
                   instanceId=str(raw.get('instanceId') or '')[:100])
     if provider != 'direct':
         result['provider'] = provider
+    if review_required:
+        result['timingReviewRequired'] = True
+        result['timingReviewMessage'] = str(raw.get('timingReviewMessage') or 'Confira os tempos de pausa no Editor antes de liberar esta atividade.')[:600]
+    if raw.get('narrationScript'):
+        result['narrationScript'] = str(raw['narrationScript'])[:2000]
     if raw.get('graded') is True:
         result['graded'] = True  # Different grading modes never share learner state.
     result['key'] = hashlib.sha256(json.dumps(result, sort_keys=True).encode()).hexdigest()[:20]

@@ -19,3 +19,12 @@ test('duplicate times, out-of-video pauses and missing explanation are actionabl
  expect(errors.some(e=>e.label==='Explicação 2')).toBe(true);
  expect(errors.some(e=>e.message.includes('antes do fim'))).toBe(true);
 });
+test('unconfirmed speech timings are never converted into executable pauses',()=>{
+ const draft={timingReviewRequired:true,checkpoints:[{...cp,at:null,pauseCue:'Antes de continuar, pense nesta situação.'}]};
+ expect(prepareVideoQuizDraft(draft,30).errors.some(e=>e.message.includes('confirme'))).toBe(true);
+ expect(prepareVideoQuizDraft({...draft,timingReviewConfirmed:true},30).errors.some(e=>e.label==='Tempo da pergunta 1')).toBe(true);
+ const result=prepareVideoQuizDraft({...draft,timingReviewConfirmed:true,checkpoints:[{...draft.checkpoints[0],at:12}]},30);
+ expect(result.errors).toEqual([]);expect(result.config.timingReviewRequired).toBeUndefined();
+ expect(result.config.checkpoints[0].timingStatus).toBe('author-reviewed');
+ expect(result.config.checkpoints[0].pauseCue).toBe(draft.checkpoints[0].pauseCue);
+});

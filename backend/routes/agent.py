@@ -2498,6 +2498,8 @@ async def agent_generate_course(session_id: str, request: Request):
                 error_detail = "Serviço de IA temporariamente indisponível (502). Tente novamente em alguns minutos."
             elif isinstance(e, ValueError) and ('O game precisa de conteúdo didático' in err_msg or 'Não foi possível gerar questões vinculadas' in err_msg):
                 error_detail = 'Falha nas questões do game: ' + err_msg[:450] + '. O storyboard foi preservado.'
+            elif isinstance(e, ValueError) and err_msg.startswith('Vídeo com perguntas —'):
+                error_detail = err_msg[:650] + ' O storyboard foi preservado; a geração de imagens ainda não foi iniciada.'
             try:
                 from motor.motor_asyncio import AsyncIOMotorClient as _MotorClient2
                 _c2 = _MotorClient2(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=10000, maxPoolSize=2)
@@ -2825,7 +2827,10 @@ async def agent_heygen_status(project_id: str, user: dict = Depends(require_auth
 
                         # If completed, update the slide element
                         if status == "completed" and video_url:
-                            await _update_slide_with_heygen_video(project_id, item["slideId"], video_url)
+                            if item.get('videoQuizEnabled'):
+                                from services.video_lesson import fetch_timing_metadata
+                                vdata = await fetch_timing_metadata(video_id, vdata, HEYGEN_BASE_URL, HEYGEN_HEADERS)
+                            await _update_slide_with_heygen_video(project_id, item["slideId"], video_url, vdata)
                             await db.heygen_videos.update_one(
                                 {"video_id": video_id},
                                 {"$set": {"status": "completed", "video_url": video_url}}
@@ -2848,7 +2853,7 @@ async def agent_heygen_status(project_id: str, user: dict = Depends(require_auth
     return {"status": "all_done" if all_done else "processing", "videos": results}
 
 
-async def _update_slide_with_heygen_video(project_id: str, slide_id: str, video_url: str):
+async def _update_slide_with_heygen_video(project_id: str, slide_id: str, video_url: str, metadata: dict = None):
     """Replace the HeyGen processing element with actual video player."""
     project = await db.projects.find_one({"id": project_id}, {"_id": 0})
     if not project:
@@ -2863,9 +2868,12 @@ async def _update_slide_with_heygen_video(project_id: str, slide_id: str, video_
                 if f'data-heygen-slide="{slide_id}"' in html:
                     if el.get('videoQuizPending'):
                         from services.video_quiz import build_video_quiz
-                        quiz_config, quiz_html = build_video_quiz(dict(el['videoQuizPending'], src=video_url))
+                        from services.video_lesson import resolve_lesson_timing
+                        pending = await resolve_lesson_timing(el['videoQuizPending'], video_url, metadata or {})
+                        quiz_config, quiz_html = build_video_quiz(dict(pending, src=video_url))
                         await db.projects.update_one(
-                            {'id': project_id},
+                            {'id': project_id, f'course.slides.{si}.id': slide_id,
+                             f'course.slides.{si}.elements.{ei}.htmlContent': html},
                             {'$set': {f'course.slides.{si}.elements.{ei}.htmlContent': quiz_html,
                                       f'course.slides.{si}.elements.{ei}.videoQuizConfig': quiz_config,
                                       f'course.slides.{si}.elements.{ei}.htmlDisplayMode': 'page'},

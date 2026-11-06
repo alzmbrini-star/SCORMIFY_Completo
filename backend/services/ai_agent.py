@@ -3533,6 +3533,12 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         elif media_type == "none":
             slide_media[i] = {"type": "none"}
 
+    # Validate speech/question plans BEFORE any paid image work. Cached plans
+    # survive course-generation retries; narration must never be sliced later.
+    from services.video_lesson import prepare_video_lessons
+    lesson_db = await _get_motor_db() if any(m.get('videoQuizEnabled') for m in slide_media.values()) else None
+    video_lessons = await prepare_video_lessons(slides_data, media_config, session_id, lesson_db)
+
     # Generate AI images in parallel batches (max 5 concurrent)
     if ai_image_tasks:
         total_images = len(ai_image_tasks)
@@ -3931,20 +3937,20 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 clean_text = re.sub(r'<[^>]+>', '', text_content)
                 clean_text = re.sub(r'\s+', ' ', clean_text).strip()
                 if media.get('videoQuizEnabled'):
-                    from services.video_quiz import plan_video_questions
-                    script_text = str(sb_slide.get('narrationScript') or clean_text)[:2000]
-                    clean_text = script_text
-                    checkpoints = await plan_video_questions(script_text)
+                    lesson = video_lessons[i]
+                    clean_text = lesson['narrationScript']
+                    checkpoints = lesson['checkpoints']
                     # Keep the immutable question snapshot beside the processing
                     # placeholder. The background callback only supplies the URL.
                     placeholder = slide_elements[-1]
                     placeholder.update(x=80, y=100, width=1760, height=650,
-                                       videoQuizPending={'title': sb_slide.get('title', 'Vídeo com perguntas'), 'checkpoints': checkpoints, 'instanceId': placeholder['id'], 'graded':media.get('videoQuizGraded') is True})
+                                       videoQuizPending={'title': sb_slide.get('title', 'Vídeo com perguntas'), 'checkpoints': checkpoints, 'instanceId': placeholder['id'], 'graded':media.get('videoQuizGraded') is True, 'timingReviewRequired': True, 'narrationScript': clean_text})
                     slide_elements = [slide_elements[0], placeholder]
                 heygen_pending.append({
                     "slideIndex": i,
                     "slideId": slide_id,
-                    "script": clean_text[:2000],
+                    "script": clean_text if media.get('videoQuizEnabled') else clean_text[:2000],
+                    "videoQuizEnabled": media.get('videoQuizEnabled') is True,
                     "avatar_id": media.get("avatar_id", ""),
                     "voice_id": media.get("voice_id", ""),
                     "title": sb_slide.get("title", f"Slide {i+1}"),

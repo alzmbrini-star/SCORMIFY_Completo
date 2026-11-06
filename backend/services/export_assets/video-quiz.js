@@ -2,8 +2,37 @@
   'use strict';
   const config = JSON.parse(document.getElementById('video-quiz-data').textContent);
   const $ = id => document.getElementById(id), video = $('video');
+  if (config.timingReviewRequired === true) {
+    // Author draft: watch the original speech, but never run/grade guessed pauses.
+    video.src = config.src; video.controls = true;
+    $('title').textContent = config.title;
+    $('question').textContent = 'Tempos de pausa aguardam revisão do autor';
+    $('progress').textContent = 'As perguntas e o roteiro foram preservados; esta atividade ainda não está liberada.';
+    $('message').textContent = config.timingReviewMessage;
+    $('play').disabled = true; $('seek').disabled = true;
+    document.querySelector('footer').textContent = 'Rascunho: revise as pausas em Perguntas durante o vídeo no Editor antes de distribuir ou exportar para os alunos.';
+    ['font', 'contrast'].forEach((id, i) => { $(id).onclick = () => { const on = document.body.classList.toggle(i ? 'high' : 'large'); $(id).setAttribute('aria-pressed', String(on)); }; });
+    return;
+  }
   const progress = config.checkpoints.map(() => ({attempts: 0, resolved: '', released: false}));
   let active = -1, ready = false, saving = false, lastSave = -1, finished = false, acceptResume = true;
+  let pauseFrame = null;
+  function stopPauseMonitor() {
+    if (pauseFrame !== null) window.cancelAnimationFrame(pauseFrame);
+    pauseFrame = null;
+  }
+  function monitorPause() {
+    pauseFrame = null;
+    if (video.paused || video.ended || !ready) return;
+    enforce();
+    if (!video.paused && active < 0) pauseFrame = window.requestAnimationFrame(monitorPause);
+  }
+  function startPauseMonitor() {
+    stopPauseMonitor();
+    // Native media timeupdate can lag hundreds of milliseconds. Read the actual
+    // media clock each display frame, rather than pausing after the next phrase.
+    if (typeof window.requestAnimationFrame === 'function') pauseFrame = window.requestAnimationFrame(monitorPause);
+  }
   const graded = config.graded === true;
   const restart = document.createElement('button'); restart.id = 'restart-video-quiz'; restart.type = 'button'; restart.hidden = true;
   restart.textContent = graded ? 'Nova tentativa (vale nota)' : 'Rever vídeo e perguntas';
@@ -69,6 +98,7 @@
     $('seek').max = String(video.duration); ready = true;
     restore(load()); restart.hidden = graded && !finished;
     $('progress').textContent = progress.length + ' pausas com perguntas. Use Reproduzir para começar.'; enforce();
+    if (!video.paused) startPauseMonitor();
     notify('restore');
   });
   window.addEventListener('message', event => {
@@ -82,8 +112,9 @@
   video.addEventListener('error', () => { $('message').textContent = 'Não foi possível carregar o vídeo. Verifique o link, a conexão e a disponibilidade do arquivo.'; });
   video.addEventListener('timeupdate', () => { enforce(); $('seek').value = String(video.currentTime); $('clock').textContent = Math.floor(video.currentTime/60) + ':' + String(Math.floor(video.currentTime%60)).padStart(2, '0'); const tick = Math.floor(video.currentTime / 5); if (tick !== lastSave) { lastSave = tick; save(); } });
   video.addEventListener('seeking', enforce);
-  video.addEventListener('play', () => { enforce(); $('play').textContent = 'Pausar'; });
-  video.addEventListener('pause', () => { $('play').textContent = 'Reproduzir'; save(); });
+  video.addEventListener('play', () => { enforce(); $('play').textContent = 'Pausar'; startPauseMonitor(); });
+  video.addEventListener('pause', () => { stopPauseMonitor(); $('play').textContent = 'Reproduzir'; save(); });
+  video.addEventListener('ended', stopPauseMonitor);
   video.addEventListener('ended', () => { enforce(); if (active < 0 && progress.every(p => p.released)) { finished = true; restart.hidden = false; $('question').textContent = 'Vídeo concluído'; const correct=progress.filter(p=>p.resolved==='correct').length; $('message').textContent = graded ? 'Sua nota: '+Math.round(100*correct/progress.length)+'% ('+correct+' de '+progress.length+'). Uma nova tentativa avaliativa precisa ser iniciada pelo botão próprio.' : 'Atividade sem nota concluída. Você pode rever o vídeo e responder às perguntas novamente.'; reportResult(); notify('complete'); save(); } });
   restart.onclick = () => {
     if (!ready || graded && !finished) return;
@@ -115,5 +146,5 @@
   $('continue').onclick = () => { if (active < 0 || !progress[active].resolved) return; progress[active].released = true; active = -1; $('options').hidden = true; $('continue').hidden = true; $('question').textContent = 'Continue assistindo'; $('message').textContent = ''; say(''); save(); play(); };
   ['font', 'contrast'].forEach((id, i) => { $(id).onclick = () => { const on = document.body.classList.toggle(i ? 'high' : 'large'); $(id).setAttribute('aria-pressed', String(on)); }; });
   document.addEventListener('visibilitychange', () => { if (document.hidden) { video.pause(); save(); } });
-  window.addEventListener('pagehide', () => { video.pause(); save(); });
+  window.addEventListener('pagehide', () => { stopPauseMonitor(); video.pause(); save(); });
 })();
