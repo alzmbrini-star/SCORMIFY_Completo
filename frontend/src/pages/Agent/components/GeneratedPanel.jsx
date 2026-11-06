@@ -27,6 +27,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui/tabs';
 import DensityBadge from '../../../components/DensityBadge';
 import DensitySuggestionsDialog from '../../../components/DensitySuggestionsDialog';
+import HeygenStatusCard from './HeygenStatusCard';
 import {
   pickReadableTextColor,
   buildSuggestionHtml,
@@ -85,6 +86,7 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
   const [retryingKlingSlide, setRetryingKlingSlide] = useState(null);
   const [narrationStatus, setNarrationStatus] = useState(null);
   const [polling, setPolling] = useState(false);
+  const heygenPollingRef = useRef(false);
   const [suggestions, setSuggestions] = useState(null);
   const [suggestionsStatus, setSuggestionsStatus] = useState('loading');
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
@@ -124,14 +126,16 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
   }, [project?.projectId]);
 
   const checkHeygenStatus = useCallback(async () => {
-    if (!project?.projectId || !project?.heygenPending) return;
+    if (!project?.projectId || !project?.heygenPending || heygenPollingRef.current) return;
+    heygenPollingRef.current = true;
     setPolling(true);
     try {
       const res = await fetch(`${API}/api/agent/projects/${project.projectId}/heygen-status`, { headers: authHeaders() });
+      if (!res.ok) throw new Error('Não foi possível consultar os vídeos.');
       const data = await res.json();
       setHeygenStatus(data);
     } catch { /* ignore */ }
-    finally { setPolling(false); }
+    finally { heygenPollingRef.current = false; setPolling(false); }
   }, [project?.projectId, project?.heygenPending]);
 
   const checkNarrationStatus = useCallback(async () => {
@@ -257,42 +261,7 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
       </div>
 
       {/* HeyGen Video Status */}
-      {project.heygenPending > 0 && (
-        <Card className="bg-purple-900/10 border-purple-800/30 text-left mx-auto max-w-md" data-testid="heygen-status-card">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-purple-300 flex items-center gap-2">
-                <UserCircle className="w-4 h-4" /> Vídeos Avatar HeyGen
-              </h3>
-              <Button variant="ghost" size="sm" onClick={checkHeygenStatus} disabled={polling} className="text-xs text-purple-400" data-testid="refresh-heygen-btn">
-                {polling ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowRight className="w-3 h-3" />} Atualizar
-              </Button>
-            </div>
-            {heygenStatus?.videos?.map((v, i) => (
-              <div key={i} className="flex items-center gap-2 text-xs" data-testid={`heygen-video-status-${i}`}>
-                {v.status === 'completed' ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                ) : v.status === 'failed' ? (
-                  <X className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                ) : (
-                  <Loader2 className="w-3.5 h-3.5 text-purple-400 animate-spin shrink-0" />
-                )}
-                <span className="text-slate-300 truncate flex-1">{v.title}</span>
-                <Badge variant="outline" className={`text-[9px] ${
-                  v.status === 'completed' ? 'border-emerald-700 text-emerald-400' :
-                  v.status === 'failed' ? 'border-red-700 text-red-400' :
-                  'border-purple-700 text-purple-400'
-                }`}>
-                  {v.status === 'completed' ? 'Pronto' : v.status === 'failed' ? 'Falhou' : 'Processando...'}
-                </Badge>
-              </div>
-            ))}
-            {heygenStatus?.status === 'all_done' && (
-              <p className="text-[11px] text-emerald-400/70 text-center">Todos os vídeos foram gerados! Abra o editor para visualizar.</p>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      <HeygenStatusCard enabled={project.heygenPending > 0} status={heygenStatus} busy={polling} onRefresh={checkHeygenStatus} />
 
       {/* Narration Status */}
       {project.klingPending > 0 && (

@@ -2704,160 +2704,149 @@ async def agent_regenerate_suggestions(session_id: str, background_tasks: Backgr
 
 
 async def _trigger_heygen_videos(project_id: str, pending_list: list):
-    """Background task: trigger HeyGen video generation for each pending slide."""
-    for item in pending_list:
-        try:
-            used_transparent = False
-            async with httpx.AsyncClient(timeout=60.0) as http_client:
-                response = None
-
-                # Strategy 1: Try transparent WebM first (v1/video.webm)
-                webm_payload = {
-                    "avatar_pose_id": item["avatar_id"],
-                    "avatar_style": "normal",
-                    "input_text": item["script"],
-                    "voice_id": item["voice_id"],
-                    "dimension": {"width": 1280, "height": 720},
-                }
-                response = await http_client.post(
-                    f"{HEYGEN_BASE_URL}/v1/video.webm",
-                    headers=HEYGEN_HEADERS,
-                    json=webm_payload,
+    """Submit on a thread-owned Mongo client; never borrow the FastAPI loop."""
+    from motor.motor_asyncio import AsyncIOMotorClient
+    worker_client = AsyncIOMotorClient(os.environ.get("MONGO_URL"), serverSelectionTimeoutMS=15000, maxPoolSize=2)
+    worker_db = worker_client[os.environ.get("DB_NAME", "scormify")]
+    try:
+        for item in pending_list:
+            video_id = None
+            try:
+                existing = await worker_db.heygen_videos.find_one({"project_id": project_id, "slide_id": item["slideId"]})
+                if existing and existing.get("video_id"):
+                    await worker_db.projects.update_one(
+                        {"id": project_id, "heygenPending.slideId": item["slideId"]},
+                        {"$set": {"heygenPending.$.videoId": existing["video_id"], "heygenPending.$.status": existing.get("status", "processing")}}
+                    )
+                    continue  # Never submit a second paid job for the same slide.
+                claimed = await worker_db.projects.find_one_and_update(
+                    {"id": project_id, "heygenPending": {"$elemMatch": {"slideId": item["slideId"], "status": {"$in": [None, "pending"]}}}},
+                    {"$set": {"heygenPending.$.status": "submitting"}}
                 )
-                if response.status_code == 200:
-                    used_transparent = True
-                    logger.info(f"HeyGen WebM transparent succeeded for slide {item['slideId']}")
-                else:
-                    logger.warning(f"WebM transparent failed for slide {item['slideId']} ({response.status_code}): {response.text[:200]}")
+                if not claimed:
+                    continue  # Another worker already owns submission (or needs recovery).
+                used_transparent = False
+                async with httpx.AsyncClient(timeout=60.0) as http_client:
                     response = None
 
-                # Strategy 2: Fallback to standard v2 endpoint
-                if response is None:
-                    fallback_payload = {
-                        "video_inputs": [{
-                            "character": {
-                                "type": "avatar",
-                                "avatar_id": item["avatar_id"],
-                                "avatar_style": "normal"
-                            },
-                            "voice": {
-                                "type": "text",
-                                "input_text": item["script"],
-                                "voice_id": item["voice_id"]
-                            }
-                        }],
+                    # Strategy 1: Try transparent WebM first (v1/video.webm)
+                    webm_payload = {
+                        "avatar_pose_id": item["avatar_id"],
+                        "avatar_style": "normal",
+                        "input_text": item["script"],
+                        "voice_id": item["voice_id"],
                         "dimension": {"width": 1280, "height": 720},
-                        "title": f"Agent-{project_id}-{item['slideId']}"
                     }
                     response = await http_client.post(
-                        f"{HEYGEN_BASE_URL}/v2/video/generate",
+                        f"{HEYGEN_BASE_URL}/v1/video.webm",
                         headers=HEYGEN_HEADERS,
-                        json=fallback_payload,
+                        json=webm_payload,
                     )
+                    if response.status_code == 200:
+                        used_transparent = True
+                        logger.info(f"HeyGen WebM transparent succeeded for slide {item['slideId']}")
+                    else:
+                        logger.warning(f"WebM transparent failed for slide {item['slideId']} ({response.status_code}): {response.text[:200]}")
+                        response = None
 
-                if response.status_code == 200:
-                    data = response.json()
-                    video_id = data.get("data", {}).get("video_id")
-                    if video_id:
-                        await db.heygen_videos.insert_one({
-                            "video_id": video_id,
-                            "avatar_id": item["avatar_id"],
-                            "voice_id": item["voice_id"],
-                            "script": item["script"],
-                            "title": item["title"],
-                            "status": "processing",
-                            "transparent": used_transparent,
-                            "project_id": project_id,
-                            "slide_id": item["slideId"],
-                            "created_at": now_utc(),
-                        })
-                        await db.projects.update_one(
-                            {"id": project_id, "heygenPending.slideId": item["slideId"]},
-                            {"$set": {"heygenPending.$.videoId": video_id, "heygenPending.$.status": "processing"}}
+                    # Strategy 2: Fallback to standard v2 endpoint
+                    if response is None:
+                        fallback_payload = {
+                            "video_inputs": [{
+                                "character": {
+                                    "type": "avatar",
+                                    "avatar_id": item["avatar_id"],
+                                    "avatar_style": "normal"
+                                },
+                                "voice": {
+                                    "type": "text",
+                                    "input_text": item["script"],
+                                    "voice_id": item["voice_id"]
+                                }
+                            }],
+                            "dimension": {"width": 1280, "height": 720},
+                            "title": f"Agent-{project_id}-{item['slideId']}"
+                        }
+                        response = await http_client.post(
+                            f"{HEYGEN_BASE_URL}/v2/video/generate",
+                            headers=HEYGEN_HEADERS,
+                            json=fallback_payload,
                         )
-                        logger.info(f"HeyGen video triggered: {video_id} (transparent={used_transparent}) for slide {item['slideId']}")
-                else:
-                    logger.error(f"HeyGen video generation failed: {response.status_code} - {response.text}")
-                    await db.projects.update_one(
-                        {"id": project_id, "heygenPending.slideId": item["slideId"]},
-                        {"$set": {"heygenPending.$.status": "failed", "heygenPending.$.error": response.text[:200]}}
-                    )
-        except Exception as e:
-            logger.error(f"HeyGen video trigger error: {e}")
-            await db.projects.update_one(
-                {"id": project_id, "heygenPending.slideId": item["slideId"]},
-                {"$set": {"heygenPending.$.status": "failed", "heygenPending.$.error": str(e)[:200]}}
-            )
+
+                    if response.status_code == 200:
+                        data = response.json()
+                        video_id = data.get("data", {}).get("video_id")
+                        if video_id:
+                            await worker_db.heygen_videos.insert_one({
+                                "video_id": video_id,
+                                "avatar_id": item["avatar_id"],
+                                "voice_id": item["voice_id"],
+                                "script": item["script"],
+                                "title": item["title"],
+                                "status": "processing",
+                                "transparent": used_transparent,
+                                "project_id": project_id,
+                                "slide_id": item["slideId"],
+                                "created_at": now_utc(),
+                            })
+                            await worker_db.projects.update_one(
+                                {"id": project_id, "heygenPending.slideId": item["slideId"]},
+                                {"$set": {"heygenPending.$.videoId": video_id, "heygenPending.$.status": "processing"}}
+                            )
+                            logger.info(f"HeyGen video triggered: {video_id} (transparent={used_transparent}) for slide {item['slideId']}")
+                        else:
+                            raise ValueError("HeyGen não retornou identificador. Consulte a biblioteca antes de tentar novamente.")
+                    else:
+                        logger.error(f"HeyGen video generation failed: {response.status_code} - {response.text}")
+                        await worker_db.projects.update_one(
+                            {"id": project_id, "heygenPending.slideId": item["slideId"]},
+                            {"$set": {"heygenPending.$.status": "failed", "heygenPending.$.error": response.text[:200]}}
+                        )
+            except Exception as e:
+                logger.error(f"HeyGen video trigger error: {e}")
+                failure = {"heygenPending.$.status": "processing" if video_id else "failed",
+                           "heygenPending.$.error": "Registro do vídeo precisa de reconciliação. Nenhuma nova geração deve ser solicitada automaticamente."}
+                if video_id:
+                    failure["heygenPending.$.videoId"] = video_id
+                await worker_db.projects.update_one(
+                    {"id": project_id, "heygenPending.slideId": item["slideId"]},
+                    {"$set": failure}
+                )
+    finally:
+        worker_client.close()
 
 
 @router.get("/agent/projects/{project_id}/heygen-status")
 async def agent_heygen_status(project_id: str, user: dict = Depends(require_auth)):
-    """Check HeyGen video generation status for a project."""
+    """Read/reconcile existing jobs only; this endpoint never starts generation."""
     project = await load_authorized_project(project_id, user)
-    pending = project.get("heygenPending", [])
-    if not pending:
+    if not project.get("heygenPending"):
         return {"status": "no_heygen", "videos": []}
+    from services.heygen_recovery import reconcile_project
 
-    results = []
-    all_done = True
-    for item in pending:
-        video_id = item.get("videoId")
-        status = item.get("status", "pending")
-        if video_id and status == "processing":
-            # Check HeyGen API for status
-            try:
-                async with httpx.AsyncClient(timeout=30.0) as http_client:
-                    resp = await http_client.get(
-                        f"{HEYGEN_BASE_URL}/v1/video_status.get?video_id={video_id}",
-                        headers=HEYGEN_HEADERS
-                    )
-                    if resp.status_code == 200:
-                        vdata = resp.json().get("data", {})
-                        status = vdata.get("status", "processing")
-                        video_url = vdata.get("video_url")
+    async def fetch_status(video_id):
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,150}", str(video_id)):
+            raise ValueError("Identificador de vídeo inválido; nenhuma geração foi solicitada.")
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(f"{HEYGEN_BASE_URL}/v1/video_status.get",
+                params={"video_id":video_id}, headers=HEYGEN_HEADERS)
+            response.raise_for_status()
+            return response.json().get("data", {})
 
-                        # Update project pending status
-                        update_fields = {"heygenPending.$.status": status}
-                        if video_url:
-                            update_fields["heygenPending.$.videoUrl"] = video_url
-                        await db.projects.update_one(
-                            {"id": project_id, "heygenPending.videoId": video_id},
-                            {"$set": update_fields}
-                        )
+    async def apply_video(slide_id, url, metadata, item):
+        if item.get("videoQuizEnabled"):
+            from services.video_lesson import fetch_timing_metadata
+            metadata = await fetch_timing_metadata(item["videoId"], metadata, HEYGEN_BASE_URL, HEYGEN_HEADERS)
+        return await _update_slide_with_heygen_video(project_id, slide_id, url, metadata)
 
-                        # If completed, update the slide element
-                        if status == "completed" and video_url:
-                            if item.get('videoQuizEnabled'):
-                                from services.video_lesson import fetch_timing_metadata
-                                vdata = await fetch_timing_metadata(video_id, vdata, HEYGEN_BASE_URL, HEYGEN_HEADERS)
-                            await _update_slide_with_heygen_video(project_id, item["slideId"], video_url, vdata)
-                            await db.heygen_videos.update_one(
-                                {"video_id": video_id},
-                                {"$set": {"status": "completed", "video_url": video_url}}
-                            )
-            except Exception as e:
-                logger.error(f"HeyGen status check error: {e}")
-
-        if status not in ("completed", "failed"):
-            all_done = False
-
-        results.append({
-            "slideId": item.get("slideId"),
-            "slideIndex": item.get("slideIndex"),
-            "title": item.get("title"),
-            "videoId": item.get("videoId"),
-            "status": status,
-            "videoUrl": item.get("videoUrl"),
-        })
-
-    return {"status": "all_done" if all_done else "processing", "videos": results}
+    return await reconcile_project(db, project, fetch_status, apply_video)
 
 
 async def _update_slide_with_heygen_video(project_id: str, slide_id: str, video_url: str, metadata: dict = None):
     """Replace the HeyGen processing element with actual video player."""
     project = await db.projects.find_one({"id": project_id}, {"_id": 0})
     if not project:
-        return
+        return False
 
     slides = project.get("course", {}).get("slides", [])
     for si, slide in enumerate(slides):
@@ -2865,13 +2854,15 @@ async def _update_slide_with_heygen_video(project_id: str, slide_id: str, video_
             # Find and replace the heygen processing element
             for ei, el in enumerate(slide.get("elements", [])):
                 html = el.get("htmlContent", "")
+                if not el.get('videoQuizPending') and ((el.get('videoQuizConfig') or {}).get('src') == video_url or f'<video src="{video_url}"' in html):
+                    return True  # Already attached: do not reset edited questions.
                 if f'data-heygen-slide="{slide_id}"' in html:
                     if el.get('videoQuizPending'):
                         from services.video_quiz import build_video_quiz
                         from services.video_lesson import resolve_lesson_timing
                         pending = await resolve_lesson_timing(el['videoQuizPending'], video_url, metadata or {})
                         quiz_config, quiz_html = build_video_quiz(dict(pending, src=video_url))
-                        await db.projects.update_one(
+                        attached = await db.projects.update_one(
                             {'id': project_id, f'course.slides.{si}.id': slide_id,
                              f'course.slides.{si}.elements.{ei}.htmlContent': html},
                             {'$set': {f'course.slides.{si}.elements.{ei}.htmlContent': quiz_html,
@@ -2879,20 +2870,22 @@ async def _update_slide_with_heygen_video(project_id: str, slide_id: str, video_
                                       f'course.slides.{si}.elements.{ei}.htmlDisplayMode': 'page'},
                              '$unset': {f'course.slides.{si}.elements.{ei}.videoQuizPending': ''}}
                         )
-                        return
+                        return getattr(attached, 'matched_count', None) != 0
                     from models import generate_id
-                    new_html = f'''<div style="width:100%;height:100%;border-radius:12px;overflow:hidden;background:#000;position:relative;">
+                    new_html = f'''<div data-heygen-ready="{slide_id}" style="width:100%;height:100%;border-radius:12px;overflow:hidden;background:transparent;position:relative;">
 <video src="{video_url}" style="width:100%;height:100%;object-fit:cover;" controls autoplay muted></video>
 <div style="position:absolute;bottom:0;left:0;right:0;padding:6px 12px;background:linear-gradient(transparent,rgba(0,0,0,0.7));">
 <span style="color:rgba(255,255,255,0.6);font-size:11px;">Avatar HeyGen</span>
 </div>
 </div>'''
-                    await db.projects.update_one(
-                        {"id": project_id},
+                    attached = await db.projects.update_one(
+                        {"id": project_id, f"course.slides.{si}.id": slide_id,
+                         f"course.slides.{si}.elements.{ei}.htmlContent": html},
                         {"$set": {f"course.slides.{si}.elements.{ei}.htmlContent": new_html}}
                     )
                     logger.info(f"Updated slide {slide_id} with HeyGen video")
-                    return
+                    return getattr(attached, 'matched_count', None) != 0
+    return False
 
 
 @router.post("/agent/projects/{project_id}/generate-narration")
