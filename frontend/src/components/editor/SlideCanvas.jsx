@@ -4,6 +4,7 @@ import { useProject } from '../../contexts/ProjectContext';
 import { Trash2, Move, RotateCw } from 'lucide-react';
 import { sanitizeHtmlForDisplay, getRtfContentStyles, wrapInteractiveFullbleed } from '../../utils/htmlUtils';
 import { withEditorialColorProbe } from '../../utils/editorialColorProbe';
+import ScenarioPlayer from '../scenario/ScenarioPlayer';
 import { getAnimationInitialStyle, getAnimationFinalStyle, getAnimationTransition } from '../../lib/animations';
 
 import { getApiUrl } from '../../utils/apiUrl';
@@ -1265,7 +1266,12 @@ const SlideCanvas = ({
               })()}
 
               {/* Scenario Element */}
-              {element.type === 'scenario' && (
+              {element.type === 'scenario' && element.scenarioData && (
+                <div className="w-full h-full pointer-events-none" aria-label="Prévia do cenário; use Visualizar para interagir">
+                  <ScenarioPlayer scenarioData={element.scenarioData} />
+                </div>
+              )}
+              {element.type === 'scenario' && !element.scenarioData && (
                 <div className={`w-full h-full bg-gradient-to-br from-slate-900 via-cyan-950/30 to-slate-900 overflow-hidden relative ${element.objectFit === 'cover' ? '' : 'rounded-lg border-2 border-cyan-500/30'}`}>
                   <div className={`w-full h-full flex flex-col items-center justify-center ${element.objectFit === 'cover' ? 'p-0' : 'p-6'}`}>
                     <svg className="w-16 h-16 text-cyan-400 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">

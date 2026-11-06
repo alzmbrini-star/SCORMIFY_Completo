@@ -280,6 +280,22 @@
       } catch(e) { return; }
       var nodes = data.nodes || [];
       if (!nodes.length) { SP.markClicked(scenarioEl); return; }
+      if (window.ScormifyScenario) {
+        var storyIntro = scenarioEl.querySelector('.sp-scenario-intro');
+        var storyHost = scenarioEl.querySelector('.sp-scenario-play');
+        if (!storyHost) return;
+        if (storyIntro) storyIntro.hidden = true;
+        storyHost.hidden = false;
+        storyHost.style.height = 'min(760px, max(540px, 78vh))';
+        storyHost.style.padding = '0';
+        if (scenarioEl._storyPlayer) scenarioEl._storyPlayer.destroy();
+        scenarioEl._storyPlayer = window.ScormifyScenario.mount(storyHost, data, {onComplete: function(result) {
+          state.quizScores[scenarioEl.dataset.interactiveId] = {correct: result.history.filter(function(h){return h.optimal;}).length, total: result.history.length, pct: result.score};
+          SP.markClicked(scenarioEl);
+          if (typeof Gamification !== 'undefined') Gamification.onScenarioComplete(result.score, data.title || 'Cenário');
+        }});
+        return;
+      }
       var nodeMap = {};
       nodes.forEach(function(n){ nodeMap[n.id] = n; });
       // Hide intro, show play area

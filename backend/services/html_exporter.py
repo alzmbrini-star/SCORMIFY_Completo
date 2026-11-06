@@ -464,6 +464,9 @@ async def _generate_standalone_html(
         processed_elements = []
         for element in slide.get('elements', []):
             processed_element = element.copy()
+            if element.get('type') == 'scenario':
+                from services.scenario_assets import map_scenario_images, resolve_scenario_image
+                processed_element['scenarioData'] = map_scenario_images(element.get('scenarioData'), lambda url: resolve_scenario_image(url, assets_dir, base_url or backend_url))
             
             # Process image elements
             if element.get('type') == 'image' and element.get('src'):
@@ -787,6 +790,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     
     video_viewport_js = (Path(__file__).parent / 'export_assets' / 'video-quiz-viewport.js').read_text(encoding='utf-8')
     video_host_js = (Path(__file__).parent / 'export_assets' / 'video-quiz-host.js').read_text(encoding='utf-8')
+    scenario_presentation_js = (Path(__file__).parent / 'export_assets' / 'scenario-presentation.js').read_text(encoding='utf-8')
     html = f'''<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -795,6 +799,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     <title>{title}</title>
     <script>{video_viewport_js}</script>
     <script>{video_host_js}</script>
+    <script>{scenario_presentation_js}</script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lato:wght@300;400;700&family=Merriweather:wght@300;400;700&family=Montserrat:wght@300;400;500;600;700&family=Nunito:wght@300;400;600;700&family=Open+Sans:wght@300;400;600;700&family=Oswald:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=PT+Sans:wght@400;700&family=Raleway:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&family=Source+Sans+3:wght@300;400;600;700&family=Ubuntu:wght@300;400;500;700&family=Manrope:wght@400;600;700;800&family=Sora:wght@400;600;700&family=Fraunces:wght@400;600;700&family=Source+Serif+4:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Archivo:wght@400;600;700&display=swap" rel="stylesheet">
@@ -3627,6 +3632,11 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     if (!container) return;
                     var data = (window.__scenarioDataMap && window.__scenarioDataMap[elementId]) || null;
                     if (!data) {{ console.error('[ScenarioController] No scenario data for:', elementId); return; }}
+                    if (window.ScormifyScenario) {{
+                        if (scenarios[elementId] && scenarios[elementId].destroy) scenarios[elementId].destroy();
+                        scenarios[elementId] = window.ScormifyScenario.mount(container, data);
+                        return;
+                    }}
                     var nodesMap = {{}};
                     var maxPoints = 0;
                     (data.nodes || []).forEach(function(n) {{

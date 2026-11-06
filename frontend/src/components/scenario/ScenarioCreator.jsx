@@ -34,6 +34,7 @@ export default function ScenarioCreator({ open, onOpenChange, projectId, onScena
     complexity: 'intermediate',
     industry: '',
     duration_minutes: 15,
+    generate_visuals: true,
   });
 
   const handleGenerate = async () => {
@@ -64,6 +65,7 @@ export default function ScenarioCreator({ open, onOpenChange, projectId, onScena
           industry: form.industry,
           duration_minutes: form.duration_minutes,
           language: 'pt-BR',
+          generate_visuals: form.generate_visuals !== false,
         },
         requestConfig,
       );
@@ -73,7 +75,7 @@ export default function ScenarioCreator({ open, onOpenChange, projectId, onScena
 
       // Step 2: Poll for completion
       let attempts = 0;
-      const maxAttempts = 60; // 60 * 2s = 120s max
+      const maxAttempts = 180; // Narrative plus optional persisted illustration.
       while (attempts < maxAttempts) {
         await new Promise(r => setTimeout(r, 2000));
         attempts++;
@@ -97,7 +99,7 @@ export default function ScenarioCreator({ open, onOpenChange, projectId, onScena
           toast.success(`Cenário "${scenario.title}" gerado com ${scenario.nodes?.length || 0} cenas!`);
           await onScenarioCreated(scenario);
           onOpenChange(false);
-          setForm({ theme: '', objectives: '', audience: '', complexity: 'intermediate', industry: '', duration_minutes: 15 });
+          setForm({ theme: '', objectives: '', audience: '', complexity: 'intermediate', industry: '', duration_minutes: 15, generate_visuals: true });
           return;
         }
         if (status === 'failed') {
@@ -230,6 +232,10 @@ export default function ScenarioCreator({ open, onOpenChange, projectId, onScena
           </div>
         </div>
 
+        <label className="text-sm text-slate-200 flex items-start gap-2">
+          <input type="checkbox" checked={form.generate_visuals !== false} disabled={generating} onChange={e=>setForm({...form,generate_visuals:e.target.checked})} />
+          <span>Gerar ilustração contextualizada com IA. Uma imagem é reutilizada nas cenas e salva na biblioteca; pode consumir créditos adicionais. Você poderá trocar as imagens no Editor.</span>
+        </label>
         <DialogFooter className="gap-2 sm:gap-0">
           <Button
             variant="ghost"

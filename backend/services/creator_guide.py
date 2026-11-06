@@ -131,6 +131,11 @@ GUIDE=[
   'Revise cenário, evidências, decisões e feedback. Confira ilustrações e contraste na prévia antes de inserir.'],'editor','html'),
  entry('scenario','Criar cenários de decisão','cenário desafio ramificação árvore decisão consequências',[
   'No Editor, abra Cenários para montar situações com escolhas e consequências. No Agente, habilite Cenários de Desafio na configuração.',
+  'O player apresenta cena, contexto e decisões lado a lado. O aluno seleciona uma alternativa e usa Confirmar decisão; somente a confirmação registra a decisão e apresenta a consequência. Continuar leva à próxima cena.',
+  'No Editor, a opção Gerar ilustração contextualizada com IA pode consumir créditos adicionais. Uma imagem do tema é reutilizada nas cenas para manter continuidade e salva na biblioteca; se a imagem falhar, o cenário continua utilizável sem ela.',
+  'Selecione o cenário no canvas e abra Imagens e falas das cenas nas propriedades. Escolher na biblioteca permite trocar a imagem de cada cena sem alterar as decisões. Também há campos de descrição acessível e fala em destaque.',
+  'Nas propriedades de cada cena, Gerar imagem com IA abre a descrição do visual desejado. Revise a prévia e confirme Usar esta imagem para aplicá-la; gerar não substitui a imagem atual automaticamente. A imagem é persistida no projeto e na biblioteca, e a geração pode consumir créditos.',
+  'A+, A−, Contraste, Consultar contexto e Histórico das decisões ajudam a leitura. Mostrar pontuação no desfecho controla apenas a exibição, não as regras de aprovação. Teste em Visualizar e reexporte HTML/SCORM para atualizar arquivos anteriores.',
   'Revise cada caminho e seus resultados; teste também respostas inadequadas, retorno e reinício.'],'editor','scenario'),
  entry('html','Inserir HTML e interações próprias','html código personalizado javascript css colar desenvolvedor flashcard linha tempo infográfico',[
   'No Editor, abra Adicionar HTML Personalizado. Use Colar HTML para conteúdo próprio ou Gerar com IA para solicitar uma interação.',

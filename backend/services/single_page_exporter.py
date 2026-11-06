@@ -206,7 +206,7 @@ def _render_element(el: dict, project_id: str, assets_dir: str, base_url: str,
     elif etype == "quiz":
         rendered = _render_quiz_element_inner(el, slide_idx, el_idx, questions_lookup)
     elif etype == "scenario":
-        rendered = _render_scenario_element_inner(el, slide_idx, el_idx)
+        rendered = _render_scenario_element_inner(el, slide_idx, el_idx, project_id, assets_dir, base_url)
     elif etype == "simulator":
         rendered = _render_simulator_element_inner(el, project_id, assets_dir, base_url, slide_idx, el_idx)
     elif etype == "button":
@@ -1270,8 +1270,9 @@ def _render_quiz_element_inner(el: dict, slide_idx: int, el_idx: int, questions_
     )
 
 
-def _render_scenario_element_inner(el: dict, slide_idx: int, el_idx: int) -> str:
-    sd = el.get("scenarioData") or {}
+def _render_scenario_element_inner(el: dict, slide_idx: int, el_idx: int, project_id='', assets_dir='', base_url='') -> str:
+    from services.scenario_assets import map_scenario_images, resolve_scenario_image
+    sd = map_scenario_images(el.get('scenarioData'), lambda url: resolve_scenario_image(url, assets_dir, base_url))
     title = _esc(sd.get("title", "Cenário interativo"))
     desc = _esc(sd.get("description", ""))
     context = _esc(sd.get("context", ""))
@@ -1280,6 +1281,13 @@ def _render_scenario_element_inner(el: dict, slide_idx: int, el_idx: int) -> str
 
     # Serialize the scenario state for the JS runtime
     scenario_payload = {
+        "title": sd.get("title", "Cenário de decisão"),
+        "description": sd.get("description", ""),
+        "context": sd.get("context", ""),
+        "config": sd.get("config", {}),
+        "fontSize": sd.get("fontSize", 18),
+        "imageUrl": sd.get("imageUrl", ""),
+        "start_node_id": sd.get("start_node_id"),
         "characters": [
             {"name": c.get("name", ""), "role": c.get("role", "")}
             for c in characters
@@ -1290,6 +1298,11 @@ def _render_scenario_element_inner(el: dict, slide_idx: int, el_idx: int) -> str
                 "title": n.get("title", ""),
                 "narrative": n.get("narrative", ""),
                 "character_speaking": n.get("character_speaking", ""),
+                "imageUrl": n.get("imageUrl") or n.get("scene_image") or n.get("background_image", ""),
+                "imageAlt": n.get("imageAlt", ""),
+                "summary": n.get("summary", ""),
+                "dialogue": n.get("dialogue", ""),
+                "decision_prompt": n.get("decision_prompt", ""),
                 "is_ending": bool(n.get("is_ending", False)),
                 "ending_type": n.get("ending_type"),
                 "score": n.get("score"),
@@ -1299,6 +1312,7 @@ def _render_scenario_element_inner(el: dict, slide_idx: int, el_idx: int) -> str
                         "text": ch.get("text", ""),
                         "next_node_id": ch.get("next_node_id"),
                         "feedback": ch.get("feedback", ""),
+                        "reaction": ch.get("reaction", ""),
                         "is_optimal": bool(ch.get("is_optimal", False)),
                         "points": ch.get("points", 0),
                     }
@@ -2762,4 +2776,4 @@ def _BUILD_PAGE(
 # Python LOC stays manageable. Both files are loaded once at import time.
 _RUNTIME_DIR = Path(__file__).parent / 'sp_runtime'
 _CSS = (_RUNTIME_DIR / 'styles.css').read_text(encoding='utf-8')
-_JS = (_RUNTIME_DIR / 'runtime.js').read_text(encoding='utf-8')
+_JS = (Path(__file__).parent / 'export_assets' / 'scenario-presentation.js').read_text(encoding='utf-8') + '\n' + (_RUNTIME_DIR / 'runtime.js').read_text(encoding='utf-8')

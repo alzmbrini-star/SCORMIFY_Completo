@@ -75,6 +75,15 @@ REGRAS CRÍTICAS:
 7. Crie personagens realistas com nome, cargo e personalidade
 8. Inclua feedback construtivo em cada escolha explicando por que foi boa ou ruim
 9. O cenário deve ter múltiplos finais possíveis (bom, regular, ruim)"""
+    system_message += """
+APRESENTAÇÃO VISUAL: adapte ambiente e personagens ao tema, sem modelo narrativo fixo.
+Cada nó deve incluir summary (resumo até 240 caracteres), dialogue (fala curta,
+até 180 caracteres, apenas se houver personagem), decision_prompt (pergunta curta)
+e visual_description (descrição da cena, objetos e personagens, sem URL inventada).
+Cada escolha deve incluir reaction (reação narrativa breve e coerente após confirmar).
+Mantenha narrative completo para consulta. Use nomes e aparências consistentes.
+Não antecipe a resposta correta no texto das opções. Não gere URLs de imagens.
+"""
 
     prompt = f"""Gere um cenário de aprendizagem ativa com as seguintes especificações:
 
@@ -191,6 +200,10 @@ IMPORTANTE:
                 choice.setdefault("is_optimal", False)
                 choice.setdefault("points", 0)
 
+        # One contextual establishing illustration, reused to keep identity and
+        # costs stable. Individual scene images remain editable by the author.
+        if config.get('project_id') and config.get('generate_visuals', True):
+            await add_scenario_illustration(scenario_data, config['project_id'])
         logger.info(f"Scenario generated: {scenario_data.get('title', 'Untitled')} with {len(scenario_data['nodes'])} nodes")
         return scenario_data
 
@@ -201,3 +214,31 @@ IMPORTANTE:
     except Exception as e:
         logger.error(f"Scenario generation error: {e}")
         raise
+
+
+async def add_scenario_illustration(data, project_id):
+    """Best effort image generation; never discard a playable decision tree."""
+    try:
+        import asyncio
+        from pathlib import Path
+        from services.ai_agent import _fetch_stock_image
+        nodes = data.get('nodes') or []
+        first = next((n for n in nodes if not n.get('is_ending')), {})
+        cast = '; '.join(' · '.join(str(c.get(k) or '') for k in ('name', 'role', 'avatar_description')) for c in data.get('characters', [])[:4])
+        prompt = ('Detailed editorial illustration, realistic professional environment, '
+                  'natural lighting, cinematic composition, characters interacting. '
+                  'No UI, no lettering, no captions. Adapt to the actual subject, not always an office. '
+                  + str(first.get('visual_description') or data.get('context') or data.get('description') or '')
+                  + ' Consistent cast: ' + cast)
+        image_url = await asyncio.wait_for(_fetch_stock_image(
+            prompt, str(Path(__file__).resolve().parent.parent / 'storage' / 'projects'),
+            project_id, slide_context={'title': data.get('title'), 'body': prompt}), timeout=170)
+        if image_url:
+            for node in nodes:
+                node.setdefault('imageUrl', image_url)
+                node.setdefault('imageAlt', str(first.get('visual_description') or data.get('description') or data.get('title')))
+            # _fetch_stock_image persists the asset and registers it in the gallery.
+        else:
+            logger.warning('Scenario illustration unavailable for %s', project_id)
+    except Exception as exc:
+        logger.warning('Scenario kept playable without illustration: %s', type(exc).__name__)

@@ -30,6 +30,7 @@ class ScenarioGenerateRequest(BaseModel):
     industry: str = Field(default="", max_length=500)
     duration_minutes: int = Field(default=15, ge=5, le=60)
     language: str = "pt-BR"
+    generate_visuals: bool = True
 
 
 class ScenarioCreateRequest(BaseModel):
@@ -97,6 +98,8 @@ async def _run_generation(task_id: str, req: ScenarioGenerateRequest):
 
     try:
         scenario_data = await generate_scenario_with_ai({
+            "project_id": req.project_id,
+            "generate_visuals": req.generate_visuals,
             "theme": req.theme,
             "objectives": req.objectives,
             "audience": req.audience,
@@ -122,6 +125,8 @@ async def _run_generation(task_id: str, req: ScenarioGenerateRequest):
             "nodes": scenario_data.get("nodes", []),
             "start_node_id": scenario_data["nodes"][0]["id"] if scenario_data.get("nodes") else None,
             "config": {
+                "project_id": req.project_id,
+                "generate_visuals": req.generate_visuals,
                 "theme": req.theme,
                 "objectives": req.objectives,
                 "audience": req.audience,

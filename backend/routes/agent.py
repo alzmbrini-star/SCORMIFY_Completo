@@ -3709,6 +3709,7 @@ async def _process_scenarios(_db, project_id: str, result: dict, slides: list, g
         try:
             from services.scenario_service import generate_scenario_with_ai
             scenario_data = await generate_scenario_with_ai({
+                "project_id": project_id,
                 "theme": scenario_config.get("theme", scenario_title or "Cenário interativo"),
                 "objectives": scenario_config.get("objectives", ""),
                 "audience": scenario_config.get("audience", ""),
@@ -4557,6 +4558,7 @@ async def add_scenario_to_project(session_id: str, data: dict):
     from services.scenario_service import generate_scenario_with_ai
     try:
         scenario_data = await generate_scenario_with_ai({
+            "project_id": project_id,
             "theme": theme,
             "objectives": objectives,
             "audience": audience,

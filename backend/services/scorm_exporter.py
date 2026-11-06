@@ -517,7 +517,7 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     
     # Write scenario controller script
     with open(package_dir / "scripts" / "scenario-controller.js", 'w', encoding='utf-8') as f:
-        f.write(_read_asset("scenario-controller.js"))
+        f.write(_read_asset("scenario-presentation.js") + "\n" + _read_asset("scenario-controller.js"))
     
     # Write AI tutor files if tutor is enabled
     if tutor_config and tutor_config.get('enabled'):
@@ -624,6 +624,14 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                 continue
             elem_src = element.get('src') or ''
             elem_type = element.get('type') or ''
+            if elem_type == 'scenario':
+                from services.scenario_assets import map_scenario_images
+                def resolve_scenario_image(url):
+                    match = re.search(r'/api/projects/([^/]+)/assets/([^/?#]+)$', url)
+                    if match:
+                        return _read_image_as_data_uri(match.group(1), match.group(2), package_dir / 'assets') or url
+                    return url
+                element['scenarioData'] = map_scenario_images(element.get('scenarioData'), resolve_scenario_image)
 
             # Company brand image (logo, watermark) — rewrite to local path
             if elem_src and isinstance(elem_src, str) and "/api/companies/" in elem_src:

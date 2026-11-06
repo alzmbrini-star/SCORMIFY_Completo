@@ -2057,45 +2057,13 @@ def _build_quiz_slide(sb_slide: dict, palette: dict, module_name: str, question_
 
 
 def _build_scenario_slide(sb_slide: dict, palette: dict, module_name: str, scenario_data: dict) -> list:
-    """Build a scenario slide with the interactive scenario element."""
+    """Give the story the whole slide; its own header replaces redundant intros."""
     from models import generate_id
-    accent = palette["accent"]
-    font_heading = palette.get("fontHeading", "'Inter', sans-serif")
-    font_body = palette.get("fontBody", "'Inter', sans-serif")
-    elements = []
-
-    # Header bar
-    header_html = _build_header_bar(palette, f"CENÁRIO - {module_name}")
-    elements.append({
-        "id": generate_id(), "type": "html", "x": 120, "y": 36, "width": 1680, "height": 40,
-        "htmlContent": header_html,
-        "style": {}, "startTime": 0, "animations": [],
-    })
-
-    # Scenario intro — clean, left-aligned, token colors
-    tk = _tokens(palette)
-    scenario_html = f'''<div style="text-align:left;padding:4px 0;">
-<span style="display:inline-block;padding:6px 18px;border-radius:999px;background:{palette.get("accentLight", accent + "22")};color:{accent};font-size:13px;font-weight:600;letter-spacing:0.5px;font-family:{font_heading};">Simulação interativa</span>
-<h2 style="font-family:{font_heading};font-size:34px;font-weight:700;letter-spacing:-0.5px;color:{tk["text"]};margin:18px 0 10px 0;">{scenario_data.get('title', 'Cenário de Aprendizagem')}</h2>
-<p style="font-family:{font_body};font-size:19px;color:{tk["muted"]};margin:0;max-width:900px;line-height:1.6;">{scenario_data.get('description', 'Tome decisões e veja as consequências em uma simulação realista.')}</p>
-</div>'''
-    elements.append({
-        "id": generate_id(), "type": "html", "x": 120, "y": 100, "width": 1500, "height": 190,
-        "htmlContent": scenario_html,
-        "style": {}, "startTime": 0,
-        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],
-    })
-
-    # Scenario interactive element
-    elements.append({
-        "id": generate_id(), "type": "scenario", "x": 160, "y": 270, "width": 1600, "height": 520,
-        "content": scenario_data.get("id", ""),
-        "scenarioData": scenario_data,
-        "style": {}, "startTime": 0,
-        "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.3}],
-    })
-
-    return elements
+    return [{
+        "id": generate_id(), "type": "scenario", "x": 0, "y": 0,
+        "width": 1920, "height": 820, "content": scenario_data.get("id", ""),
+        "scenarioData": scenario_data, "style": {}, "startTime": 0, "animations": [],
+    }]
 
 
 def _build_summary_slide(sb_slide: dict, palette: dict, module_name: str) -> dict:
@@ -3742,6 +3710,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             try:
                 from services.scenario_service import generate_scenario_with_ai
                 scenario_ai_data = await generate_scenario_with_ai({
+                    "project_id": project_id,
                     "theme": scenario_config["theme"],
                     "objectives": scenario_config["objectives"],
                     "audience": scenario_config.get("audience", ""),

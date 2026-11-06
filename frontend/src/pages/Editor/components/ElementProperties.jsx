@@ -9,11 +9,15 @@ import InteractiveTextColorControls from '../../../components/editor/Interactive
 import EditorialTextColorControls from '../../../components/editor/EditorialTextColorControls';
 import VideoQuizDialog from '../../../components/editor/VideoQuizDialog';
 import { videoQuizSnapshot } from '../../../utils/videoQuizDraft';
+import ScenarioImagePicker from '../../../components/scenario/ScenarioImagePicker';
+import AssessmentImageDialog from '../../../components/assessment/AssessmentImageDialog';
 
 export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 540, projectId }) {
   const style = element.style || {};
   const [bgRemoverOpen, setBgRemoverOpen] = useState(false);
   const [videoQuizOpen, setVideoQuizOpen] = useState(false);
+  const [scenarioImageNode, setScenarioImageNode] = useState(null);
+  const [scenarioImageTarget, setScenarioImageTarget] = useState(null);
 
   const handleStyleChange = (key, value) => {
     const newStyle = { ...style, [key]: value };
@@ -414,7 +418,7 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
 
       {element.type === 'scenario' && (
         <div className="panel-section">
-          <h4 className="text-sm font-medium mb-3">Configuracoes do Cenario</h4>
+          <h4 className="text-sm font-medium mb-3">Configurações do Cenário</h4>
           <div className="space-y-3">
             <div>
               <label className="text-xs text-muted-foreground">Titulo</label>
@@ -447,6 +451,30 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
               <p>{element.scenarioData?.characters?.length || 0} personagens</p>
               <p>{(element.scenarioData?.nodes || []).filter(n => n.is_ending).length} finais possiveis</p>
             </div>
+            <label className="flex gap-2 items-center text-xs">
+              <input type="checkbox" checked={element.scenarioData?.config?.showScore !== false} onChange={e=>onUpdate({scenarioData:{...element.scenarioData,config:{...element.scenarioData?.config,showScore:e.target.checked}}})}/>
+              Mostrar pontuação no desfecho (não altera as regras de aprovação)
+            </label>
+            <details className="text-xs space-y-2">
+              <summary className="cursor-pointer font-medium">Imagens e falas das cenas</summary>
+              <p className="text-muted-foreground">Use o endereço de uma imagem já salva na biblioteca ou uma URL HTTPS. Alterar a imagem não modifica as decisões.</p>
+              {(element.scenarioData?.nodes || []).map((node,index)=><div key={node.id} className="border rounded p-2 space-y-2 mt-2">
+                <strong>{index+1}. {node.title}</strong>
+                <Button type="button" size="sm" variant="outline" onClick={()=>setScenarioImageNode(node.id)}>Escolher na biblioteca</Button>
+                <Button type="button" size="sm" variant="outline" disabled={!projectId} onClick={()=>setScenarioImageTarget({key:`scenario-${element.id}-${node.id}`,nodeId:node.id,label:node.title||element.scenarioData.title,category:element.scenarioData.title,context:[element.scenarioData.context,node.narrative].filter(Boolean).join('\n'),description:'Ilustração editorial detalhada e realista da situação, sem textos, rótulos ou interfaces. '+(node.visual_description||node.summary||node.narrative||'')+' Personagens: '+(element.scenarioData.characters||[]).map(c=>[c.name,c.role,c.avatar_description].filter(Boolean).join(', ')).join('; ')})}><Sparkles className="w-3 h-3 mr-1"/>Gerar imagem com IA</Button>
+                <label className="block">Imagem da cena
+                  <Input aria-label={`Imagem da cena ${index+1}`} value={node.imageUrl||node.scene_image||node.background_image||''} placeholder="https://… ou /api/projects/…/assets/…" onChange={e=>onUpdate({scenarioData:{...element.scenarioData,nodes:element.scenarioData.nodes.map((n,i)=>i===index?{...n,imageUrl:e.target.value}:n)}})}/>
+                </label>
+                <label className="block">Descrição acessível da imagem
+                  <Input aria-label={`Descrição da imagem da cena ${index+1}`} value={node.imageAlt||''} onChange={e=>onUpdate({scenarioData:{...element.scenarioData,nodes:element.scenarioData.nodes.map((n,i)=>i===index?{...n,imageAlt:e.target.value}:n)}})}/>
+                </label>
+                <label className="block">Fala em destaque
+                  <Input aria-label={`Fala da cena ${index+1}`} value={node.dialogue||''} onChange={e=>onUpdate({scenarioData:{...element.scenarioData,nodes:element.scenarioData.nodes.map((n,i)=>i===index?{...n,dialogue:e.target.value}:n)}})}/>
+                </label>
+              </div>)}
+            </details>
+            <ScenarioImagePicker open={scenarioImageNode!==null} onClose={()=>setScenarioImageNode(null)} onSelect={image=>onUpdate({scenarioData:{...element.scenarioData,nodes:element.scenarioData.nodes.map(n=>n.id===scenarioImageNode?{...n,imageUrl:image.imageUrl,imageAlt:image.keywords||n.title}:n)}})}/>
+            <AssessmentImageDialog usage="scenario" target={scenarioImageTarget} projectId={projectId} onClose={()=>setScenarioImageTarget(null)} onApply={media=>{onUpdate({scenarioData:{...element.scenarioData,nodes:element.scenarioData.nodes.map(n=>n.id===scenarioImageTarget.nodeId?{...n,imageUrl:media.url,imageAlt:media.name||n.title}:n)}});setScenarioImageTarget(null);}}/>
           </div>
         </div>
       )}

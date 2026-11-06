@@ -27,3 +27,13 @@ test('failed generation leaves prior attachment untouched',async()=>{
  act(()=>root.render(<AssessmentImageDialog target={{key:'q:support',label:'Pergunta',description:'Cena'}} projectId="p" onApply={apply} onClose={()=>{}}/>));
  await click('Gerar imagem');expect(apply).not.toHaveBeenCalled();expect(host.querySelector('[role="alert"]').textContent).toContain('indisponível');
 });
+test('scenario images reuse persistence but require explicit application to the scene',async()=>{
+ const apply=jest.fn(),media={kind:'image',url:'/api/projects/p/assets/cena.png',name:'Cena'};
+ generateAssessment.mockResolvedValue({media});
+ act(()=>root.render(<AssessmentImageDialog usage="scenario" target={{key:'scenario-s-n1',label:'Cena 1',description:'Conversa entre personagens',context:'Contexto'}} projectId="p" onApply={apply} onClose={()=>{}}/>));
+ expect(host.textContent).toContain('somente à cena selecionada');
+ expect(host.textContent).not.toContain('salve a questão no Banco');
+ await click('Gerar imagem');expect(apply).not.toHaveBeenCalled();
+ expect(generateAssessment.mock.calls[0][3].storageKey).toBe('scormify-scenario-image:p:scenario-s-n1');
+ await click('Usar esta imagem');expect(apply).toHaveBeenCalledWith(media);
+});

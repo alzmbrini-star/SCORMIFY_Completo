@@ -55,6 +55,15 @@ var ScenarioController = (function() {
         if (!container) { console.warn('[ScenarioController] Container not found:', elementId); return; }
         var data;
         try { data = JSON.parse(container.dataset.scenario || '{}'); } catch(e) { console.error('[ScenarioController] JSON parse error:', e); return; }
+        if (window.ScormifyScenario) {
+            if (scenarios[elementId] && scenarios[elementId].destroy) scenarios[elementId].destroy();
+            scenarios[elementId] = window.ScormifyScenario.mount(container, data, {onComplete: function(result) {
+                if (typeof ScormAPI !== 'undefined') ScormAPI.setScore(result.score);
+                if (typeof Gamification !== 'undefined') Gamification.onScenarioComplete(result.score, data.title || 'Cenário');
+                if (typeof CoursePlayer !== 'undefined' && CoursePlayer.onScenarioComplete) CoursePlayer.onScenarioComplete(elementId);
+            }});
+            return;
+        }
         var nodesMap = {};
         (data.nodes || []).forEach(function(n) {
             nodesMap[n.id] = n;
