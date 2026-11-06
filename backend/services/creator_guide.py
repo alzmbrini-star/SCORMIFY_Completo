@@ -84,6 +84,10 @@ GUIDE=[
   'Após a geração, abra o curso no Editor para conferir diagramação, atividades e exportação.'],'agent','', 'agent'),
  entry('storyboard','Revisar o storyboard','storyboard revisar aprovação estrutura etapas erro geração',[
   'No Agente, acompanhe o progresso após aprovar a estrutura. Revise os slides do storyboard e as orientações de mídia.',
+  'Os lotes concluídos do Storyboard são salvos no servidor. Se a execução perder sua reserva após reinício ou falha de conexão, o Agente informa a interrupção e libera Aprovar e Gerar Storyboard para retomar. A retomada exige esse clique; não há reinício automático nem gasto de créditos apenas por consultar o status.',
+  'Com o mesmo conteúdo, estrutura e configuração, os lotes salvos são reutilizados sem nova geração. O lote que estava em execução pode precisar ser refeito e consumir créditos novamente. Alterar entradas ou pedir regeneração completa inicia outro conjunto de lotes; execuções antigas anteriores a esse recurso não têm lotes recuperáveis.',
+  'O progresso conta lotes concluídos. Cursos extensos podem ultrapassar 15 minutos: o acompanhamento continua enquanto houver execução ativa, sem acusar falha apenas pelo tempo. Em falha persistente de conexão ou sessão expirada, reentre e retome o acompanhamento.',
+  'No Storyboard, os jogos apresentam uma prévia do planejamento pedagógico. O jogo final é montado na etapa Gerar Curso com a mecânica existente e perguntas vinculadas ao conteúdo do curso; não é necessário gerar e descartar HTML de jogos nesta etapa.',
   'Use os controles de edição ou o chat da etapa para solicitar ajustes. Confira o resultado antes de aprovar ou gerar o curso.',
   'Se houver falha, registre a mensagem apresentada; não suponha que o curso foi gerado ou salvo. Para simuladores, o diagnóstico técnico ajuda a identificar a causa.'],'agent','', 'agent'),
  entry('slides','Organizar e editar slides','slides miniaturas canvas mover duplicar apagar número duração timeline camada',[

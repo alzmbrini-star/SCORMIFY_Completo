@@ -958,7 +958,7 @@ REGRAS GERAIS:
     return _premiumize_course_structure(_build_fallback_structure(content_text, config, last_error), config)
 
 
-async def generate_storyboard(session_id: str, content_text: str, structure: dict, config: dict, progress_callback=None) -> dict:
+async def generate_storyboard(session_id: str, content_text: str, structure: dict, config: dict, progress_callback=None, checkpoint_store=None) -> dict:
     """Step 3: Generate detailed storyboard - processes slides in batches to avoid timeouts."""
     from services.agent_language import normalize_structure_language
     structure = normalize_structure_language(structure, config)
@@ -982,9 +982,26 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
     storyboard_batches = _build_storyboard_batches(flat_slides, regular_batch_size=4)
     total_batches = len(storyboard_batches)
     processed_slides = 0
+    async def save_batch(index, source_batch, start):
+        completed = all_slides[start:]
+        for item in completed:
+            _normalize_interactive_storyboard_slide(item)
+            _normalize_visual_content_slide(item)
+        if checkpoint_store:
+            await checkpoint_store.save(index, source_batch, completed)
+        if progress_callback:
+            await progress_callback(index, total_batches,
+                f"Lote {index} de {total_batches} concluído · {processed_slides} de {len(flat_slides)} slides salvos.")
     for batch_num, batch in enumerate(storyboard_batches, start=1):
         batch_start = processed_slides
         processed_slides += len(batch)
+        saved_start = len(all_slides)
+        if checkpoint_store:
+            cached_batch = await checkpoint_store.load(batch_num, batch)
+            if cached_batch is not None:
+                all_slides.extend(cached_batch)
+                await save_batch(batch_num, batch, saved_start)
+                continue
         batch_info = [{
             "id": s.get("id", ""),
             "title": s.get("title", ""),
@@ -1006,9 +1023,20 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
         # Report progress
         if progress_callback:
             try:
-                await progress_callback(batch_num, total_batches, f"Gerando slides {batch_start+1}-{processed_slides} de {len(flat_slides)}...")
+                await progress_callback(batch_num - 1, total_batches, f"Gerando slides {batch_start+1}-{processed_slides} de {len(flat_slides)} · {batch_start} concluídos...")
             except Exception:
                 pass
+
+        if len(batch) == 1 and batch[0].get("type") == "game":
+            from services.storyboard_game_plan import plan_game
+            async def ask_game_plan(attempt, game_prompt):
+                provider, model = (PRIMARY_MODEL, FALLBACK_MODEL)[attempt]
+                chat = _new_chat(f'{session_id}_game_plan_{batch_start}_{attempt}', provider=provider, model=model)
+                return _extract_json(await chat.send_message(UserMessage(text=game_prompt)))
+            source = dict(batch[0], gameMechanic=_required_game_mechanic(batch[0]))
+            all_slides.append(await plan_game(source, content_text, config, ask_game_plan))
+            await save_batch(batch_num, batch, saved_start)
+            continue
 
         if len(batch) == 1 and batch[0].get("type") == "simulator":
             from services.visual_simulators import generate_visual_simulator
@@ -1029,6 +1057,7 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
                 "narrationScript": " ".join(spec[k] for k in ("subtitle", "mission", "briefing", "debrief")),
                 "librasScript": spec["briefing"], "notes": spec["mission"], "quizQuestions": [],
             })
+            await save_batch(batch_num, batch, saved_start)
             continue
 
         if len(batch) == 1 and batch[0].get("type") == "case_study":
@@ -1046,6 +1075,7 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
                                                        "width": 960, "height": 540}],
                                "notes": spec["context"], "narrationScript": spec["context"] + ' ' + spec["mission"],
                                "quizQuestions": []})
+            await save_batch(batch_num, batch, saved_start)
             continue
 
         prompt = f"""Você é um designer instrucional experiente. Gere conteúdo DETALHADO, APROFUNDADO e EDUCACIONAL para {len(batch)} slides do curso "{config.get('title', '')}".
@@ -1363,14 +1393,16 @@ REVISAO OBRIGATORIA DO ESTUDO DE CASO:
 A tentativa anterior ficou superficial. Entregue contexto realista, dados e evidencias,
 pelo menos 3 perguntas de reflexao/decisao com consequencias, analise revelavel e debrief com
 licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas externas."""
-                response = await chat.send_message(UserMessage(text=attempt_prompt))
+                response = await asyncio.wait_for(chat.send_message(UserMessage(text=attempt_prompt)), timeout=150)
                 data = _extract_json(response)
-                if data and "slides" in data:
+                if data and isinstance(data.get("slides"), list) and len(data['slides']) == len(batch) and all(isinstance(item, dict) for item in data['slides']):
                     for j, slide_data in enumerate(data["slides"]):
                         if not slide_data.get("moduleName") and j < len(batch):
                             slide_data["moduleName"] = batch[j].get("moduleName", "")
                         if j < len(batch):
                             source_slide = batch[j]
+                            if source_slide.get('id'):
+                                slide_data['id'] = source_slide['id']
                             if illustrated_journey:
                                 slide_data["narrativeBeat"] = source_slide.get("narrativeBeat", "context")
                                 slide_data["imageRole"] = source_slide.get("imageRole", "action_scene")
@@ -1528,6 +1560,8 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                     "notes": "",
                     "quizQuestions": fallback_quiz,
                 })
+
+        await save_batch(batch_num, batch, saved_start)
 
     for slide in all_slides:
         _normalize_interactive_storyboard_slide(slide)
@@ -3213,6 +3247,11 @@ def _normalize_interactive_storyboard_slide(slide: dict) -> dict:
     activity so neither the storyboard nor the generated course is blank.
     """
     stype = str((slide or {}).get("type") or "")
+    if stype == 'game' and (slide.get('gamePlan') or {}).get('version') == 1:
+        from services.storyboard_game_plan import game_plan_preview
+        slide['elements'] = [{'type': 'html', 'interactiveType': 'game-plan',
+                              'htmlContent': game_plan_preview(slide)}]
+        return slide
     builders = {
         "simulator": _build_simulator_fallback_html,
         "game": _build_game_fallback_html,

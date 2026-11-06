@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {agentSlideLabel} from '../utils/agentSlideLabels';
+import {waitForStoryboard} from '../utils/storyboardPolling';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { authHeaders } from '../contexts/AuthContext';
@@ -132,6 +133,8 @@ export default function Agent() {
   const [structure, setStructure] = useState(null);
   const [storyboard, setStoryboard] = useState(null);
   const [storyboardProgressMsg, setStoryboardProgressMsg] = useState(null);
+  const storyboardPoll = useRef(null);
+  useEffect(()=>()=>storyboardPoll.current?.abort(),[sessionId]);
   const [generatedProject, setGeneratedProject] = useState(null);
   const [generationPhases, setGenerationPhases] = useState([]); // Track generation progress phases
   const [generationStartTime, setGenerationStartTime] = useState(null);
@@ -693,72 +696,22 @@ export default function Agent() {
       }
 
       setStoryboardProgressMsg('Iniciando geração do storyboard...');
-      addChatMsg('agent', 'Criando storyboard detalhado... Pode levar 5-10 minutos. Você verá o progresso abaixo.');
+      addChatMsg('agent', 'Criando storyboard detalhado. Lotes concluídos ficam salvos para retomada; cursos extensos e atividades interativas podem levar mais tempo.');
       const res = await fetch(`${API}/api/agent/sessions/${sessionId}/generate-storyboard`, { method: 'POST', headers: authHeaders() });
-      if (!res.ok) throw new Error();
-      const pollInterval = setInterval(async () => {
-        try {
-          const sRes = await fetch(`${API}/api/agent/sessions/${sessionId}?light=1`, { headers: authHeaders() });
-          if (!sRes.ok) return; // Skip this poll cycle on error
-          const session = await sRes.json();
-
-          // Show progress
-          if (session.storyboardProgress) {
-            const p = session.storyboardProgress;
-            const pct = Math.round((p.batch / p.total) * 100);
-            setStoryboardProgressMsg(`${p.message} (${pct}%)`);
-          } else if (session.step === 'storyboarding') {
-            setStoryboardProgressMsg('Processando com IA... aguarde.');
-          }
-
-          if (session.step === 'storyboarded' && session.storyboard) {
-            clearInterval(pollInterval);
-            setStoryboard(session.storyboard);
-            setStoryboardProgressMsg(null);
-            const mc = {};
-            session.storyboard.slides?.forEach((s, i) => {
-              if (s.type === 'content') {
-                mc[String(i)] = { type: 'ai_image' };
-              }
-            });
-            setMediaConfig(mc);
-            addChatMsg('agent', `Storyboard completo com ${session.storyboard.slides?.length || 0} slides! Configure a mídia de cada slide.`);
-            setCurrentStep(4);
-            setLoading(false);
-          } else if (session.step === 'structured' && !session.storyboardProgress) {
-            clearInterval(pollInterval);
-            setStoryboardProgressMsg(null);
-            addChatMsg('agent', session.error || 'Erro ao gerar storyboard. Tente novamente.');
-            toast.error(session.error || 'Erro no storyboard');
-            setLoading(false);
-          }
-        } catch { /* polling error - will retry next interval */ }
-      }, 4000);
-      // Timeout: 15 minutes (storyboard generation can take 5-10 min with model fallbacks)
-      setTimeout(() => {
-        clearInterval(pollInterval);
-        // Final check before giving up
-        fetch(`${API}/api/agent/sessions/${sessionId}?light=1`, { headers: authHeaders() })          .then(r => r.json())
-          .then(session => {
-            if (session.step === 'storyboarded' && session.storyboard) {
-              setStoryboard(session.storyboard);
-              const mc = {};
-              session.storyboard.slides?.forEach((s, i) => {
-                if (s.type === 'content') mc[String(i)] = { type: 'ai_image' };
-              });
-              setMediaConfig(mc);
-              addChatMsg('agent', `Storyboard completo com ${session.storyboard.slides?.length || 0} slides!`);
-              setCurrentStep(4);
-            } else {
-              addChatMsg('agent', 'A geração está demorando mais que o esperado. Clique em "Aprovar e Gerar Storyboard" para verificar o status.');
-              toast.error('Timeout - tente novamente');
-            }
-            setStoryboardProgressMsg(null);
-            setLoading(false);
-          })
-          .catch(() => { setStoryboardProgressMsg(null); setLoading(false); });
-      }, 900000);
-    } catch { toast.error('Erro no storyboard'); setLoading(false); setStoryboardProgressMsg(null); }
+      if (!res.ok) {const detail=await res.json().catch(()=>({}));throw new Error(detail.detail||'Não foi possível iniciar ou retomar o Storyboard.');}
+      storyboardPoll.current?.abort();
+      const controller=new AbortController();storyboardPoll.current=controller;
+      const session=await waitForStoryboard(async signal=>{
+        const response=await fetch(`${API}/api/agent/sessions/${sessionId}?light=1`,{headers:authHeaders(),signal});
+        if(!response.ok){const error=new Error(response.status===401?'Sua sessão expirou. Entre novamente e retome o curso.':'Não foi possível consultar o progresso. Os lotes salvos continuam preservados.');error.permanent=[401,403,404].includes(response.status);throw error;}
+        return response.json();
+      },{signal:controller.signal,onProgress:setStoryboardProgressMsg,onLongWait:message=>addChatMsg('agent',message)});
+      setStoryboard(session.storyboard);setStoryboardProgressMsg(null);
+      const mc={};session.storyboard.slides?.forEach((s,i)=>{if(s.type==='content')mc[String(i)]={type:'ai_image'};});
+      setMediaConfig(mc);setCurrentStep(4);
+      addChatMsg('agent',`Storyboard completo com ${session.storyboard.slides?.length||0} slides! Configure a mídia de cada slide.`);
+    } catch(error) {if(error.name!=='AbortError'){toast.error(error.message||'Erro no storyboard');addChatMsg('agent',error.message||'Erro no storyboard');}setStoryboardProgressMsg(null);}
+    finally {setLoading(false);}
   };
 
   const handleApproveStoryboard = () => {
@@ -1877,7 +1830,7 @@ function StructurePanel({ structure, loading, onApprove, progressMsg }) {
                 <p className="text-xs text-emerald-400/70 mt-0.5">{progressMsg}</p>
               </div>
             </div>
-            <p className="text-[11px] text-slate-500">Cada lote de slides leva ~30-90s. O GPT-4o é usado automaticamente se o GPT-5.2 estiver lento. Tempo estimado: 5-10 minutos.</p>
+            <p className="text-[11px] text-slate-500">Os lotes concluídos ficam salvos. Cursos extensos e atividades interativas podem levar mais tempo. Se houver interrupção, retome por este botão sem refazer os lotes já salvos da mesma estrutura e configuração.</p>
           </CardContent>
         </Card>
       )}

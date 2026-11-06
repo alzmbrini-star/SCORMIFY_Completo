@@ -533,6 +533,10 @@ async def get_agent_session(session_id: str, request: Request, user: dict = Depe
     if s.get('structure'):
         from services.agent_language import normalize_structure_language
         s['structure'] = normalize_structure_language(s['structure'], s.get('config'))
+    if s.get('step') == 'storyboarding':
+        from services.storyboard_jobs import recover_session_view
+        run = await db.agent_storyboard_runs.find_one({'_id': session_id})
+        s = recover_session_view(s, run)
     return s
 
 
@@ -940,16 +944,25 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
             and s.get("step") in ("storyboarded", "generated")):
         return {"status": "already_done", "message": "Storyboard already generated"}
 
-    # If already generating, don't start another thread
-    if s.get("step") == "storyboarding":
-        return {"status": "processing", "message": "Storyboard generation already in progress"}
-
-    # Mark as processing
-    await db.agent_sessions.update_one(
-        {"id": session_id},
-        {"$set": {"step": "storyboarding", "error": None, "storyboardProgress": None,
-                  "updatedAt": datetime.now(timezone.utc).isoformat()}}
-    )
+    from services.storyboard_jobs import acquire_run, input_fingerprint, BatchStore, StoryboardLeaseLost
+    fingerprint = input_fingerprint(s['contentText'], s['structure'], s.get('config', {}))
+    run = await asyncio.to_thread(acquire_run, _get_bg_db(), session_id, fingerprint, force)
+    if run is None:
+        return {"status": "processing", "message": "Já existe uma execução ativa. Acompanhando os lotes salvos."}
+    store = BatchStore(_get_bg_db(), session_id, run)
+    try:
+        changed = await db.agent_sessions.update_one(
+            {"id": session_id, 'updatedAt': s.get('updatedAt')},
+            {"$set": {"step": "storyboarding", "error": None, "storyboardProgress": None,
+                      'storyboardRunId': run['runId'],
+                      "updatedAt": datetime.now(timezone.utc).isoformat()}})
+        if not changed.matched_count:
+            store.finish('interrupted')
+            raise HTTPException(409, 'A sessão foi alterada. Reabra a etapa Estrutura antes de retomar.')
+    except Exception:
+        store.finish('interrupted')
+        raise
+    run_filter = {'id': session_id, 'storyboardRunId': run['runId'], 'step': 'storyboarding'}
 
     def _sync_generate():
         """Run storyboard generation in its own event loop inside a thread."""
@@ -960,9 +973,10 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
             from services.ai_agent import generate_storyboard
 
             async def _progress(batch_num, total, message):
+                store.check()
                 _bgdb = _get_bg_db()
                 _bgdb.agent_sessions.update_one(
-                    {"id": session_id},
+                    run_filter,
                     {"$set": {
                         "storyboardProgress": {"batch": batch_num, "total": total, "message": message},
                         "updatedAt": datetime.now(timezone.utc).isoformat()
@@ -974,15 +988,17 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
             cached = list(diagnostic_db.simulator_diagnostics.find({
                 'sessionId': session_id, 'ownerId': s.get('userId'), 'status': {'$in': ['accepted','failed']},
                 'expiresAt': {'$gt': datetime.now(timezone.utc)}}))
-            with diagnostic_scope(_simulator_diagnostic_sink(diagnostic_db, s), cached):
+            with store, diagnostic_scope(_simulator_diagnostic_sink(diagnostic_db, s), cached):
                 storyboard = loop.run_until_complete(
-                    generate_storyboard(session_id, s["contentText"], s["structure"], s.get("config", {}), progress_callback=_progress)
+                    generate_storyboard(session_id, s["contentText"], s["structure"], s.get("config", {}), progress_callback=_progress, checkpoint_store=store)
                 )
-            _bgdb = _get_bg_db()
-            _bgdb.agent_sessions.update_one(
-                {"id": session_id},
-                {"$set": {"storyboard": storyboard, "step": "storyboarded", "error": None, "storyboardProgress": None, "updatedAt": datetime.now(timezone.utc).isoformat()}}
-            )
+                store.check()
+                changed = _get_bg_db().agent_sessions.update_one(
+                    run_filter,
+                    {"$set": {"storyboard": storyboard, "step": "storyboarded", "error": None, "storyboardProgress": None, "updatedAt": datetime.now(timezone.utc).isoformat()}})
+                if not changed.matched_count:
+                    raise StoryboardLeaseLost('A sessão mudou; o resultado anterior não será sobrescrito.')
+                store.finish('completed')
         except Exception as e:
             from services.generation_errors import storyboard_error_message
             logger.exception("Storyboard generation error: session=%s", session_id)
@@ -990,9 +1006,10 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
             try:
                 _bgdb = _get_bg_db()
                 _bgdb.agent_sessions.update_one(
-                    {"id": session_id},
+                    run_filter,
                     {"$set": {"step": "structured", "error": error_detail, "storyboardProgress": None, "updatedAt": datetime.now(timezone.utc).isoformat()}}
                 )
+                store.finish('failed')
             except Exception:
                 pass
         finally:
@@ -1001,7 +1018,12 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
     # Run in thread pool - this keeps the main event loop free for other requests
     import threading
     thread = threading.Thread(target=_sync_generate, daemon=True)
-    thread.start()
+    try:
+        thread.start()
+    except Exception:
+        store.finish('interrupted')
+        await db.agent_sessions.update_one(run_filter, {'$set': {'step': 'structured', 'error': 'Não foi possível iniciar a geração. Tente retomar.'}})
+        raise
     return {"status": "processing", "message": "Storyboard being generated..."}
 
 
