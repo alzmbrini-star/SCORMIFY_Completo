@@ -5,6 +5,7 @@ import json
 import math
 import re
 from pathlib import Path
+from services.illustration_direction import ART_DIRECTION,illustration_brief
 
 VERSION = 1
 TYPES = {'group','rect','circle','ellipse','line','path','polygon','text'}
@@ -400,6 +401,9 @@ para peça ausente, indique os objetos existentes a completar ou substituir.
 '''
 
 
+VISUAL_PROMPT += '\n' + ART_DIRECTION
+
+
 def illustration_detail_issues(visual,spec):
     """A generation-only floor, not a realism certificate or legacy migration."""
     if spec.get('didacticMode')=='process-demo-v1':return []
@@ -441,6 +445,7 @@ async def generate_visual(data,prompt,context,session_id,provider,key,model):
         request['refinementInstruction']='Refine esta cena validada preservando composição, objetos/IDs pertinentes e significado dos vínculos. Não regenere regras nem recomece a arte sem necessidade.'
         from services.visual_teaching import binding_guidance
         request['bindingGuidance']=binding_guidance(data,data['_refinementVisual'])
+    request['illustrationBrief']=illustration_brief(data,prompt)
     visual_prompt=VISUAL_PROMPT
     if data.get('didacticMode')=='process-demo-v1':
         visual_prompt=VISUAL_PROMPT.replace('Representar >=2 variáveis afetadas por ações, com >=1 alteração de geometria/movimento.','Representar >=1 variável/etapa por mudança visível nos objetos: movimento, intensidade, cor, espessura ou visibilidade; geometria não é obrigatória.').replace('A cena deve mudar tanto na trajetória de sucesso quanto negativa.','A cena deve reagir a pelo menos um controle real disponível, mesmo se o caminho de conclusão não usa esse controle; uma trajetória negativa não é obrigatória.')

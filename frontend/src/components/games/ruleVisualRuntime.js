@@ -45,26 +45,31 @@ export function ruleVisualRuntime() {
   if(sceneObserver)sceneObserver.observe(stage);window.addEventListener('resize',fitScene);if(typeof window.requestAnimationFrame==='function')window.requestAnimationFrame(fitScene);else fitScene();
   if(demo&&authored&&teaching)anchor.hidden=true; // The same guidance remains in the scene caption/guide; reserve room for the illustration.
   if(demo){var simplified=node('div','Demonstração didática simplificada · foco no processo, sem precisão de engenharia.');simplified.setAttribute('role','note');simplified.style.cssText='flex-shrink:0;font:12px/1.3 system-ui,sans-serif;color:#d7eef3;background:#183b4a;padding:5px 8px;border-left:3px solid #6ed9c4;border-radius:5px;margin-bottom:5px';figure.insertBefore(simplified,stage);}
-  var finish=demo&&authored&&(data.experience||{}).visualStyle==='illustrated',paints=Object.create(null),defs;
+  // Finish is independent of the interaction difficulty. Technical diagrams
+  // remain flat, and a conceptual fallback is never dressed up as real artwork.
+  var finish=authored&&(data.experience||{}).visualStyle==='illustrated',paints=Object.create(null),defs;
   function mix(a,b,t){return '#'+[1,3,5].map(function(i){return Math.round(parseInt(a.slice(i,i+2),16)*(1-t)+parseInt(b.slice(i,i+2),16)*t).toString(16).padStart(2,'0');}).join('');}
   function effect(tag,attrs,parent){var e=svg(tag);Object.keys(attrs).forEach(function(k){e.setAttribute(k,attrs[k]);});parent.appendChild(e);return e;}
   if(finish){
     defs=effect('defs',{id:'process-art-finish'},picture);
     var shadow=effect('filter',{id:'process-art-shadow',x:'-30%',y:'-30%',width:'160%',height:'170%'},defs);
-    effect('feDropShadow',{dx:0,dy:2,stdDeviation:2,'flood-color':'#000000','flood-opacity':'.22'},shadow);
+    effect('feDropShadow',{dx:0,dy:2,stdDeviation:2,'flood-color':'#163347','flood-opacity':'.16'},shadow);
     figure.dataset.artFinish='soft-volume';
   }
   function finishShape(entry,attrs){
     var kind=entry.definition.type,base=attrs.fill;
     if(!finish||['group','text','line'].indexOf(kind)>=0||!/^#[0-9a-f]{6}$/i.test(base||''))return;
-    if(kind==='rect'&&attrs.width>=780&&attrs.height>=430)return;
+    // Large environment planes stay flat, rather than becoming inflated blobs.
+    if(kind==='rect'&&attrs.width*attrs.height>=800*450*.55||kind==='ellipse'&&Math.PI*attrs.rx*attrs.ry>=800*450*.3)return;
     var key=entry.definition.id,p=paints[key];
     if(!p){
       var radial=kind==='circle'||kind==='ellipse',gradient=effect(radial?'radialGradient':'linearGradient',radial?{id:'process-paint-'+key,cx:'30%',cy:'25%',r:'80%'}:{id:'process-paint-'+key,x1:'0%',y1:'0%',x2:'30%',y2:'100%'},defs);
       p=paints[key]={stops:[effect('stop',{offset:'0%'},gradient),effect('stop',{offset:'45%'},gradient),effect('stop',{offset:'100%'},gradient)],base:null};
     }
     if(p.base!==base){[mix(base,'#ffffff',.32),base,mix(base,'#000000',.22)].forEach(function(c,i){p.stops[i].setAttribute('stop-color',c);});p.base=base;}
-    entry.el.setAttribute('fill','url(#process-paint-'+key+')');entry.el.setAttribute('filter','url(#process-art-shadow)');
+    entry.el.setAttribute('fill','url(#process-paint-'+key+')');
+    // One shadow per semantic piece; internal details do not each cast a halo.
+    if(!entry.definition.parent)entry.el.setAttribute('filter','url(#process-art-shadow)');
   }
   var propertyNames={strokeWidth:'stroke-width',fontSize:'font-size',fontWeight:'font-weight',anchor:'text-anchor'};
   var numeric=['x','y','width','height','r','rx','ry','x2','y2','rotation','opacity','strokeWidth','fontSize','fontWeight'];
@@ -77,6 +82,7 @@ export function ruleVisualRuntime() {
     var el=svg(shapes[definition.type]),tooltip=svg('title');tooltip.textContent=String(definition.label||'').slice(0,120);el.appendChild(tooltip);el.dataset.visualNode=definition.id;
     var parent=definition.parent&&elements[definition.parent];(parent||picture).appendChild(el);elements[definition.id]=el;
     var entry={definition:definition,el:el,rendered:null};entries.push(entry);
+    if(finish&&definition.type==='group'&&!definition.parent)el.setAttribute('filter','url(#process-art-shadow)');
     if(definition.action&&/^[a-z][a-z0-9_]{0,31}$/.test(definition.action)&&data.actions.some(function(a){return a.id===definition.action;})){
       el.setAttribute('role','button');el.setAttribute('tabindex','0');el.setAttribute('aria-label',tooltip.textContent);el.addEventListener('click',function(){activate(definition.action);});el.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();activate(definition.action);}});
     }

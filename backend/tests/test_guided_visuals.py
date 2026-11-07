@@ -101,6 +101,9 @@ class GuidedVisuals(unittest.TestCase):
             self.assertIn('PLANO VISUAL GUIADO',calls[0]['system']);self.assertEqual(calls[1]['payload']['compositionPlan']['setting'],title)
             self.assertIsNotNone(calls[2]['message'].file_contents);self.assertGreater(len(calls[2]['message'].file_contents[0].data),1000)
             self.assertEqual(len(calls[2]['payload']['executedSamples']),3)
+            for call in calls:
+                self.assertEqual(call['payload']['illustrationBrief']['version'],'mechanism-first-v1')
+            self.assertEqual(calls[1]['payload']['illustrationBrief']['semanticObjects'][0]['id'],'subject')
 
     def test_refinement_planner_receives_existing_art_before_assigning_object_ids(self):
         self.data['_refinementVisual']=validate_visual(art(),self.data)

@@ -127,6 +127,8 @@ GUIDE=[
  entry('simulators','Criar e refinar simuladores','simulador simuladores simulação visualização didática refino cenário mecanismo',[
   'No Editor, abra Adicionar HTML Personalizado e a aba Gerar com IA. Escolha o tipo de atividade, a complexidade e a abordagem visual.',
   'Descreva o mecanismo, os objetos e o que o aluno deve observar. Guiado prioriza a demonstração; Aplicado e Avançado expõem desafios e controles mais completos.',
+  'O planejamento visual das novas gerações escolhe o enquadramento pelo mecanismo: vista ampliada de componentes, ambiente ou interação, conforme o tema. Não há um cenário fixo para todos os assuntos. O acabamento ilustrado usa luz e volume suaves também nos níveis Aplicado e Avançado; a abordagem técnica mantém leitura de esquema.',
+  'O resultado depende da geração de IA e precisa de revisão: não há garantia de acabamento idêntico em qualquer assunto. Os objetos têm legendas consultáveis. Para melhorar atividades antigas use Refinar cenário; publicar uma atualização não redesenha automaticamente os simuladores nem os arquivos HTML/SCORM já exportados. Reexporte após salvar a alteração.',
   'Revise a prévia antes de inserir. Para reabrir uma atividade compatível já inserida, dê duplo clique nela; Refinar cenário solicita uma nova geração da camada visual e pode consumir créditos.',
   'A criação e o refino dependem da permissão individual Permitir criar simuladores, definida pela Administração. Atividades existentes não são removidas ao desabilitá-la.'],'editor','html','simulator'),
  entry('simulator-access','Solicitar acesso aos simuladores','permissão simulador bloqueado desabilitado habilitar não autorizado',[

@@ -1,5 +1,6 @@
 """Subject-independent guided art: plan, draw, render moments, repair locally."""
 import asyncio,base64,copy,json,re
+from services.illustration_direction import ART_DIRECTION,illustration_brief
 
 
 PLAN_PROMPT='''PLANO VISUAL GUIADO. Planeje a ilustração, não a lógica já existente.
@@ -25,6 +26,7 @@ PLAN_PROMPT+='''\nNo refino, existingScene contém a arte já existente: reutili
 mesmos objetos em vez de inventar sinônimos (um ID não prova nem nega a aparência).
 alwaysVisible só é true se o objeto aparecer em TODOS os moments; fenômenos podem
 surgir mais tarde. A abertura pode mostrar o ambiente antes do fenômeno principal.'''
+PLAN_PROMPT += '\n' + ART_DIRECTION
 
 
 def plan_schema(samples):
@@ -118,12 +120,14 @@ async def generate_guided_visual(data,prompt,context,session_id,provider,key,mod
     source={k:v for k,v in data.items() if k not in {'checks','verification','visual','visualProject','visualNotice','template','mechanic','_refinementVisual'}}
     samples=sample_states(data)
     request={'request':prompt[:4000],'courseContext':context[:5000],'model':source,'executedSamples':samples}
+    request['illustrationBrief']=illustration_brief(data,prompt)
     if data.get('_refinementVisual'):request['existingScene']=data['_refinementVisual']
     try:plan=await plan_scene(ask,request,samples)
     except Exception as exc:
         record_attempt('',dict(data,mechanic='finite-rules-v1'),[],error=str(exc))
         return None,'O planejamento da ilustração não foi concluído. Regras preservadas; nenhuma arte nova foi certificada.'
     request['compositionPlan']=plan
+    request['illustrationBrief']=illustration_brief(data,prompt,plan)
     request['sceneInstructions']='Priorize a qualidade da ilustração e a compreensão visual do mecanismo: cenário contextual, silhuetas reconhecíveis, profundidade, materiais e luz coerentes. Não reduza o cenário a fundo chapado e elipses quando o assunto pede formas compostas. Reutilize os IDs existentes dos mesmos objetos no refino; detalhes podem ter IDs próprios. Os momentos orientam o processo, não exigem todos os objetos ao mesmo tempo. O renderizador fornece imagens para revisão do acabamento. Nunca esconda o cenário inteiro. Preserve todos os estados e regras do modelo. O plano não autoriza precisão científica inventada.'
     request['geometryBudget']='Canvas800x450, até100 nós, path até1600 caracteres, polygon até40 pontos. Camadas com parent de group e coordenadas locais. Textos curtos; explicações ficam fora da arte. Arte original para este assunto, não template. O acabamento deve ser ilustrativo e bem composto, não fotográfico.'
     if data.get('_refinementVisual'):request['existingScene']=data['_refinementVisual']
@@ -161,7 +165,7 @@ precisão científica, números ou presença simultânea de todas as fases.'''
             candidate=visual;last_report=report
             projections=[dict(s,objects=visual_state(visual,s['state'])) for s in samples]
             review=validate_review(await ask('-guided-review-'+str(attempt),review_prompt,
-                {'request':prompt[:4000],'compositionPlan':plan,'scene':visual,'model':source,'executedSamples':projections,'pixelReport':report},
+                {'request':prompt[:4000],'illustrationBrief':request['illustrationBrief'],'compositionPlan':plan,'scene':visual,'model':source,'executedSamples':projections,'pixelReport':report},
                 2800,75,picture=picture),visual)
             # Art/teaching review drives the repair, rather than exact planner
             # identifiers or per-frame pixel counts dominating its direction.
