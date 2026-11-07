@@ -246,6 +246,24 @@ async def recover_activity_layout(project_id: str, request: Request, user: dict 
     return {'recoveredSlides':slides, 'skippedSlides':skipped, 'recoveryId':recovery_id, 'message':'Enquadramento restaurado. Conteúdo preservado.'}
 
 
+@router.post("/projects/{project_id}/recover-export-copy")
+async def recover_export_copy(project_id: str, request: Request, user: dict = Depends(require_auth)):
+    """Explicit complete recovery into a separate draft, with tenant fencing."""
+    original = await load_authorized_project(project_id,user)
+    body = await request.json()
+    from services.course_recovery_copy import recovered_project
+    try:
+        recovered = recovered_project(original,body.get('referenceCourse'),user.get('user_id'),now_utc().isoformat(),body.get('requestId'))
+    except (ValueError,TypeError,KeyError) as exc:
+        raise HTTPException(400,str(exc))
+    # Stable unique Mongo key makes a retry of this request return the same copy.
+    # Never update the original project or overwrite edits to a recovered draft.
+    key='html-recovery:'+recovered['id']
+    await db.projects.update_one({'_id':key},{'$setOnInsert':recovered},upsert=True)
+    return {'projectId':recovered['id'],'name':recovered['name'],'slidesCount':len(recovered['course']['slides']),
+            'message':'Cópia criada. O curso original não foi alterado. Links externos antigos podem exigir atualização.'}
+
+
 @router.put("/projects/{project_id}", response_model=dict)
 async def update_project_endpoint(project_id: str, data: ProjectUpdate, user: dict = Depends(require_auth)):
     """Update project. Enforces per-company access isolation.

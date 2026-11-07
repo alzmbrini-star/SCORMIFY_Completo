@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import axios from 'axios';
 import LayoutRecoveryNotice,{activityLayoutIncomplete} from './LayoutRecoveryNotice';
 jest.mock('axios',()=>({post:jest.fn()}));
+jest.mock('react-router-dom',()=>({useNavigate:()=>jest.fn()}));
 jest.mock('sonner',()=>({toast:{success:jest.fn()}}));
 jest.mock('../../contexts/AuthContext',()=>({authHeaders:()=>({Authorization:'Bearer test'})}));
 jest.mock('../../utils/apiUrl',()=>({getApiUrl:()=> 'https://api.example'}));

@@ -1,4 +1,5 @@
-import React, {useState} from 'react';
+import React, {useState,useRef} from 'react';
+import {useNavigate} from 'react-router-dom';
 import axios from 'axios';
 import {toast} from 'sonner';
 import {getApiUrl} from '../../utils/apiUrl';
@@ -24,6 +25,7 @@ export function activityLayoutIncomplete(project) {
 
 export default function LayoutRecoveryNotice({project, onRecovered}) {
   const [busy,setBusy]=useState(false), [error,setError]=useState('');
+  const navigate=useNavigate(),copyRequest=useRef(null);
   if(!activityLayoutIncomplete(project)&&!hasMissingLayout(project)) return null;
   async function recover(referenceCourse) {
     setBusy(true);setError('');
@@ -47,6 +49,20 @@ export default function LayoutRecoveryNotice({project, onRecovered}) {
       catch(err){setError(err.message||'Não foi possível ler a referência.');}
       finally{e.target.value='';}
     }}/></label>
+    <label>Criar cópia completa do HTML anterior <input aria-label="HTML anterior para criar cópia recuperada" type="file" accept=".html,.htm" disabled={busy} onChange={async e=>{
+      const file=e.target.files?.[0];if(!file)return;
+      setBusy(true);setError('');
+      try {
+        if(file.size>50*1024*1024)throw new Error('Use uma exportação anterior de até 50 MB.');
+        const course=parseLayoutReference(await file.text()),key=file.name+':'+file.size+':'+file.lastModified;
+        if(copyRequest.current?.key!==key)copyRequest.current={key,id:crypto.randomUUID()};
+        const {data}=await axios.post(`${getApiUrl()}/api/projects/${project.id}/recover-export-copy`,{referenceCourse:course,requestId:copyRequest.current.id},{headers:authHeaders(),timeout:120000});
+        toast.success(`Cópia recuperada com ${data.slidesCount} slides. O curso atual foi preservado.`);
+        navigate(`/editor/${data.projectId}`);
+      }catch(err){setError(typeof err.response?.data?.detail==='string'?err.response.data.detail:err.message||'Não foi possível confirmar a criação da cópia.');}
+      finally{setBusy(false);e.target.value='';}
+    }}/></label>
+    <span className="text-xs">Cópia completa usa o conteúdo antigo em um NOVO projeto, sem substituir o atual. Links externos podem ter expirado.</span>
     <Button variant="outline" disabled={busy} onClick={()=>downloadLayoutDiagnostic(project)}>Baixar diagnóstico do enquadramento</Button>
     <span className="text-xs">O diagnóstico contém conteúdo do curso. Revise antes de compartilhar.</span>
     {error && <p role="alert" className="w-full">{error}</p>}
