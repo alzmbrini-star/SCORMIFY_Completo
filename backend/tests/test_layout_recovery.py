@@ -47,6 +47,16 @@ def test_reference_never_replaces_changed_or_unidentified_content_or_healthy_geo
     assert not any('.elements.' in k for k in changes)
     with pytest.raises(ValueError):reference_layout_plan(p,{'slides':[]})
 
+
+def test_encoded_export_html_matches_plain_editor_html_but_changed_scripts_do_not():
+    import base64
+    from services.layout_recovery import content_identity
+    raw='<html><script>var value=1;</script><p>Mesmo texto</p></html>'
+    encoded='__B64__:'+base64.b64encode(raw.encode()).decode()
+    assert content_identity({'type':'html','htmlContent':encoded}) == content_identity({'type':'html','htmlContent':raw})
+    assert content_identity({'type':'html','htmlContent':encoded}) != content_identity({'type':'html','htmlContent':raw.replace('value=1','value=2')})
+    assert content_identity({'type':'html','htmlContent':'__B64__:broken!'}) is None
+
 HTML='<html><script id="video-quiz-data" type="application/json">{"checkpoints":[{"question":"Preserve?"}]}</script><video></video></html>'
 def sample():
     return {'id':'p','updatedAt':'revision-1','course':{'slides':[

@@ -10,6 +10,7 @@ import tempfile
 import uuid
 import hashlib
 import json
+import base64
 from datetime import datetime, timezone
 
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
@@ -68,6 +69,16 @@ def content_identity(element):
             'flipbook': ('flipbookUrl',), 'scenario': ('scenarioData',),
             'quiz': ('quizConfig',), 'text': ('content',)}.get(kind, ())
     payload = {k: element[k] for k in keys if element.get(k)}
+    # Standalone exports encode HTML, sometimes more than once in legacy files.
+    # Decode losslessly only. Never strip scripts, tags or meaningful whitespace
+    # to make a changed activity look identical to an earlier version.
+    if kind == 'html' and isinstance(payload.get('htmlContent'),str):
+        value = payload['htmlContent']
+        for _ in range(4):
+            if not value.startswith('__B64__:'): break
+            try: value = base64.b64decode(value[8:],validate=True).decode('utf-8')
+            except (ValueError,UnicodeError): return None
+        payload['htmlContent'] = value
     if not payload: return None
     encoded = json.dumps([kind, payload], sort_keys=True, ensure_ascii=False, separators=(',', ':'))
     return hashlib.sha256(encoded.encode('utf-8')).hexdigest()

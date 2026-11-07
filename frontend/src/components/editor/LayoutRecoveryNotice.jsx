@@ -5,6 +5,7 @@ import {getApiUrl} from '../../utils/apiUrl';
 import {authHeaders} from '../../contexts/AuthContext';
 import {Button} from '../ui/button';
 import {parseLayoutReference} from '../../utils/layoutReference';
+import {downloadLayoutDiagnostic} from '../../utils/layoutDiagnostic';
 
 export function hasMissingLayout(project) {
   const positive=v=>typeof v==='number'&&Number.isFinite(v)&&v>0;
@@ -46,6 +47,8 @@ export default function LayoutRecoveryNotice({project, onRecovered}) {
       catch(err){setError(err.message||'Não foi possível ler a referência.');}
       finally{e.target.value='';}
     }}/></label>
+    <Button variant="outline" disabled={busy} onClick={()=>downloadLayoutDiagnostic(project)}>Baixar diagnóstico do enquadramento</Button>
+    <span className="text-xs">O diagnóstico contém conteúdo do curso. Revise antes de compartilhar.</span>
     {error && <p role="alert" className="w-full">{error}</p>}
   </aside>;
 }
