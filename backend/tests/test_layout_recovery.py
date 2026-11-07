@@ -13,6 +13,39 @@ from fastapi import HTTPException
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from services.layout_recovery import layout_recovery_plan,backup_layout_source
+from services.layout_recovery import reference_layout_plan,layout_metadata_regression
+
+
+def test_reference_recovers_custom_boxes_by_content_without_replacing_content():
+    original={'slides':[{'id':'s','width':1920,'height':820,'elements':[
+        {'id':'a','type':'html','htmlContent':'<p>Current</p>','x':38,'y':21,'width':1844,'height':778},
+        {'id':'b','type':'image','src':'image.png','x':80,'y':700,'width':30,'height':30}]}]}
+    broken={'course':copy.deepcopy(original)}
+    for s in broken['course']['slides']:
+        for k in ('id','width','height'):s.pop(k)
+        for e in s['elements']:
+            for k in ('id','x','y','width','height'):e.pop(k)
+    before=copy.deepcopy(broken)
+    changes,slides,skipped=reference_layout_plan(broken,original)
+    fixed=apply(broken,changes)
+    assert slides==[1] and skipped==[]
+    assert fixed['course']['slides'][0]['elements'][1]['width']==30
+    assert fixed['course']['slides'][0]['elements'][0]['x']==38
+    assert all(k.rsplit('.',1)[1] in {'id','width','height','x','y'} for k in changes)
+    assert broken==before
+    assert reference_layout_plan(fixed,original)==({},[],[])
+    assert layout_metadata_regression(fixed,broken['course'])
+    assert not layout_metadata_regression(fixed,fixed['course'])
+
+
+def test_reference_never_replaces_changed_or_unidentified_content_or_healthy_geometry():
+    old={'slides':[{'width':1920,'height':820,'elements':[{'type':'html','htmlContent':'old','x':40,'y':40,'width':800,'height':500}]}]}
+    p={'course':{'slides':[{'elements':[{'type':'html','htmlContent':'new'}]}]}}
+    assert reference_layout_plan(p,old)==({},[],[1])
+    p['course']['slides'][0]['elements'][0].update(htmlContent='old',id='e',x=120,y=140,width=900,height=600)
+    changes,_,_=reference_layout_plan(p,old)
+    assert not any('.elements.' in k for k in changes)
+    with pytest.raises(ValueError):reference_layout_plan(p,{'slides':[]})
 
 HTML='<html><script id="video-quiz-data" type="application/json">{"checkpoints":[{"question":"Preserve?"}]}</script><video></video></html>'
 def sample():

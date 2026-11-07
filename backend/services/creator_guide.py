@@ -101,6 +101,10 @@ GUIDE=[
   'No Editor, adicione ou selecione um texto para ajustar conteúdo e propriedades, como fonte, tamanho e cor.',
   'O controle de cores dos textos permite corrigir contraste após aplicar um tema visual.',
   'Em uma atividade HTML, selecione o elemento e consulte os controles de cores disponíveis. Compare a prévia antes de aplicar e salvar.'],'editor','text-colors'),
+ entry('layout-recovery','Recuperar elementos pequenos ou sem enquadramento','recuperar restauração restaurar slides pequenos tamanho dimensões zeradas enquadramento',[
+  'Se o Editor detectar identificadores ou dimensões ausentes, mostra um aviso de enquadramento incompleto. Não significa necessariamente perda do conteúdo.',
+  'Para layouts personalizados, use Restaurar de HTML anterior no aviso e selecione uma exportação anterior do mesmo curso, de até 50 MB. Os slides precisam ter a mesma estrutura e os conteúdos dos elementos precisam corresponder; slides alterados ou não correspondentes ficam intactos.',
+  'A restauração guarda uma cópia de segurança no servidor e recupera apenas metadados ausentes ou dimensões inválidas. Não importa o conteúdo antigo por cima do atual, não consome créditos de IA e recusa aplicação se o curso mudou durante a recuperação. Sem referência compatível, não adivinha posições. Guarde o HTML anterior e salve antes de editar novamente.'],'editor'),
  entry('images','Adicionar imagens','imagem imagens foto ilustração upload galeria leonardo krea',[
   'No Editor, use Adicionar imagem para incluir uma imagem. A Galeria e os painéis Leonardo/Krea oferecem outros caminhos de criação e seleção.',
   'Selecione a imagem para ajustar posição e tamanho. Confira se ela não cobre o texto e se está legível na prévia.',
