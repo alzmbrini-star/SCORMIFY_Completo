@@ -1070,6 +1070,7 @@ export default function Editor() {
         prompt: aiHtmlPrompt.trim() || 'Refine apenas a composição visual didática deste simulador, preservando todas as regras e o tema descrito no modelo.', courseContext, projectId: currentProject?.id || projectId || '',
         simulatorComplexity: simulatorOptions.complexity, simulatorVisualStyle: simulatorOptions.visualStyle,
         simulatorActivityType: simulatorOptions.activityType || 'simulation',
+        simulatorObjectImages: simulatorOptions.objectImages === true,
         ...(refining ? { sourceSimulator } : {}),
       }, authHeaders({ 'Content-Type': 'application/json' }), { onProgress: setAiHtmlProgress });
       setAiHtmlResult(html);

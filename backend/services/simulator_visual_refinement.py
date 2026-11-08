@@ -2,7 +2,7 @@
 import json
 
 
-async def refine_visual(source,prompt,context,complexity='advanced',visual_style='illustrated'):
+async def refine_visual(source,prompt,context,complexity='advanced',visual_style='illustrated',object_images=False):
     from services.rule_simulators import validate_rules,render_rules,single_action_shortcuts
     from services.simulator_experience import normalize_experience,options
     from services.rule_visuals import generate_visual
@@ -32,4 +32,9 @@ async def refine_visual(source,prompt,context,complexity='advanced',visual_style
     data.pop('_refinementVisual',None)
     data['visual']=visual
     if notice:data['visualNotice']=notice
-    return {'html':render_rules(data)}
+    result={'html':render_rules(data),'spec':data}
+    if object_images:
+        from services.simulator_experience import with_options
+        from services.simulator_object_images import enrich
+        result=await enrich(result,prompt,with_options(context,{'objectImages':True}), 'refine-object-'+uuid.uuid4().hex[:12])
+    return result

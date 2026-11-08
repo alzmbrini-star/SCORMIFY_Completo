@@ -129,7 +129,7 @@ def normalize_visual(raw):
 def validate_visual(raw, spec):
     from services.rule_simulators import expression,_refs,_id,trace_rules
     raw=normalize_visual(raw)
-    if not isinstance(raw,dict) or raw.get('version')!=VERSION or set(raw)-{'version','title','description','background','nodes','teaching','motions'}:
+    if not isinstance(raw,dict) or raw.get('version')!=VERSION or set(raw)-{'version','title','description','background','nodes','teaching','motions','illustrations'}:
         raise ValueError('Cena deve seguir o contrato visual versão 1')
     result={'version':VERSION,'title':_text(raw.get('title'),100),'description':_text(raw.get('description'),600),
             'background':_color(raw.get('background')),'nodes':[]}
@@ -221,6 +221,9 @@ def validate_visual(raw, spec):
         if not demo:raise ValueError('Movimentos ilustrativos contínuos exigem modo demonstração')
         from services.illustration_motion import validate_motions
         result['motions']=validate_motions(raw['motions'],result['nodes'])
+    if 'illustrations' in raw:
+        from services.simulator_object_images import validate_illustrations
+        result['illustrations']=validate_illustrations(raw['illustrations'],result['nodes'])
     continuous=bool(result.get('motions'))
     minimum=1 if demo else 2
     if not continuous and (len(dynamic)<minimum or not (appearance if demo else geometric)):raise ValueError('Cena deve alterar objetos do processo por movimento, aparência ou visibilidade; não apenas texto ou números' if demo else 'Cena deve alterar formas/posições por estado e representar variáveis causais do processo; não apenas texto ou números')

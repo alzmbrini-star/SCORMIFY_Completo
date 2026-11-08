@@ -57,11 +57,12 @@ def number(value, lo, hi):
 def validate(raw):
     from services.rule_visuals import ALLOWED, _property, _color
     keys={'title','subtitle','learningGoal','scientificNote','duration','background','nodes','motions'}
-    if not isinstance(raw,dict) or keys-set(raw) or set(raw)-keys-{'presentation'} or len(json.dumps(raw,allow_nan=False))>65000:
+    if not isinstance(raw,dict) or keys-set(raw) or set(raw)-keys-{'presentation','illustrations','artworkNotice'} or len(json.dumps({k:v for k,v in raw.items() if k!='illustrations'},allow_nan=False))>65000:
         raise ValueError('Use somente o contrato de visualização didática')
     result={k:text(raw[k],limit) for k,limit in [('title',120),('subtitle',240),('learningGoal',500),('scientificNote',900)]}
     result['duration']=number(raw['duration'],4,60)
     result['background']=_color(raw['background'])
+    if raw.get('artworkNotice'):result['artworkNotice']=text(raw['artworkNotice'],500)
     if result['background']=='none':raise ValueError('Fundo opaco obrigatório')
     if 'presentation' in raw:
         p=raw['presentation']
@@ -148,13 +149,20 @@ def validate(raw):
         animated.add(key);clean_motions.append(row)
     if clipped:raise MotionBoundsError(clipped)
     result.update(nodes=nodes,motions=clean_motions)
+    if 'illustrations' in raw:
+        from services.simulator_object_images import validate_illustrations
+        result['illustrations']=validate_illustrations(raw['illustrations'],nodes)
     return result
 
 
 def render(raw):
     data=validate(raw)
     payload=json.dumps(data,ensure_ascii=True).replace('<','\\u003c').replace('>','\\u003e').replace('&','\\u0026')
-    return upgrade_presentation((Path(__file__).parent/'export_assets/didactic-visualization.html').read_text(encoding='utf-8').replace('__VISUAL_DATA__',payload))
+    document=upgrade_presentation((Path(__file__).parent/'export_assets/didactic-visualization.html').read_text(encoding='utf-8').replace('__VISUAL_DATA__',payload))
+    if data.get('illustrations') or data.get('artworkNotice'):
+        from services.simulator_object_images import inject
+        document=inject(document)
+    return document
 
 
 def generated_plan(raw):

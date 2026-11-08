@@ -610,7 +610,8 @@ def render_rules(data):
     document=(folder/'rule-simulator.html').read_text(encoding='utf-8').replace(
         '__RULE_ENGINE__',(folder/'rule-engine.js').read_text(encoding='utf-8')).replace('__RULE_DATA__',payload)
     if data.get('didacticMode')==PROCESS_DEMO:document=document.replace('LABORATÓRIO DE DECISÕES · SIMULAÇÃO','DEMONSTRAÇÃO DIDÁTICA · PROCESSO SIMPLIFICADO')
-    return upgrade_simulator_slide(document)
+    from services.simulator_object_images import inject
+    return inject(upgrade_simulator_slide(document)) if (data.get('visual') or {}).get('illustrations') else upgrade_simulator_slide(document)
 
 
 async def generate_rule_simulator(prompt, context, session_id, provider, key, model):

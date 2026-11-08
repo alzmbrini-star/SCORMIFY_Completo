@@ -756,7 +756,9 @@ async def generate_visual_simulator(prompt, context="", session_id="visual-simul
     from services.simulator_experience import with_options
     context=with_options(context,preferences)
     provider, _key, model = simulator_generation_config()
-    return await capture_generation(_generate_visual_simulator, prompt, context, session_id, [provider, model], enrich=_enrich_rule_visual)
+    result=await capture_generation(_generate_visual_simulator, prompt, context, session_id, [provider, model], enrich=_enrich_rule_visual)
+    from services.simulator_object_images import enrich
+    return await enrich(result,prompt,context,session_id)
 
 
 async def _enrich_rule_visual(result,prompt,context,session_id):

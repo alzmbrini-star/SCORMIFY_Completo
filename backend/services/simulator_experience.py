@@ -29,8 +29,10 @@ def has_options(context):
 def with_options(context,preferences):
     if preferences is None:return context
     activity=preferences.get('activityType')
+    images=preferences.get('objectImages') is True
     preferences=options(preferences.get('complexity'),preferences.get('visualStyle'))
     if activity == 'visualization':preferences['activityType']=activity
+    if images:preferences['objectImages']=True
     try:
         parsed=json.loads(context)
         if not isinstance(parsed,dict):parsed={'reference':context}

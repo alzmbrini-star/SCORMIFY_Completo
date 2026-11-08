@@ -92,6 +92,7 @@ class GenerateHtmlRequest(BaseModel):
     simulatorComplexity: Literal['guided','applied','advanced'] = 'guided'
     simulatorVisualStyle: Literal['illustrated','technical'] = 'illustrated'
     simulatorActivityType: Literal['simulation','visualization'] = 'simulation'
+    simulatorObjectImages: bool = False
 
 class AgentConfigUpdate(BaseModel):
     model_config = PydanticConfigDict(extra="allow")
@@ -100,6 +101,7 @@ class AgentConfigUpdate(BaseModel):
     simulatorComplexity: Literal['guided','applied','advanced'] = 'guided'
     simulatorVisualStyle: Literal['illustrated','technical'] = 'illustrated'
     simulatorActivityType: Literal['simulation','visualization'] = 'simulation'
+    simulatorObjectImages: bool = False
     duration: Optional[int] = 30
     modules: Optional[int] = 3
     interactivity: Optional[str] = "media"
@@ -381,7 +383,7 @@ Retorne APENAS o código HTML completo, começando com <div> ou <!DOCTYPE html>.
             from services.visual_simulators import generate_visual_simulator
             generated = await generate_visual_simulator(
                 body.prompt, body.courseContext or "", f"html-simulator-{uuid.uuid4().hex[:8]}",
-                preferences={'complexity':getattr(body,'simulatorComplexity','guided'),'visualStyle':getattr(body,'simulatorVisualStyle','illustrated'), 'activityType':getattr(body,'simulatorActivityType','simulation')}
+                preferences={'complexity':getattr(body,'simulatorComplexity','guided'),'visualStyle':getattr(body,'simulatorVisualStyle','illustrated'), 'activityType':getattr(body,'simulatorActivityType','simulation'), 'objectImages':getattr(body,'simulatorObjectImages',False)}
             )
             if generated.get('spec', {}).get('mechanic') in {'entity-planning-v1', 'finite-rules-v1', 'didactic-visualization-v1'}:
                 # This HTML is compiled from validated data and our own assets,
@@ -1008,7 +1010,8 @@ async def agent_generate_storyboard(session_id: str, background_tasks: Backgroun
             cached = list(diagnostic_db.simulator_diagnostics.find({
                 'sessionId': session_id, 'ownerId': s.get('userId'), 'status': {'$in': ['accepted','failed']},
                 'expiresAt': {'$gt': datetime.now(timezone.utc)}}))
-            with store, diagnostic_scope(_simulator_diagnostic_sink(diagnostic_db, s), cached):
+            from services.simulator_object_images import image_scope
+            with store, diagnostic_scope(_simulator_diagnostic_sink(diagnostic_db, s), cached), image_scope(diagnostic_db, {'user_id':s.get('userId'),'companyId':s.get('companyId')}, synchronous=True):
                 storyboard = loop.run_until_complete(
                     generate_storyboard(session_id, s["contentText"], s["structure"], s.get("config", {}), progress_callback=_progress, checkpoint_store=store)
                 )

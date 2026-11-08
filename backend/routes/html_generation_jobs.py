@@ -21,13 +21,14 @@ class HtmlJobRequest(BaseModel):
     simulatorComplexity: Literal['guided','applied','advanced'] = 'guided'
     simulatorVisualStyle: Literal['illustrated','technical'] = 'illustrated'
     simulatorActivityType: Literal['simulation','visualization'] = 'simulation'
+    simulatorObjectImages: bool = False
     sourceSimulator: str = Field(default='', max_length=120000)
     projectId: str = Field(default='', max_length=100)
     requestId: str = Field(min_length=16, max_length=100, pattern=r'^[A-Za-z0-9_-]+$')
 
 
 class ComponentRequest(BaseModel):
-    sourceSimulator: str = Field(min_length=2, max_length=120000)
+    sourceSimulator: str = Field(min_length=2, max_length=2000000)
     visualProject: dict
 
 
@@ -101,17 +102,20 @@ async def _generate_with_diagnostics(request, user, diagnostic):
     from services.simulator_permissions import simulator_request,require_simulators
     if simulator_request(request):require_simulators(user)
     from services.simulator_diagnostics import editor_attempts
-    with editor_attempts(diagnostic):
+    from services.simulator_object_images import image_scope
+    with editor_attempts(diagnostic), image_scope(db,user):
         if request.get('sourceSimulator'):
             from services.simulator_visual_refinement import refine_visual
             return await asyncio.wait_for(refine_visual(request['sourceSimulator'],request['prompt'],request['courseContext'],
-                request.get('simulatorComplexity','advanced'),request.get('simulatorVisualStyle','illustrated')),timeout=18*60)
+                request.get('simulatorComplexity','advanced'),request.get('simulatorVisualStyle','illustrated'),
+                **({'object_images':True} if request.get('simulatorObjectImages') is True else {})),timeout=18*60)
         from routes.agent import GenerateHtmlRequest, generate_html_with_ai
         return await asyncio.wait_for(generate_html_with_ai(
             GenerateHtmlRequest(prompt=request['prompt'], courseContext=request['courseContext'],
                                 simulatorComplexity=request.get('simulatorComplexity','guided'),
                                 simulatorVisualStyle=request.get('simulatorVisualStyle','illustrated'),
-                                simulatorActivityType=request.get('simulatorActivityType','simulation')),
+                                simulatorActivityType=request.get('simulatorActivityType','simulation'),
+                                simulatorObjectImages=request.get('simulatorObjectImages',False)),
             _user=user), timeout=18 * 60)
 
 

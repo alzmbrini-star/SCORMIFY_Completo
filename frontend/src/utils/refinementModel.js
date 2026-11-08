@@ -7,6 +7,9 @@ export function refinementModel(html) {
   const model = JSON.parse(nodes[0].textContent);
   if (!model || !Array.isArray(model.variables) || !Array.isArray(model.actions)) throw new Error('invalid model');
   delete model.visualNotice;
+  // Raster bytes are already saved in the library. Never send megabytes of
+  // pixels as text to the scene planner; refino creates a new explicit layer.
+  if (model.visual) delete model.visual.illustrations;
   const source = JSON.stringify(model);
   if (source.length > 120000) throw new Error('model too large');
   return source;

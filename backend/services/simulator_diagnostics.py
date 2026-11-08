@@ -36,7 +36,8 @@ def simulator_request(source, content, config):
         'course': {key: config[key] for key in ('title', 'targetAudience', 'audience', 'depth', 'learningObjectives', 'objectives') if key in config},
         'module': source.get('moduleName'), 'objective': source.get('purpose'), 'reference': content[:6000],
         'simulatorOptions':{**options(config.get('simulatorComplexity'),config.get('simulatorVisualStyle')),
-                            **({'activityType':'visualization'} if config.get('simulatorActivityType')=='visualization' else {})}}, ensure_ascii=False))
+                            **({'activityType':'visualization'} if config.get('simulatorActivityType')=='visualization' else {}),
+                            **({'objectImages':True} if config.get('simulatorObjectImages') is True else {})}}, ensure_ascii=False))
 
 
 def simulator_sources(session):

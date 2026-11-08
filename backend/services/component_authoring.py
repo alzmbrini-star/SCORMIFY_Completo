@@ -5,7 +5,7 @@ from html.parser import HTMLParser
 
 
 def read_model(source):
-    if not isinstance(source, str) or len(source) > 120000:
+    if not isinstance(source, str) or len(source) > 2000000:
         raise ValueError('Modelo de origem inválido ou maior que 120 KB')
     raw = json.loads(source)
     if not isinstance(raw, dict):
@@ -46,7 +46,7 @@ class ModelParser(HTMLParser):
 
 
 def stored_model(html):
-    if not isinstance(html, str) or len(html) > 1500000:
+    if not isinstance(html, str) or len(html) > 2200000:
         raise ValueError('Simulador armazenado inválido')
     parser = ModelParser()
     parser.feed(html)

@@ -251,7 +251,7 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
         </Card>
 
         {canCreateSimulators ? <SimulatorExperienceOptions complexity={config.simulatorComplexity || 'guided'} visualStyle={config.simulatorVisualStyle || 'illustrated'} disabled={loading}
-          activityType={config.simulatorActivityType || 'simulation'} onChange={({ complexity, visualStyle, activityType }) => setConfig(previous => ({ ...previous, simulatorComplexity: complexity, simulatorVisualStyle: visualStyle, simulatorActivityType: activityType }))} /> : <p role="note" className="text-sm text-amber-400">Criação de simuladores desabilitada pela Administração para seu usuário.</p>}
+          activityType={config.simulatorActivityType || 'simulation'} objectImages={config.simulatorObjectImages === true} onChange={({ complexity, visualStyle, activityType, objectImages }) => setConfig(previous => ({ ...previous, simulatorComplexity: complexity, simulatorVisualStyle: visualStyle, simulatorActivityType: activityType, simulatorObjectImages:objectImages === true }))} /> : <p role="note" className="text-sm text-amber-400">Criação de simuladores desabilitada pela Administração para seu usuário.</p>}
 
         {/* Resource Balance Config */}
         <Card className="bg-slate-900/50 border-slate-800" data-testid="resource-balance-card">
