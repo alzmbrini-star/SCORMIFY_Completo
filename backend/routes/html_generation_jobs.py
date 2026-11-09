@@ -23,6 +23,7 @@ class HtmlJobRequest(BaseModel):
     simulatorActivityType: Literal['simulation','visualization'] = 'simulation'
     simulatorObjectImages: bool = False
     objectImagesOnly: bool = False
+    objectImageLimit: int = Field(default=4,ge=1,le=4)
     sourceSimulator: str = Field(default='', max_length=2000000)
     projectId: str = Field(default='', max_length=100)
     requestId: str = Field(min_length=16, max_length=100, pattern=r'^[A-Za-z0-9_-]+$')
@@ -109,7 +110,8 @@ async def _generate_with_diagnostics(request, user, diagnostic):
             if not request.get('sourceSimulator') or request.get('simulatorObjectImages') is not True:
                 raise ValueError('A geração de imagens exige o simulador de origem e a opção explícita de imagens IA.')
             from services.simulator_object_images import illustrate_existing
-            return await asyncio.wait_for(illustrate_existing(request['sourceSimulator'],request['prompt'],request['courseContext']),timeout=18*60)
+            return await asyncio.wait_for(illustrate_existing(request['sourceSimulator'],request['prompt'],request['courseContext'],
+                **({'max_images':request['objectImageLimit']} if request.get('objectImageLimit',4)!=4 else {})),timeout=18*60)
         if request.get('sourceSimulator'):
             from services.simulator_visual_refinement import refine_visual
             return await asyncio.wait_for(refine_visual(request['sourceSimulator'],request['prompt'],request['courseContext'],

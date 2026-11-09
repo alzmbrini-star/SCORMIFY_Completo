@@ -188,6 +188,7 @@ export function HtmlDialog({
   editingSimulator = false, onDownloadHtml, onLoadHtml, canCreateSimulators = true,
 }) {
   const [confirmObjectImages, setConfirmObjectImages] = useState(false);
+  const [objectImageLimit, setObjectImageLimit] = useState(4);
   return (
     <Dialog open={open} onOpenChange={(o) => {
       onOpenChange(o);
@@ -275,8 +276,9 @@ export function HtmlDialog({
             {confirmObjectImages && <div role="alert" className="mt-3 border rounded-lg p-4 space-y-2">
               <p className="font-medium">Gerar imagens das peças com IA?</p>
               <p className="text-sm">Consome créditos OpenAI para até 4 peças individuais. Mantém o cenário, as posições e as regras; não refaz o simulador inteiro. As imagens ficam na biblioteca e na prévia. O slide só será alterado quando você salvar. Se nenhuma imagem for gerada, a tentativa será informada como falha.</p>
+              <label className="block text-sm">Quantidade máxima de imagens<select className="block w-full mt-1 border rounded p-2 bg-background" value={objectImageLimit} onChange={e => setObjectImageLimit(Number(e.target.value))} disabled={aiHtmlLoading} data-testid="object-image-limit">{[1,2,3,4].map(n => <option key={n} value={n}>{n === 1 ? '1 imagem — testar uma peça' : `Até ${n} imagens`}</option>)}</select></label>
               <Button variant="outline" disabled={aiHtmlLoading} onClick={() => setConfirmObjectImages(false)}>Agora não</Button>
-              <Button disabled={aiHtmlLoading} data-testid="ai-html-confirm-object-images" onClick={() => {setConfirmObjectImages(false); handleGenerateHtmlAI(aiHtmlResult, {objectImagesOnly:true});}}>Confirmar geração de imagens</Button>
+              <Button disabled={aiHtmlLoading} data-testid="ai-html-confirm-object-images" onClick={() => {setConfirmObjectImages(false); handleGenerateHtmlAI(aiHtmlResult, {objectImagesOnly:true,objectImageLimit});}}>Confirmar geração de imagens</Button>
             </div>}
           </TabsContent>
         </Tabs>

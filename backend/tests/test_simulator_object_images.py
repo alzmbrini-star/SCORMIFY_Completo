@@ -3,11 +3,12 @@ import base64
 import copy
 import io
 import json
+import os
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from PIL import Image
-from services.simulator_object_images import candidates, validate_illustrations, image_scope, enrich
+from services.simulator_object_images import candidates, validate_illustrations, image_scope, enrich, generate_piece, object_image_model, DEFAULT_OBJECT_IMAGE_MODEL, image_failure
 from test_didactic_visualizations import fixture
 from services.didactic_visualizations import validate, render
 
@@ -107,3 +108,51 @@ class ObjectImages(unittest.TestCase):
         row={'node':'electron','src':'data:image/png;base64,'+base64.b64encode(png()).decode()}
         with self.assertRaises(ValueError):validate_illustrations([row,row],fixture()['nodes'])
         with self.assertRaises(ValueError):validate_illustrations([dict(row,node='missing')],fixture()['nodes'])
+
+    def test_retired_model_is_never_sent_and_explicit_supported_model_is_kept(self):
+        for configured in ('','gpt-image-1'):
+            with patch.dict(os.environ,{'OPENAI_OBJECT_IMAGE_MODEL':configured}):
+                self.assertEqual(object_image_model(),DEFAULT_OBJECT_IMAGE_MODEL)
+        with patch.dict(os.environ,{'OPENAI_OBJECT_IMAGE_MODEL':'gpt-image-1.5'}):
+            self.assertEqual(object_image_model(),'gpt-image-1.5')
+
+    def test_actual_sdk_builds_supported_request_and_keeps_png_alpha(self):
+        import httpx
+        from openai import AsyncOpenAI
+        captured=[]
+        def handle(request):
+            captured.append(json.loads(request.content))
+            return httpx.Response(200,json={'created':0,'data':[{'b64_json':base64.b64encode(png()).decode()}]},request=request)
+        def client(**kwargs):return AsyncOpenAI(**kwargs,http_client=httpx.AsyncClient(transport=httpx.MockTransport(handle)))
+        with patch('openai.AsyncOpenAI',side_effect=client),patch.dict(os.environ,{'OPENAI_OBJECT_IMAGE_MODEL':''}):
+            result=asyncio.run(generate_piece('Uma peça isolada'))
+        self.assertEqual(len(captured),1)
+        self.assertEqual(captured[0]['model'],DEFAULT_OBJECT_IMAGE_MODEL)
+        self.assertEqual(captured[0]['background'],'transparent');self.assertEqual(captured[0]['output_format'],'png')
+        with Image.open(io.BytesIO(result)) as image:self.assertEqual(image.mode,'RGBA');self.assertLess(image.getextrema()[3][0],255)
+
+    def test_provider_error_is_actionable_and_never_exposes_raw_body(self):
+        class Rejected(Exception):
+            status_code=400
+            body={'error':{'code':'invalid_value','param':'model','message':'secret sk-test-body and private prompt'}}
+        failure=image_failure(Rejected('secret headers'))
+        self.assertIn('campo: model',str(failure));self.assertNotIn('sk-',str(failure));self.assertTrue(failure.global_failure)
+
+    def test_one_image_budget_and_global_failure_stop_extra_requests(self):
+        from services.simulator_diagnostics import editor_attempts
+        class Rejected(Exception):
+            status_code=400;body={'code':'invalid_value','param':'model','message':'sensitive upstream'}
+        db=SimpleNamespace(image_gallery=SimpleNamespace(find_one=AsyncMock(return_value=None),update_one=AsyncMock()))
+        plan='{"pieces":[{"node":"electron","description":"blue"},{"node":"proton","description":"red"}]}'
+        chat=SimpleNamespace(send_message=AsyncMock(return_value=plan));chat.with_model=lambda *args:chat;chat.with_params=lambda **kw:chat
+        async def run(limit):
+            diagnostic={}
+            with image_scope(db,{'user_id':'author'}),editor_attempts(diagnostic):
+                result=await enrich({'html':'old','spec':dict(fixture(),mechanic='didactic-visualization-v1')},'topic','{"simulatorOptions":{"objectImages":true}}','qa',max_images=limit)
+            return result,diagnostic
+        with patch('emergentintegrations.llm.chat.LlmChat',return_value=chat),patch('services.llm_config.simulator_generation_config',return_value=('openai','fake','model')),patch('services.simulator_object_images.generate_piece',AsyncMock(side_effect=Rejected())) as paid:
+            result,diagnostic=asyncio.run(run(4))
+            self.assertEqual(paid.await_count,1);self.assertIn('campo: model',result['spec']['artworkNotice'])
+            self.assertIn('image_generation',diagnostic['attempts'][0]['document']);self.assertNotIn('sensitive upstream',json.dumps(diagnostic))
+        with patch('emergentintegrations.llm.chat.LlmChat',return_value=chat),patch('services.llm_config.simulator_generation_config',return_value=('openai','fake','model')),patch('services.simulator_object_images.generate_piece',AsyncMock(return_value=png())) as paid:
+            result,_=asyncio.run(run(1));self.assertEqual(paid.await_count,1);self.assertEqual(len(result['spec']['illustrations']),1)

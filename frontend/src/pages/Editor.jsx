@@ -1073,7 +1073,7 @@ export default function Editor() {
         simulatorComplexity: simulatorOptions.complexity, simulatorVisualStyle: simulatorOptions.visualStyle,
         simulatorActivityType: simulatorOptions.activityType || 'simulation',
         simulatorObjectImages: wantsImages,
-        ...(imagesOnly ? { objectImagesOnly: true } : {}),
+        ...(imagesOnly ? { objectImagesOnly: true, objectImageLimit: generation.objectImageLimit || 4 } : {}),
         ...(refining ? { sourceSimulator } : {}),
       }, authHeaders({ 'Content-Type': 'application/json' }), { onProgress: setAiHtmlProgress });
       setAiHtmlResult(html);

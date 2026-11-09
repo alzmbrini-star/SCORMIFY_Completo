@@ -35,6 +35,6 @@ test('object images require an explicit confirmation and use images-only mode',(
  act(()=>host.querySelector('[data-testid="ai-html-object-images-btn"]').click());
  expect(generate).not.toHaveBeenCalled();expect(host.textContent).toContain('Consome créditos OpenAI');
  act(()=>host.querySelector('[data-testid="ai-html-confirm-object-images"]').click());
- expect(generate).toHaveBeenCalledWith(html,{objectImagesOnly:true});
+ expect(generate).toHaveBeenCalledWith(html,{objectImagesOnly:true,objectImageLimit:4});
  act(()=>root.unmount());host.remove();
 });
