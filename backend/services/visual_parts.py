@@ -13,6 +13,14 @@ não o tamanho de uma primitiva interna. Dê espaço legível aos protagonistas
 Use a mesma perspectiva, luz e escala visual para peças que se conectam. Mostre
 conexões, transferência, aproximação, abertura ou transformação conforme o tema.
 Anime x/y/rotation/opacity do group: sua imagem e seus detalhes acompanham juntos.
+Antes de atribuir movimento, diferencie a estrutura fixa da parte móvel: motor,
+carcaça, pés e suporte não giram junto com hélice, eixo, mistura ou conteúdo.
+Rotacione apenas a peça que realmente gira, em torno do pivô local correto.
+Para mostrar agitação dentro de um recipiente, mantenha a imagem do recipiente
+fixa e anime separadamente o conteúdo ou marcadores vetoriais no seu interior.
+Não use rotação ou pulsação da máquina inteira como substituto da operação.
+Se a imagem contém estrutura e mecanismo inseparáveis, preserve-a estática;
+represente o efeito em outra camada vetorial coerente com sua perspectiva.
 Partes com movimentos independentes são grupos separados, nunca dentro de um
 grupo marcado artwork que as achataria. Líquidos, fluxos e deformações continuam
 vetoriais, sem artwork. Uma imagem por peça, não uma fotografia da cena inteira.

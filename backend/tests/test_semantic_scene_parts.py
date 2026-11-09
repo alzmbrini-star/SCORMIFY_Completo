@@ -49,6 +49,39 @@ def test_never_flatten_a_piece_with_independently_moving_children():
     assert not candidates(data)
 
 
+def test_new_images_never_replace_liquid_or_flatten_a_liquid_child():
+    data=composition()
+    data['nodes'][0]['appearance']={'material':'liquid','depth':'soft'}
+    assert not candidates(data)
+    # Legacy embedded images remain loadable; no silent deletion on editing.
+    rows=[{'node':'piece','src':'data:image/png;base64,'+base64.b64encode(png()).decode()}]
+    assert validate_illustrations(rows,data['nodes'])==rows
+    data=composition()
+    data['nodes'][2]['appearance']={'material':'liquid','depth':'soft'}
+    assert not candidates(data)
+
+
+def test_motion_contract_separates_housing_from_animated_contents():
+    from services.visual_parts import COMPOSITION_PROMPT
+    assert 'estrutura fixa' in COMPOSITION_PROMPT
+    assert 'preserve-a estática' in COMPOSITION_PROMPT
+    assert 'marcadores vetoriais' in COMPOSITION_PROMPT
+
+
+def test_fixed_illustrated_equipment_with_separate_moving_contents():
+    data=composition('Equipamento fixo')
+    data['nodes'].append({'id':'liquid_marker','type':'circle','label':'Conteúdo em circulação',
+        'explanation':'O conteúdo circula; o recipiente permanece parado.',
+        'attrs':{'x':170,'y':170,'r':4,'fill':'#CCAABB'},
+        'appearance':{'material':'liquid','depth':'none'}})
+    data['motions']=[{'node':'liquid_marker','kind':'orbit','cx':0,'cy':0,'dx':25,'dy':5,
+        'cycles':2,'phase':0,'start':2,'end':6}]
+    data['illustrations']=[{'node':'piece','src':'data:image/png;base64,'+base64.b64encode(png()).decode()}]
+    result=subprocess.run(['node',str(Path(__file__).with_name('fixed_equipment_motion.cjs'))],
+        input=render(validate(data)),text=True,encoding='utf-8',capture_output=True)
+    assert result.returncode==0,result.stdout+result.stderr
+
+
 def test_cosmetic_material_names_do_not_reject_new_generation():
     data=composition();data['nodes'][1]['appearance']={'material':'ceramic','depth':'realistic'}
     clean=generated_plan(data)
