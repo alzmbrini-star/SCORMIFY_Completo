@@ -22,7 +22,8 @@ class HtmlJobRequest(BaseModel):
     simulatorVisualStyle: Literal['illustrated','technical'] = 'illustrated'
     simulatorActivityType: Literal['simulation','visualization'] = 'simulation'
     simulatorObjectImages: bool = False
-    sourceSimulator: str = Field(default='', max_length=120000)
+    objectImagesOnly: bool = False
+    sourceSimulator: str = Field(default='', max_length=2000000)
     projectId: str = Field(default='', max_length=100)
     requestId: str = Field(min_length=16, max_length=100, pattern=r'^[A-Za-z0-9_-]+$')
 
@@ -104,6 +105,11 @@ async def _generate_with_diagnostics(request, user, diagnostic):
     from services.simulator_diagnostics import editor_attempts
     from services.simulator_object_images import image_scope
     with editor_attempts(diagnostic), image_scope(db,user):
+        if request.get('objectImagesOnly') is True:
+            if not request.get('sourceSimulator') or request.get('simulatorObjectImages') is not True:
+                raise ValueError('A geração de imagens exige o simulador de origem e a opção explícita de imagens IA.')
+            from services.simulator_object_images import illustrate_existing
+            return await asyncio.wait_for(illustrate_existing(request['sourceSimulator'],request['prompt'],request['courseContext']),timeout=18*60)
         if request.get('sourceSimulator'):
             from services.simulator_visual_refinement import refine_visual
             return await asyncio.wait_for(refine_visual(request['sourceSimulator'],request['prompt'],request['courseContext'],
@@ -146,7 +152,7 @@ async def _run(job_id, owner, request, user):
         if request.get('sourceSimulator') and isinstance(exc,ValueError):
             message=str(exc)[:1800]
         update = {'status': 'error', 'error': message}
-    if diagnostic.get('attempts'):update['diagnostic']=diagnostic
+    if diagnostic.get('attempts') or diagnostic.get('error'):update['diagnostic']=diagnostic
     update['updatedAt'] = datetime.now(timezone.utc)
     await db.html_generation_jobs.update_one({'_id': job_id, 'ownerId': owner}, {'$set': update})
 

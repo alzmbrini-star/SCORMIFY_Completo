@@ -111,6 +111,16 @@ class Jobs(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result['html'],'<html>Nova cena</html>')
         self.assertNotIn('sourceSimulator',result)
 
+    async def test_object_images_use_distinct_operation_and_keep_source(self):
+        self.body.sourceSimulator='{"title":"Cena existente"}'
+        self.body.simulatorObjectImages=True;self.body.objectImagesOnly=True
+        job=await self.start()
+        with patch('services.simulator_object_images.illustrate_existing',AsyncMock(return_value={'html':'illustrated'})) as images,patch('services.simulator_visual_refinement.refine_visual',AsyncMock()) as vector:
+            for function,*args in self.tasks+self.tasks:await function(*args)
+        vector.assert_not_called()
+        images.assert_awaited_once_with(self.body.sourceSimulator,self.body.prompt,self.body.courseContext)
+        self.assertEqual((await self.scope['get_html_job'](job['jobId'],self.user))['html'],'illustrated')
+
     async def test_another_owner_cannot_read_result(self):
         job = await self.start()
         with self.assertRaises(HttpError) as err:

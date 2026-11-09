@@ -110,7 +110,12 @@ async def enrich(result, prompt, context, session_id):
     scope = _scope.get()
     try: selected = json.loads(context).get('simulatorOptions', {}).get('objectImages') is True
     except (ValueError, TypeError, AttributeError): selected = False
-    if not selected or not scope or not (scope[1].get('user_id') or scope[1].get('id')): return result
+    if not selected:return result
+    if not scope or not (scope[1].get('user_id') or scope[1].get('id')):
+        raise ValueError('Não foi possível identificar o autor para salvar as imagens na biblioteca. Reabra a atividade e tente novamente.')
+    from services.llm_config import openai_api_key
+    if not openai_api_key(allow_legacy=False):
+        raise ValueError('Imagens das peças não geradas: configure a chave OpenAI na Administração. A prévia anterior foi preservada.')
     data = copy.deepcopy(result.get('spec') or {})
     visualization = data.get('mechanic') == 'didactic-visualization-v1'
     scene = data if visualization else data.get('visual')
@@ -137,8 +142,10 @@ async def enrich(result, prompt, context, session_id):
                 raise ValueError('Plano referencia peça inválida')
             if not isinstance(piece['description'], str) or not 1 <= len(piece['description']) <= 1200: raise ValueError('Descrição inválida')
             seen.add(piece['node']); rows.append(piece)
-    except Exception:
-        return noted(result,'O planejamento das imagens individuais não pôde ser concluído. O cenário anterior foi preservado.')
+    except Exception as exc:
+        import logging
+        logging.getLogger('server').warning('Object artwork planning failed (%s)',type(exc).__name__)
+        return noted(result,'O planejamento das imagens individuais não pôde ser concluído. Nenhuma imagem foi gerada; a representação vetorial foi preservada.')
     database, user, synchronous = scope
     for piece in rows:
         n = byid[piece['node']]
@@ -160,7 +167,7 @@ async def enrich(result, prompt, context, session_id):
                 continue
             raw = await generate_piece(image_prompt)
             src = 'data:image/png;base64,'+base64.b64encode(raw).decode('ascii')
-            ident = hashlib.sha256((str(user.get('user_id') or user.get('id'))+src).encode()).hexdigest()
+            ident = hashlib.sha256((str(user.get('user_id') or user.get('id'))+'|'+str(user.get('companyId') or '')+'|'+src).encode()).hexdigest()
             doc = {'id': ident, 'imageUrl': src, 'prompt': image_prompt, 'keywords': data.get('title','')+' '+n['label'],
                 'userId': str(user.get('user_id') or user.get('id') or ''), 'companyId': user.get('companyId') or '',
                 'source': 'simulator-object', 'assetKey':asset_key, 'createdAt': datetime.now(timezone.utc).isoformat()}
@@ -169,13 +176,35 @@ async def enrich(result, prompt, context, session_id):
             if synchronous: await asyncio.to_thread(database.image_gallery.update_one, query, update, upsert=True)
             else: await database.image_gallery.update_one(query, update, upsert=True)
             scene.setdefault('illustrations', []).append({'node': piece['node'], 'src': src})
-        except Exception:
+        except Exception as exc:
             import logging
-            logging.getLogger('server').warning('Object artwork unavailable for node %s; vector retained', piece['node'])
+            logging.getLogger('server').warning('Object artwork unavailable for node %s (%s); vector retained', piece['node'],type(exc).__name__)
     count=len(scene.get('illustrations',[]))
     if count<len(rows) or not rows:
         data['artworkNotice' if visualization else 'visualNotice']=f'Imagens individuais aplicadas: {count}. Peças sem imagem disponível mantêm sua representação vetorial. Confira a biblioteca e a prévia antes de salvar.'
     return {'html': rendered(data,visualization), 'spec': data}
+
+
+async def illustrate_existing(source,prompt,context):
+    """Explicit images-only request: preserve the scene and all logical rules."""
+    if not isinstance(source,str) or len(source)>2000000:raise ValueError('Modelo inválido ou muito grande')
+    from services.rule_simulators import validate_rules, render_rules
+    from services.simulator_experience import with_options
+    import uuid
+    raw=json.loads(source)
+    if not isinstance(raw,dict):raise ValueError('Modelo inválido')
+    data=validate_rules(raw)
+    if not data.get('visual'):
+        raise ValueError('Este simulador ainda não tem peças visuais separadas. Use Refinar cenário antes de gerar imagens das peças.')
+    # Keep the compiled scene exactly as displayed. Recompiling a catalog project
+    # on render would overwrite the new image layer.
+    data.pop('visualProject',None)
+    result=await enrich({'html':render_rules(data),'spec':data},prompt,
+        with_options(context,{'objectImages':True}),'object-only-'+uuid.uuid4().hex[:12])
+    count=len((result['spec'].get('visual') or {}).get('illustrations',[]))
+    if count==0:
+        raise ValueError(result['spec'].get('visualNotice') or 'Nenhuma imagem foi gerada. A prévia anterior foi preservada.')
+    return result
 
 
 def inject(document):

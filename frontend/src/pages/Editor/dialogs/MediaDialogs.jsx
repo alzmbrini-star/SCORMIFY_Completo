@@ -187,9 +187,11 @@ export function HtmlDialog({
   handleAddHtml, handleGenerateHtmlAI, handleInsertAiHtml,
   editingSimulator = false, onDownloadHtml, onLoadHtml, canCreateSimulators = true,
 }) {
+  const [confirmObjectImages, setConfirmObjectImages] = useState(false);
   return (
     <Dialog open={open} onOpenChange={(o) => {
       onOpenChange(o);
+      if (!o) setConfirmObjectImages(false);
       // Keep the prompt/result on close, so an interrupted connection can resume.
       if (!o && !aiHtmlLoading) { setHtmlDialogTab('paste'); }
     }}>
@@ -265,10 +267,17 @@ export function HtmlDialog({
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
               <ComponentSceneReview html={aiHtmlResult} disabled={aiHtmlLoading} onApply={setAiHtmlResult} />
+              {canCreateSimulators && aiHtmlResult.includes('finite-rules-v1') && <Button variant="outline" disabled={aiHtmlLoading} onClick={() => setConfirmObjectImages(true)} data-testid="ai-html-object-images-btn">Gerar imagens das peças</Button>}
               {canCreateSimulators && aiHtmlResult.includes('finite-rules-v1') && <Button variant="outline" disabled={aiHtmlLoading} onClick={() => handleGenerateHtmlAI(aiHtmlResult)} data-testid="ai-html-refine-visual-btn">Refinar cenário</Button>}
               {aiHtmlResult && onDownloadHtml && <Button variant="outline" onClick={() => onDownloadHtml(aiHtmlResult)}>Baixar HTML</Button>}
               {aiHtmlResult && <Button onClick={handleInsertAiHtml} disabled={aiHtmlLoading} data-testid="ai-html-insert-btn">{editingSimulator?'Salvar alterações':'Inserir no Slide'}</Button>}
             </DialogFooter>
+            {confirmObjectImages && <div role="alert" className="mt-3 border rounded-lg p-4 space-y-2">
+              <p className="font-medium">Gerar imagens das peças com IA?</p>
+              <p className="text-sm">Consome créditos OpenAI para até 4 peças individuais. Mantém o cenário, as posições e as regras; não refaz o simulador inteiro. As imagens ficam na biblioteca e na prévia. O slide só será alterado quando você salvar. Se nenhuma imagem for gerada, a tentativa será informada como falha.</p>
+              <Button variant="outline" disabled={aiHtmlLoading} onClick={() => setConfirmObjectImages(false)}>Agora não</Button>
+              <Button disabled={aiHtmlLoading} data-testid="ai-html-confirm-object-images" onClick={() => {setConfirmObjectImages(false); handleGenerateHtmlAI(aiHtmlResult, {objectImagesOnly:true});}}>Confirmar geração de imagens</Button>
+            </div>}
           </TabsContent>
         </Tabs>
       </DialogContent>

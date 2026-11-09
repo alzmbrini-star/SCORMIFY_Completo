@@ -18,6 +18,9 @@ def png():
 
 
 class ObjectImages(unittest.TestCase):
+    def setUp(self):
+        key=patch('services.llm_config.openai_api_key',return_value='test-key')
+        key.start();self.addCleanup(key.stop)
     def test_rigid_pieces_only_never_replace_flow_or_outline(self):
         data=fixture();ids={n['id'] for n in candidates(data)}
         self.assertNotIn('track',ids);self.assertIn('proton',ids)
@@ -64,8 +67,41 @@ class ObjectImages(unittest.TestCase):
         with patch('services.simulator_object_images.generate_piece',AsyncMock()) as paid:
             original={'spec':fixture(),'html':'old'}
             self.assertIs(asyncio.run(enrich(original,'x','{}','qa')),original)
-            self.assertIs(asyncio.run(enrich(original,'x','{"simulatorOptions":{"objectImages":true}}','qa')),original)
+            with self.assertRaisesRegex(ValueError,'identificar o autor'):
+                asyncio.run(enrich(original,'x','{"simulatorOptions":{"objectImages":true}}','qa'))
             paid.assert_not_called()
+
+    def test_missing_image_key_is_explicit_before_any_planning_charge(self):
+        with image_scope(SimpleNamespace(),{'user_id':'author'}),patch('services.llm_config.openai_api_key',return_value=''),patch('services.simulator_object_images.generate_piece',AsyncMock()) as paid:
+            with self.assertRaisesRegex(ValueError,'configure a chave OpenAI'):
+                asyncio.run(enrich({'spec':fixture(),'html':'old'},'x','{"simulatorOptions":{"objectImages":true}}','qa'))
+            paid.assert_not_called()
+
+    def test_images_only_keeps_scene_and_never_invokes_vector_refiner(self):
+        from services.simulator_object_images import illustrate_existing
+        from services.rule_simulators import validate_rules
+        from test_process_visual_refinement import pump_model,pump_scene
+        data=pump_model();data['visual']=pump_scene();data=validate_rules(data)
+        piece={'node':'reservoir1','src':'data:image/png;base64,'+base64.b64encode(png()).decode()}
+        async def enriched(result,*args):
+            result['spec']['visual']['illustrations']=[piece]
+            return result
+        before=copy.deepcopy(data)
+        with patch('services.simulator_object_images.enrich',side_effect=enriched),patch('services.rule_visuals.generate_visual',AsyncMock()) as vector:
+            result=asyncio.run(illustrate_existing(json.dumps(data),'Peças','Curso'))
+        vector.assert_not_called()
+        for field in ('variables','actions','goal','failure'):self.assertEqual(result['spec'][field],before[field])
+        self.assertEqual(result['spec']['visual']['nodes'],before['visual']['nodes'])
+
+    def test_images_only_zero_result_is_not_a_success(self):
+        from services.simulator_object_images import illustrate_existing
+        from services.rule_simulators import validate_rules
+        from test_process_visual_refinement import pump_model,pump_scene
+        data=pump_model();data['visual']=pump_scene();data=validate_rules(data)
+        async def unchanged(result,*args):return result
+        with patch('services.simulator_object_images.enrich',side_effect=unchanged):
+            with self.assertRaisesRegex(ValueError,'Nenhuma imagem foi gerada'):
+                asyncio.run(illustrate_existing(json.dumps(data),'Peças','Curso'))
 
     def test_duplicates_or_nonexistent_target_rejected(self):
         row={'node':'electron','src':'data:image/png;base64,'+base64.b64encode(png()).decode()}

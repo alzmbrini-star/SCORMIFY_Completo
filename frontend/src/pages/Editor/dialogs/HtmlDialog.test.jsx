@@ -25,3 +25,16 @@ test('editing exposes export and save, never silently inserts, and cancel does n
  act(()=>host.querySelector('[data-testid="ai-html-insert-btn"]').click());expect(save).toHaveBeenCalledTimes(1);
  act(()=>root.unmount());host.remove();
 });
+
+test('object images require an explicit confirmation and use images-only mode',()=>{
+ const host=document.createElement('div');document.body.appendChild(host);const root=createRoot(host),generate=jest.fn();
+ const html='<body data-sim-engine="finite-rules-v1">Scene</body>';
+ act(()=>root.render(<HtmlDialog open onOpenChange={()=>{}} htmlConfig={{content:html}} setHtmlConfig={()=>{}}
+  htmlDialogTab="ai" setHtmlDialogTab={()=>{}} aiHtmlPrompt="" setAiHtmlPrompt={()=>{}} aiHtmlResult={html} setAiHtmlResult={()=>{}}
+  aiHtmlLoading={false} handleAddHtml={()=>{}} handleGenerateHtmlAI={generate} handleInsertAiHtml={()=>{}} />));
+ act(()=>host.querySelector('[data-testid="ai-html-object-images-btn"]').click());
+ expect(generate).not.toHaveBeenCalled();expect(host.textContent).toContain('Consome créditos OpenAI');
+ act(()=>host.querySelector('[data-testid="ai-html-confirm-object-images"]').click());
+ expect(generate).toHaveBeenCalledWith(html,{objectImagesOnly:true});
+ act(()=>root.unmount());host.remove();
+});

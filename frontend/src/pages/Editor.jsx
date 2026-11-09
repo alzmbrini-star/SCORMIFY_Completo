@@ -9,7 +9,7 @@ import useCreatorHelpNavigation from '../hooks/useCreatorHelpNavigation';
 import { resolveAssetUrls } from '../utils/htmlUtils';
 import { isSlideSimulator, upgradeSimulatorSlide } from '../utils/simulatorSlide';
 import { refreshSimulatorPresentation, simulatorEditPatch, simulatorPreferences } from '../utils/simulatorEditing';
-import { refinementModel } from '../utils/refinementModel';
+import { refinementModel, objectImageCount } from '../utils/refinementModel';
 import { generateHtmlJob } from '../utils/htmlGenerationJob';
 import { fetchHtmlDiagnostic } from '../utils/htmlDiagnostic';
 import { getApiUrl } from '../utils/apiUrl';
@@ -1019,8 +1019,10 @@ export default function Editor() {
   };
 
   // Generate HTML with AI
-  const handleGenerateHtmlAI = async (visualSource = '') => {
+  const handleGenerateHtmlAI = async (visualSource = '', generation = {}) => {
     if (aiHtmlLoading) return;
+    const imagesOnly = generation.objectImagesOnly === true;
+    const wantsImages = imagesOnly || simulatorOptions.objectImages === true;
     if (!canCreateSimulators && isSimulatorRequest(aiHtmlPrompt, simulatorOptions.activityType, typeof visualSource === 'string' ? visualSource : '')) {
       toast.error('A criação de simuladores não está habilitada para seu usuário. Solicite à Administração.');
       return;
@@ -1029,7 +1031,7 @@ export default function Editor() {
     let sourceSimulator = '';
     if (refining) {
       try {
-        sourceSimulator = refinementModel(visualSource);
+        sourceSimulator = refinementModel(visualSource, imagesOnly);
       } catch {
         toast.error('O refino visual está disponível para simuladores do motor de regras. O HTML original não foi alterado.');
         return;
@@ -1070,10 +1072,18 @@ export default function Editor() {
         prompt: aiHtmlPrompt.trim() || 'Refine apenas a composição visual didática deste simulador, preservando todas as regras e o tema descrito no modelo.', courseContext, projectId: currentProject?.id || projectId || '',
         simulatorComplexity: simulatorOptions.complexity, simulatorVisualStyle: simulatorOptions.visualStyle,
         simulatorActivityType: simulatorOptions.activityType || 'simulation',
-        simulatorObjectImages: simulatorOptions.objectImages === true,
+        simulatorObjectImages: wantsImages,
+        ...(imagesOnly ? { objectImagesOnly: true } : {}),
         ...(refining ? { sourceSimulator } : {}),
       }, authHeaders({ 'Content-Type': 'application/json' }), { onProgress: setAiHtmlProgress });
       setAiHtmlResult(html);
+      if (wantsImages) {
+        const count = objectImageCount(html);
+        const message = count ? `${count} imagem(ns) das peças aplicada(s). Confira a prévia e salve para atualizar o slide.` : 'Nenhuma imagem das peças foi aplicada. Confira o aviso na prévia; o refino não gerou as imagens solicitadas.';
+        setAiHtmlProgress(message);
+        if (count) toast.success(message); else toast.warning(message);
+        return;
+      }
       setAiHtmlProgress(refining ? 'Refino visual concluído. Confira a prévia antes de inserir; as regras foram preservadas.' : 'Geração concluída. Confira a prévia antes de inserir.');
       toast.success(refining ? 'Cenário refinado; regras e resultados preservados.' : 'HTML gerado com sucesso!');
     } catch (err) {
