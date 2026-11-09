@@ -185,6 +185,7 @@ GUIDE=[
   'No Editor, clique em Exportar e escolha o formato e as configurações disponíveis para seu curso.',
   'Gere o pacote e use o botão de download quando a exportação terminar. Abrir a janela não inicia a exportação.',
   'Teste o ZIP SCORM no LMS de destino: conclusão, nota, aprovação, retomada e nova tentativa dependem também da integração e das regras desse LMS.',
+  'No SCORM clássico, o menu lateral mostra Quiz pendente com a quantidade de avaliações ainda não finalizadas no slide, mesmo após visitá-lo. Os pontos de navegação ficam amarelos nesses slides. Finalizar todas as avaliações do slide muda o indicador para Quiz concluído; iniciar nova tentativa volta a marcar a pendência. Isso indica finalização, não aprovação por nota. Vídeos com Vale nota entram nessa verificação; vídeos sem nota não bloqueiam a conclusão. Resultados restaurados pelo LMS também atualizam o indicador. Reexporte o ZIP para atualizar pacotes antigos; não há consumo de créditos de IA.',
   'Se um aluno ficar preso em Failed, reúna o ZIP e os critérios usados para análise. O Tutor não altera matrículas nem garante corrigir um status já gravado no LMS.'],'editor','export'),
  entry('users','Administrar usuários e permissões','usuário usuários acesso permissão habilitar desabilitar empresa cadastro editor aprovador',[
   'Em Administração → Usuários, abra Novo Usuário ou Edite o cadastro existente.',

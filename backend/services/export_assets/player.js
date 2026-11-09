@@ -1210,12 +1210,13 @@ var CoursePlayer = (function() {
         completedQuizzes[elementId] = true;
         console.log('[Player] Quiz completed:', elementId, '- Total:', Object.keys(completedQuizzes).length, '/', totalQuizzes);
         checkAndSetCompletion();
+        updateProgress();
     }
 
     function onQuizRetry(elementId) {
         delete completedQuizzes[elementId];completionRequested=false;courseCompleted=false;
         if(ScormAPI.beginRetry)ScormAPI.beginRetry(elementId);
-        updateNavigation();updateSidebar();
+        updateNavigation();updateProgress();
     }
     
     // Called by ScenarioController when a scenario is completed
@@ -2156,6 +2157,26 @@ var CoursePlayer = (function() {
         });
     }
     
+    // Use the same assessment IDs that gate course completion, never position
+    // alone: visiting or skipping a quiz is not completing it.
+    function slideCompletionState(index) {
+        var assessments = (course.slides[index].elements || []).filter(isAssessment);
+        var pending = assessments.filter(function(el) { return !completedQuizzes[el.id]; }).length;
+        if (pending) return {kind: 'quiz-pending', label: '⚠ Quiz pendente (' + pending + '/' + assessments.length + ')'};
+        if (assessments.length) return {kind: 'completed', label: '✓ Quiz concluído'};
+        if (courseCompleted && index === totalSlides - 1 || index < currentSlide) {
+            return {kind: 'completed', label: '✓ Concluído'};
+        }
+        return index === currentSlide ? {kind: 'current', label: '● Atual'} : {kind: 'pending', label: '○ Pendente'};
+    }
+
+    function applySidebarStatus(status, index) {
+        var state = slideCompletionState(index);
+        status.classList.remove('completed', 'current', 'quiz-pending', 'pending');
+        status.classList.add(state.kind);
+        status.textContent = state.label + (index === currentSlide && state.kind !== 'current' ? ' · Atual' : '');
+    }
+
     function updateProgress() {
         var dotsContainer = document.getElementById('progress-dots');
         
@@ -2163,9 +2184,12 @@ var CoursePlayer = (function() {
             var html = '';
             for (var i = 0; i < totalSlides; i++) {
                 var cls = 'progress-dot';
+                var state = slideCompletionState(i);
                 if (i === currentSlide) cls += ' active';
-                else if (i < currentSlide) cls += ' completed';
-                html += '<div class="' + cls + '" onclick="CoursePlayer.goTo(' + i + ')"></div>';
+                if (state.kind === 'quiz-pending') cls += ' quiz-pending';
+                else if (state.kind === 'completed') cls += ' completed';
+                var description = 'Slide ' + (i + 1) + ': ' + state.label;
+                html += '<div class="' + cls + '" title="' + description + '" aria-label="' + description + '" onclick="CoursePlayer.goTo(' + i + ')"></div>';
             }
             dotsContainer.innerHTML = html;
         }
@@ -2342,18 +2366,7 @@ var CoursePlayer = (function() {
             
             var status = document.createElement('div');
             status.className = 'sidebar-slide-status';
-            if (courseCompleted && index === totalSlides - 1) {
-                status.innerHTML = '✓ Concluído';
-                status.classList.add('completed');
-            } else if (index < currentSlide) {
-                status.innerHTML = '✓ Concluído';
-                status.classList.add('completed');
-            } else if (index === currentSlide) {
-                status.innerHTML = '● Atual';
-                status.classList.add('current');
-            } else {
-                status.innerHTML = '○ Pendente';
-            }
+            applySidebarStatus(status, index);
             
             info.appendChild(status);
             item.appendChild(info);
@@ -2371,19 +2384,7 @@ var CoursePlayer = (function() {
             
             var status = item.querySelector('.sidebar-slide-status');
             if (status) {
-                status.classList.remove('completed', 'current');
-                if (courseCompleted && index === totalSlides - 1) {
-                    status.innerHTML = '✓ Concluído';
-                    status.classList.add('completed');
-                } else if (index < currentSlide) {
-                    status.innerHTML = '✓ Concluído';
-                    status.classList.add('completed');
-                } else if (index === currentSlide) {
-                    status.innerHTML = '● Atual';
-                    status.classList.add('current');
-                } else {
-                    status.innerHTML = '○ Pendente';
-                }
+                applySidebarStatus(status, index);
             }
         });
         
