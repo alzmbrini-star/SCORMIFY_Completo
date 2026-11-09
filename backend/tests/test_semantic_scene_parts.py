@@ -133,3 +133,24 @@ def test_tutor_explains_composition_and_reexport():
     topic=next(t for t in topics_for({'user_id':'author','role':'editor'}) if t['id']=='simulators')
     steps=' '.join(topic['steps'])
     assert 'peças completas' in steps and 'etapas' in steps and 'reexporte' in steps.lower()
+    assert 'Setas de fluxo' in steps
+
+
+def test_flow_arrows_follow_stages_without_moving_equipment():
+    data=composition()
+    data['motions']=[]
+    for i,(start,end) in enumerate([(0,2),(2,6),(6,12)]):
+        ident='arrow_'+str(i)
+        data['nodes'].append({'id':ident,'type':'path','label':'Fluxo '+str(i),
+            'explanation':'Transferência durante a etapa correspondente.',
+            'attrs':{'d':'M 250 200 L 330 200 M 320 190 L 330 200 L 320 210',
+                     'fill':'none','stroke':'#886644','strokeWidth':3}})
+        data['motions'].append({'node':ident,'kind':'flow','cx':0,'cy':0,'dx':0,'dy':0,
+                              'cycles':1,'phase':0,'start':start,'end':end})
+    clean=validate(data)
+    assert clean==validate(clean)
+    result=subprocess.run(['node',str(Path(__file__).with_name('staged_flow_arrows.cjs'))],
+                          input=render(clean),text=True,encoding='utf-8',capture_output=True)
+    assert result.returncode==0,result.stdout+result.stderr
+    data['motions'][0]['node']='piece'
+    with pytest.raises(ValueError,match='Fluxo usa'):validate(data)

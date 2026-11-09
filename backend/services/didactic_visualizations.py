@@ -139,7 +139,8 @@ def validate(raw):
             raise ValueError('Movimento exige node,kind,cx,cy,dx,dy,cycles,phase')
         key=motion['node'];kind=motion['kind']
         if not isinstance(key,str) or key not in ids or key in animated or definitions[key]['type']=='text':raise ValueError('Movimento exige objeto não textual único')
-        if not isinstance(kind,str) or kind not in {'orbit','translate','rotate','pulse','transition'}:raise ValueError('Movimento não registrado')
+        if not isinstance(kind,str) or kind not in {'orbit','translate','rotate','pulse','transition','flow'}:raise ValueError('Movimento não registrado')
+        if kind=='flow' and definitions[key]['type'] not in {'path','line'}:raise ValueError('Fluxo usa seta ou conexão vetorial, não equipamento')
         row={'node':key,'kind':kind,'cx':number(motion['cx'],0,800),'cy':number(motion['cy'],0,450),
              'dx':number(motion['dx'],-300,300),'dy':number(motion['dy'],-200,200),
              'cycles':number(motion['cycles'],.25,8),'phase':number(motion['phase'],0,360)}
@@ -147,7 +148,7 @@ def validate(raw):
         if not isinstance(origin,str) or origin not in {'node','center'} or (origin=='center' and kind!='orbit'):
             raise ValueError('origin=center é exclusivo de orbit; formatos antigos usam origin=node')
         if origin=='center':row['origin']='center'
-        if 'start' in motion or 'end' in motion or kind=='transition':
+        if 'start' in motion or 'end' in motion or kind in {'transition','flow'}:
             start=number(motion.get('start',0),0,result['duration']);end=number(motion.get('end',result['duration']),start,result['duration'])
             if end<=start:raise ValueError('Movimento precisa de duração positiva')
             row.update(start=start,end=end)

@@ -27,6 +27,12 @@ vetoriais, sem artwork. Uma imagem por peça, não uma fotografia da cena inteir
 Não invente cálculos, precisão científica, nota, fracasso ou limites físicos.
 Use etapas reais do plano: regras usam states/bindings/visibleWhen; visualizações
 usam as janelas start/end dos movimentos e os nomes das etapas na timeline.
+Setas devem acompanhar o processo, não ficar todas igualmente ativas:
+em visualizações didáticas, use kind:"flow" em path/line com start/end da
+transferência; o traçado percorre a conexão somente nessa janela e fica
+atenuado fora dela. Desenhe a ponta da seta no destino, sem girar a conexão.
+Em cenas do motor de regras, destaque a seta da etapa com states/visibleWhen
+ligados às variáveis existentes, sem inventar avanços ou respostas automáticas.
 Não mova todas as peças aleatoriamente nem substitua o processo por trocar legendas.
 O acabamento deve explicar o mecanismo. Não existe lista fixa de temas ou cenários.
 '''
