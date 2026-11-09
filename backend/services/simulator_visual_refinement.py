@@ -7,7 +7,7 @@ async def refine_visual(source,prompt,context,complexity='advanced',visual_style
     from services.simulator_experience import normalize_experience,options
     from services.rule_visuals import generate_visual
     from services.llm_config import simulator_generation_config
-    if not isinstance(source,str) or len(source)>120000:raise ValueError('Modelo de origem inválido ou muito grande')
+    if not isinstance(source,str) or len(source)>2000000:raise ValueError('Modelo de origem inválido ou muito grande')
     raw=json.loads(source)
     if not isinstance(raw,dict):raise ValueError('Refino exige dados de um simulador do motor de regras')
     # Untrusted authored artwork/code is never executed or passed through.
@@ -16,7 +16,12 @@ async def refine_visual(source,prompt,context,complexity='advanced',visual_style
     if data.get('didacticMode')!='process-demo-v1' and single_action_shortcuts(data):raise ValueError('O modelo de origem precisa de revisão lógica antes do refino visual')
     if previous is not None:
         from services.rule_visuals import validate_visual
-        try:data['_refinementVisual']=validate_visual(previous,data)
+        try:
+            clean=validate_visual(previous,data)
+            # Reference the composition, never forward embedded image bytes to
+            # the text planner or let old illustrations bypass the new layout.
+            clean.pop('illustrations',None)
+            data['_refinementVisual']=clean
         except (ValueError,TypeError,KeyError):pass  # Invalid old artwork is never trusted or forwarded.
     data['experience']=normalize_experience(raw.get('experience'),data,options(complexity,visual_style))
     provider,key,model=simulator_generation_config()

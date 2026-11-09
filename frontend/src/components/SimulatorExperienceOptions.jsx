@@ -28,7 +28,7 @@ export default function SimulatorExperienceOptions({ complexity = 'guided', visu
       </label>
     </div>
     <label className="block text-sm"><input type="checkbox" checked={objectImages} onChange={e => change({objectImages:e.target.checked})} className="mr-2" />Ilustrar objetos com imagens IA</label>
-    <p className="text-xs">Opcional: gera até 4 peças individuais com fundo transparente por simulador, consome créditos OpenAI e pode demorar mais. Salva as imagens na biblioteca e incorpora no HTML/SCORM. Partes deformáveis e fluxos permanecem vetoriais; se uma imagem falhar, a peça anterior é mantida. Não redesenha atividades já inseridas sem refino explícito.</p>
+    <p className="text-xs">Opcional: gera até 4 peças completas com fundo transparente, compostas em áreas próprias da cena e vinculadas aos movimentos e etapas planejados. Consome créditos OpenAI e pode demorar mais. Salva as imagens na biblioteca e incorpora no HTML/SCORM. Partes deformáveis e fluxos permanecem vetoriais; se uma imagem falhar, a peça vetorial é mantida. Revise a composição antes de salvar. Atividades já inseridas precisam de refino explícito.</p>
     <p className="text-xs leading-relaxed">Guiado prioriza uma cena própria para o assunto, objetos reconhecíveis e movimentos explicativos, com poucos controles e sem exigir cálculos, indicadores ou reprovação. Recursos gráficos podem ser reutilizados, sem repetir um modelo temático. Aplicado e Avançado mantêm desafios mais completos. O acabamento visual é importante em todos os níveis. Aplica-se às novas gerações; atividades existentes exigem refino explícito.</p>
   </fieldset>;
 }

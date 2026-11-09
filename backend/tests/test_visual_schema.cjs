@@ -13,7 +13,7 @@ visual=copy.deepcopy(raw['visual'])
 for n in visual['nodes']:
  definition=schema['$defs']['node_'+n['type']]['properties']
  n['attrs']={key:n['attrs'].get(key) for key in definition['attrs']['properties']}
- n.setdefault('bindings',[]);n.setdefault('states',[]);n.setdefault('parent',None);n.setdefault('visibleWhen',None);n.setdefault('action',None);n.setdefault('explanation',None)
+ n.setdefault('bindings',[]);n.setdefault('states',[]);n.setdefault('parent',None);n.setdefault('visibleWhen',None);n.setdefault('action',None);n.setdefault('explanation',None);n.setdefault('artwork',None)
  for state in n['states']:
   state['set']={key:state['set'].get(key) for key in definition['states']['items']['properties']['set']['properties']}
 assert validate_visual(omit_null_fields(visual),data)==data['visual']

@@ -27,6 +27,8 @@ mesmos objetos em vez de inventar sinônimos (um ID não prova nem nega a aparê
 alwaysVisible só é true se o objeto aparecer em TODOS os moments; fenômenos podem
 surgir mais tarde. A abertura pode mostrar o ambiente antes do fenômeno principal.'''
 PLAN_PROMPT += '\n' + ART_DIRECTION
+from services.visual_parts import COMPOSITION_PROMPT
+PLAN_PROMPT += '\n' + COMPOSITION_PROMPT
 
 
 def plan_schema(samples):

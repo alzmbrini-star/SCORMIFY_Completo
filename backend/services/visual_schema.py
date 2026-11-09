@@ -47,7 +47,8 @@ def scene_schema(ids,actions,demo=False):
         node=obj({'id':{'type':'string','pattern':'^[a-z][a-z0-9_]{0,31}$'},'type':{'type':'string','enum':[kind]},
             'label':string(),'explanation':nullable(string(350)),'parent':nullable(string()),'attrs':attrs(kind),'bindings':array(binding,0,8),
             'states':array(state,0,8),'visibleWhen':nullable({'$ref':'#/$defs/predicate'}),
-            'action':nullable({'type':'string','enum':actions})})
+            'action':nullable({'type':'string','enum':actions}),
+            'artwork':nullable(obj({'bounds':array({'type':'number'},4,4),'description':string(1200)})) if kind in {'group','rect','circle','ellipse','polygon','path'} else {'type':'null'}})
         definitions['node_'+kind]=node;variants.append({'$ref':'#/$defs/node_'+kind})
     link=obj({'node':string(),'var':{'type':'string','enum':ids},'whatChanges':string(180),'whyItMatters':string(240)})
     teaching=obj({'version':{'type':'integer','enum':[1]},'focus':string(220),'readScene':string(700),'links':array(link,2,4)})

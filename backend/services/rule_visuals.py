@@ -160,11 +160,14 @@ def validate_visual(raw, spec):
             if isinstance(prop,str):bound.add(prop)
     if contract_errors:raise ValueError('Contrato visual: '+' | '.join(contract_errors[:16])+'. Corrija TODOS estes objetos mantendo a lógica.')
     for row in rows:
-        if not isinstance(row,dict) or set(row)-{'id','type','label','explanation','parent','attrs','bindings','states','visibleWhen','action'}:
+        if not isinstance(row,dict) or set(row)-{'id','type','label','explanation','parent','attrs','bindings','states','visibleWhen','action','artwork'}:
             raise ValueError('Campos de objeto visual inválidos')
         key=_id(row.get('id'));kind=row.get('type')
         if key in seen or kind not in TYPES:raise ValueError('ID visual repetido ou tipo inválido')
         node={'id':key,'type':kind,'label':_text(row.get('label'),120)}
+        if 'artwork' in row:
+            from services.visual_parts import validate_artwork
+            node['artwork']=validate_artwork(row['artwork'],kind)
         if row.get('parent'):
             parent=row['parent']
             if parent not in seen or seen[parent]!='group':raise ValueError('Parent de '+key+' deve ser grupo existente; recebido '+str(parent))
@@ -404,7 +407,8 @@ para peça ausente, indique os objetos existentes a completar ou substituir.
 '''
 
 
-VISUAL_PROMPT += '\n' + ART_DIRECTION
+from services.visual_parts import COMPOSITION_PROMPT
+VISUAL_PROMPT += '\n' + ART_DIRECTION + '\n' + COMPOSITION_PROMPT
 
 
 def illustration_detail_issues(visual,spec):

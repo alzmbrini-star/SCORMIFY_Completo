@@ -109,7 +109,7 @@ export function ruleVisualRuntime() {
   // Replay its unambiguous trajectory on a separate engine, never click the
   // learner's controls, choose a branch, or alter the real state/history.
   var demonstration=[];
-  if(demo&&!cycles.length&&!declaredMotions.length&&typeof window.createRuleEngine==='function'){
+  if(demo&&typeof window.createRuleEngine==='function'){
     try {
       var rehearsal=window.createRuleEngine(data),rehearsalView=rehearsal.getState(),trajectory=[rehearsalView],safe=true;
       for(var rehearsalStep=0;rehearsalStep<Math.min(24,Number(data.maxSteps)||24)&&rehearsalView.outcome==='active';rehearsalStep++){
@@ -123,25 +123,28 @@ export function ruleVisualRuntime() {
     }catch(_){/* Non-replayable documents retain manual exploration. */}
   }
   var motionFrame=null,motionTime=0,motionStamp=null,motionSpeed=1,motionPlaying=false,motionButton=null;
-  function spin(){
+  function paintDeclaredMotions(){
     if(declaredMotions.length&&motionPlaying){declaredMotions.forEach(function(m){var e=entries.find(function(e){return e.definition.id===m.node;});if(!e.rendered||e.el.style.display==='none')return;
-      var a=Object.assign({},e.rendered),angle=2*Math.PI*m.cycles*motionTime/12+m.phase*Math.PI/180;
+      var a=Object.assign({},e.motionPose||e.rendered),angle=2*Math.PI*m.cycles*motionTime/12+m.phase*Math.PI/180;
       if(m.kind==='orbit'){a.x=m.cx+m.dx*Math.cos(angle);a.y=m.cy+m.dy*Math.sin(angle);}
       apply(e,a);
       if(m.kind==='translate')e.el.setAttribute('transform','translate('+(m.dx*Math.sin(angle))+' '+(m.dy*Math.sin(angle))+') '+e.el.getAttribute('transform'));
       if(m.kind==='rotate')e.el.setAttribute('transform',(e.definition.type==='group'?'translate('+(Number(a.x)||0)+' '+(Number(a.y)||0)+') ':'')+'rotate('+((Number(a.rotation)||0)+angle*180/Math.PI)+' '+m.cx+' '+m.cy+')');
     });}
+  }
+  function spin(){
     if(demonstration.length&&motionPlaying){
       var segmentSeconds=2,travel=(demonstration.length-1)*segmentSeconds,local=motionTime%(travel+1),index=Math.min(demonstration.length-2,Math.floor(local/segmentSeconds)),t=Math.min(1,(local-index*segmentSeconds)/segmentSeconds);
       var before=demonstration[index],after=demonstration[index+1];
       entries.forEach(function(e){var first=projected(e,before.state),last=projected(e,after.state),attrs=Object.assign({},t<.5?first.attrs:last.attrs);
         numeric.forEach(function(k){if(typeof first.attrs[k]==='number'&&typeof last.attrs[k]==='number')attrs[k]=first.attrs[k]+(last.attrs[k]-first.attrs[k])*t;});
         if(attrs.text!==undefined)attrs.text=textValue(attrs.text,(t<.5?before:after).state);
-        e.el.style.display=(t<.5?first.visible:last.visible)?'':'none';apply(e,attrs);
+        e.el.style.display=(t<.5?first.visible:last.visible)?'':'none';e.motionPose=attrs;apply(e,attrs);
       });
       if(!teaching)caption.textContent='Reprodução ilustrativa em ciclo · '+((t<.5?before:after).scene?.title||'Demonstração');
     }
-    cycles.forEach(function(e){if(!e.rendered||e.el.style.display==='none')return;var b=e.definition.bindings.find(function(b){return b.property==='rotation';}),a=e.rendered,rotation=(Number(a.rotation)||0)+(b.output[1]>=b.output[0]?1:-1)*motionTime*30;
+    paintDeclaredMotions();
+    cycles.forEach(function(e){if(!e.rendered||e.el.style.display==='none')return;var b=e.definition.bindings.find(function(b){return b.property==='rotation';}),a=e.motionPose||e.rendered,rotation=(Number(a.rotation)||0)+(b.output[1]>=b.output[0]?1:-1)*motionTime*30;
     e.el.setAttribute('transform',(e.definition.type==='group'?'translate('+(Number(a.x)||0)+' '+(Number(a.y)||0)+') ':'')+'rotate('+rotation+')');});}
   function queueMotion(){if(motionFrame===null&&motionPlaying&&!document.hidden&&typeof window.requestAnimationFrame==='function')motionFrame=window.requestAnimationFrame(tickMotion);}
   function tickMotion(now){motionFrame=null;if(!motionPlaying||document.hidden){motionStamp=null;return;}if(motionStamp!==null)motionTime+=Math.min(.1,(now-motionStamp)/1000)*motionSpeed;motionStamp=now;spin();if(syncLegend)syncLegend();queueMotion();}
@@ -201,7 +204,8 @@ export function ruleVisualRuntime() {
   var bridge=document.getElementById('scormify-rule-view');
   if(bridge){try{update(JSON.parse(bridge.textContent));}catch(_){/* retain initial view */}}
   // A consultable legend, not another layer of permanently overlapping SVG text.
-  var objects=authored?entries.filter(function(e){return e.definition.type!=='text'&&String(e.definition.label||'').trim();}):[];
+  var semanticParts=authored&&visual.nodes.some(function(n){return n.artwork;});
+  var objects=authored?entries.filter(function(e){return e.definition.type!=='text'&&String(e.definition.label||'').trim()&&(!semanticParts||!e.definition.parent||e.definition.artwork);}):[];
   if(objects.length){
     var legendStyle=node('style');legendStyle.textContent='.sim-object-legend[hidden],.sim-object-name[hidden]{display:none!important}.sim-object-legend{position:fixed;right:12px;top:64px;z-index:1200;width:min(310px,calc(100vw - 24px));max-height:70vh;overflow:auto;background:#f8fbff;color:#10243b;border:1px solid #57758e;border-radius:12px;padding:12px;box-shadow:0 8px 35px #0005;font:14px/1.4 system-ui,sans-serif}.sim-object-legend h2{font-size:17px;margin:0 0 8px}.sim-object-legend .sim-object-list{display:grid;gap:5px}.sim-object-legend .sim-object-list button{text-align:left;width:100%;font-size:14px}.sim-object-legend button[aria-pressed=true]{background:#0e6675!important;color:#fff!important}.sim-object-legend p{font-size:14px;line-height:1.45;margin:8px 0}.sim-object-name{position:absolute;z-index:4;pointer-events:none;max-width:190px;background:#10243b;color:#fff;border:1px solid #facc15;border-radius:6px;padding:4px 7px;font:13px/1.3 system-ui,sans-serif;box-shadow:0 2px 8px #0005}.sim-rule-visual [data-legend-selected=true]{filter:drop-shadow(0 0 5px #facc15)!important}';document.head.appendChild(legendStyle);
     var tools=motionTools;if(!tools){tools=node('div');tools.className='sim-motion-tools';figure.insertBefore(tools,caption);}tools.style.flexWrap='wrap';
