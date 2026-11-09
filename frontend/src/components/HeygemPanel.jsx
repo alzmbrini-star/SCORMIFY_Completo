@@ -46,7 +46,7 @@ export function HeygemPanel({onUseVideo,initialScript='',title='Avatar HeyGem'})
   const active=busy||job&&!['completed','failed'].includes(job.status);
   const names={preparing:'Preparando áudio PT-BR',submitting:'Enviando ao servidor GPU',processing:'Processando no HeyGem',
     unknown:'Envio ainda não confirmado — atualize a mesma tarefa',completed:'Concluído e armazenado',failed:'Falhou'};
-  const useVideo=row=>onUseVideo(row.video_url.startsWith('/')?API+row.video_url:row.video_url,row);
+  const handleUseVideo=row=>onUseVideo(row.video_url.startsWith('/')?API+row.video_url:row.video_url,row);
   return <section className="space-y-3 text-sm" data-testid="heygem-panel">
     <p>HeyGem / Duix.Avatar — provedor independente do HeyGen. Esta fase usa vídeo-base autorizado cadastrado no servidor GPU e voz ElevenLabs em português brasileiro.</p>
     {!config?<p role="status">Consultando configuração...</p>:<p role="status" className="rounded border p-3">{config.message} {!config.ttsReady&&' A voz requer ElevenLabs configurado.'}</p>}
@@ -72,7 +72,7 @@ export function HeygemPanel({onUseVideo,initialScript='',title='Avatar HeyGem'})
     <div className="max-h-80 space-y-3 overflow-y-auto">{items.map(row=><article key={row.video_id} className="rounded border border-slate-600 p-3">
       <strong>{row.title}</strong><p>{names[row.status]||row.status}</p>
       {row.status==='completed'&&row.video_url?<><video src={row.video_url.startsWith('/')?API+row.video_url:row.video_url} controls preload="metadata" className="my-2 max-h-56 w-full" />
-        <Button type="button" onClick={()=>useVideo(row)}>Usar este vídeo HeyGem</Button></>:<Button type="button" variant="outline" onClick={()=>refresh(row.video_id)}>Atualizar</Button>}
+        <Button type="button" onClick={()=>handleUseVideo(row)}>Usar este vídeo HeyGem</Button></>:<Button type="button" variant="outline" onClick={()=>refresh(row.video_id)}>Atualizar</Button>}
     </article>)}</div>
     <p className="text-xs">Depois de inserir no Editor, use Perguntas durante o vídeo para criar pausas e revisar os tempos. Esta fase não cria pausas automaticamente. Gere e revise o vídeo antes de confirmar a Mídia no Agente.</p>
   </section>;
