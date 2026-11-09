@@ -3514,6 +3514,13 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 "videoQuizEnabled": mc.get("videoQuizEnabled") is True,
                 "videoQuizGraded": mc.get("videoQuizGraded") is True,
             }
+        elif media_type == "heygem":
+            from services.heygem import asset_path
+            gem_db=await _get_motor_db()
+            record=await gem_db.heygem_videos.find_one({'video_id':mc.get('heygemVideoId'),
+                'companyId':company_id,'status':'completed'}) if gem_db is not None else None
+            if not record:raise ValueError('Selecione um vídeo HeyGem concluído da empresa antes de gerar o curso.')
+            slide_media[i] = {'type':'heygem','url':asset_path(record.get('video_url'))}
         elif media_type == "kling":
             slide_media[i] = {
                 "type": "kling",
@@ -3922,6 +3929,12 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             media = slide_media.get(i, {"type": "image"})
             if media.get("type") == "video":
                 slide_elements = _build_content_slide_with_video(sb_slide, palette, module_name, media["video_info"])
+            elif media.get('type')=='heygem':
+                from services.heygem import video_element
+                slide_elements=_build_content_slide_no_media(sb_slide,palette,module_name)
+                for element in slide_elements:
+                    if element.get('width',0)>1200 and element.get('y',0)>=90:element.update(x=60,width=1000)
+                slide_elements.append(video_element(media['url']))
             elif media.get("type") == "none":
                 slide_elements = _build_content_slide_no_media(sb_slide, palette, module_name)
             elif media.get("type") == "heygen":

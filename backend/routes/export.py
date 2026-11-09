@@ -306,6 +306,8 @@ async def _run_scorm_export_job(
     """Heavy SCORM export work — runs as an asyncio task so the original
     POST returns in ~100ms. Updates the job document throughout."""
     try:
+        from services.heygem import prepare_for_export
+        await prepare_for_export(project_doc,db,str(PROJECTS_DIR / project_id / 'assets'))
         export_warnings: list[dict] = []
         # Collect all question IDs from quiz elements
         question_ids = set()
@@ -776,6 +778,8 @@ async def _run_html_export_job(
 ):
     """Heavy HTML standalone export work — runs as an asyncio task."""
     try:
+        from services.heygem import prepare_for_export
+        await prepare_for_export(project_doc,db,str(PROJECTS_DIR / project_id / 'assets'))
         export_warnings: list[dict] = []
         # Resolve the same current company identity used by SCORM before the
         # Tutor theme and standalone player CSS are generated.
@@ -1055,6 +1059,8 @@ async def preview_singlepage(project_id: str, user: dict = Depends(require_auth)
     project_doc = await load_authorized_project(project_id, user)
     proj_id = project_doc.get("id", project_id)
     assets_dir = str(PROJECTS_DIR / proj_id / "assets")
+    from services.heygem import prepare_for_export
+    await prepare_for_export(project_doc,db,assets_dir)
     base_url = os.environ.get("BASE_URL", "").rstrip("/")
 
     # Load questions, tutor config, gamification — same as export-html path

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui/tabs';
 import BrandLibraryPicker from '../../Editor/dialogs/BrandLibraryPicker';
+import { HeygemPanel } from '../../../components/HeygemPanel';
 
 const API = getApiUrl();
 
@@ -359,6 +360,7 @@ const MEDIA_TYPES = [
   { id: 'youtube', label: 'YouTube', description: 'Vídeo do YouTube', icon: Video, color: 'red' },
   { id: 'vimeo', label: 'Vimeo', description: 'Vídeo do Vimeo', icon: Video, color: 'blue' },
   { id: 'heygen', label: 'Avatar HeyGen', description: 'Vídeo com avatar IA', icon: UserCircle, color: 'purple' },
+  { id: 'heygem', label: 'Avatar HeyGem', description: 'Gerar e revisar antes de criar o curso', icon: UserCircle, color: 'teal' },
   { id: 'kling', label: 'Vídeo Kling AI', description: 'Cena animada do storyboard', icon: Video, color: 'sky' },
   { id: 'flipbook', label: 'Flipbook', description: 'PDF/URL interativo', icon: BookOpenCheck, color: 'orange' },
   { id: 'html', label: 'HTML', description: 'Código HTML ou URL', icon: Code, color: 'cyan' },
@@ -762,6 +764,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
   }, [narrationCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const heygenReady = heygenCount === 0 || (heygenConfig.avatarId && heygenConfig.voiceId);
+  const heygemReady = Object.values(mediaConfig).filter(m=>m.type==='heygem').every(m=>m.url&&m.heygemVideoId);
   const klingReady = klingCount === 0 || klingStatus?.configured === true;
   const narrationReady = narrationCount === 0 || narrationVoiceId;
 
@@ -1607,6 +1610,12 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
                       </div>
                     )}
 
+                    {mc.type==='heygem'&&<div className="rounded border border-teal-700 p-3 space-y-3">
+                      <HeygemPanel key={idx} title={slide.title||'Avatar HeyGem'}
+                        initialScript={String(slide.narrationScript||slide.elements?.map(e=>e.content||'').join(' ')||slide.title||'').replace(/<[^>]*>/g,' ')}
+                        onUseVideo={(url,video)=>setMediaConfig(prev=>({...prev,[String(idx)]:{type:'heygem',url,heygemVideoId:video.video_id}}))} />
+                      {mc.url&&<p role="status">Vídeo HeyGem selecionado e pronto para o curso.</p>}
+                    </div>}
                     {/* HeyGen info */}
                     {mc.type === 'heygen' && <div className="rounded border border-purple-700/50 p-3 space-y-2">
                       <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={Boolean(mc.videoQuizEnabled)} onChange={e => setMediaConfig(prev => ({...prev, [String(idx)]: {...mc, videoQuizEnabled: e.target.checked}}))} />Criar perguntas durante o vídeo do avatar</label>
@@ -1917,14 +1926,15 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
       {/* Summary & Cost Estimate */}
       <CostEstimateCard sessionId={sessionId} aiCount={aiCount} leonardoCount={leonardoCount} videoCount={videoCount} heygenCount={heygenCount} klingCount={klingCount} bgConfig={bgConfig} isEditMode={isEditMode} changedSlideCount={changedSlideCount} />
 
-      {(!heygenReady || !klingReady || !narrationReady) && !loading && (
+      {(!heygenReady || !heygemReady || !klingReady || !narrationReady) && !loading && (
         <p className="text-xs text-amber-400/80 text-center">
           {!heygenReady && 'Selecione avatar e voz do HeyGen. '}
+          {!heygemReady && 'Gere, revise e selecione o vídeo HeyGem antes de continuar. '}
           {!klingReady && 'Configure a chave Kling no backend Render. '}
           {!narrationReady && 'Selecione uma voz para a narração antes de aplicar.'}
         </p>
       )}
-      <Button onClick={onConfirm} disabled={loading || !heygenReady || !klingReady || !narrationReady} className={`w-full ${isEditMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`} data-testid="confirm-media-btn">
+      <Button onClick={onConfirm} disabled={loading || !heygenReady || !heygemReady || !klingReady || !narrationReady} className={`w-full ${isEditMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`} data-testid="confirm-media-btn">
         {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : isEditMode ? <Check className="w-4 h-4 mr-1" /> : <Play className="w-4 h-4 mr-1" />}
         {isEditMode ? 'Aplicar Alterações ao Projeto' : 'Confirmar Mídia e Gerar Curso'}
       </Button>

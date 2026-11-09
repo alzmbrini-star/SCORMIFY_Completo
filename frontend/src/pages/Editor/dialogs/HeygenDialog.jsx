@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { HeygemPanel } from '../../../components/HeygemPanel';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '../../../components/ui/dialog';
@@ -28,8 +29,17 @@ export function HeygenDialog({
   heygenOcrLoading, heygenOcrOptions,
   handleGenerateHeygenVideo, handleAddHeygenVideoToSlide,
   handleGenerateAiScript, handleHeygenOcrGenerate, handleSelectHeygenOcrOption,
-  formatTime, currentSlide,
+  formatTime, currentSlide, onUseHeygemVideo,
 }) {
+  const [provider,setProvider]=useState('heygen');
+  const picker=<label className="block text-sm">Provedor de avatar<select aria-label="Provedor de avatar" value={provider}
+    disabled={heygenGenerating} onChange={e=>setProvider(e.target.value)} className="ml-2 rounded border border-slate-500 bg-slate-900 p-2 text-white">
+    <option value="heygen">HeyGen</option><option value="heygem">HeyGem / Duix.Avatar</option></select></label>;
+  if(provider==='heygem')return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+    <DialogHeader><DialogTitle>Criar vídeo com avatar HeyGem</DialogTitle></DialogHeader>{picker}
+    <HeygemPanel onUseVideo={onUseHeygemVideo} initialScript={heygenConfig.script||currentSlide?.narrationScript||''} title={currentSlide?.title||'Avatar HeyGem'} />
+    <DialogFooter><Button variant="outline" onClick={()=>onOpenChange(false)}>Fechar</Button></DialogFooter>
+  </DialogContent></Dialog>;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -39,6 +49,7 @@ export function HeygenDialog({
             Criar Vídeo com Avatar (HeyGen)
           </DialogTitle>
         </DialogHeader>
+        {picker}
 
         {/* Credits Display */}
         {heygenCreditsLoading ? (

@@ -1215,12 +1215,20 @@ async def agent_get_session_by_project(project_id: str):
 
 
 @router.post("/agent/sessions/{session_id}/media-config")
-async def agent_set_media_config(session_id: str, data: dict):
+async def agent_set_media_config(session_id: str, data: dict, user: dict = Depends(require_agent_access)):
     """Save media and background configuration for each slide."""
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
         raise HTTPException(404, "Session not found")
+    if not has_role(user,'super_admin') and s.get('companyId')!=user.get('companyId'):
+        raise HTTPException(404,'Session not found')
     media_config = data.get("mediaConfig", {})
+    for media in media_config.values():
+        if isinstance(media,dict) and media.get('type')=='heygem':
+            record=await db.heygem_videos.find_one({'video_id':media.get('heygemVideoId'),
+                'companyId':s.get('companyId'),'status':'completed'})
+            if not record:raise HTTPException(422,'Selecione um vídeo HeyGem concluído da empresa.')
+            media['url']=record['video_url']
     bg_config = data.get("bgConfig", {})
     global_text_color = data.get("globalTextColor", "")
     global_font_size = data.get("globalFontSize", "")
@@ -1437,7 +1445,7 @@ Seu trabalho: interpretar pedidos do autor sobre a configuracao de midia POR SLI
 
 
 @router.post("/agent/sessions/{session_id}/apply-media-changes")
-async def apply_media_changes(session_id: str, data: dict):
+async def apply_media_changes(session_id: str, data: dict, user: dict = Depends(require_agent_access)):
     """Apply media config changes (backgrounds, animations, text color) to an existing project.
     Supports changedSlides parameter to only update specific slides."""
     project_id = data.get("projectId")
@@ -1450,8 +1458,10 @@ async def apply_media_changes(session_id: str, data: dict):
     s = await db.agent_sessions.find_one({"id": session_id}, {"_id": 0})
     if not s:
         raise HTTPException(404, "Session not found")
+    if not has_role(user,'super_admin') and s.get('companyId')!=user.get('companyId'):
+        raise HTTPException(404,'Session not found')
 
-    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    project = await load_authorized_project(project_id,user)
     if not project:
         raise HTTPException(404, "Project not found")
 
@@ -1684,6 +1694,20 @@ async def apply_media_changes(session_id: str, data: dict):
                                 el["width"] = 1050
                                 el["x"] = 60
                     changed = True
+
+        elif media_type == "heygem":
+            from services.heygem import video_element
+            record=await db.heygem_videos.find_one({'video_id':mc.get('heygemVideoId'),
+                'companyId':project.get('companyId'),'status':'completed'})
+            if not record:raise HTTPException(422,'Selecione um vídeo HeyGem concluído da empresa.')
+            element=video_element(record['video_url'])
+            slide.setdefault('elements',[])
+            previous=next((e for e in slide['elements'] if e.get('type')=='image' or e.get('provider')=='heygem'),None)
+            if previous:
+                element.update({k:previous[k] for k in ('id','x','y','width','height') if k in previous})
+                slide['elements'][slide['elements'].index(previous)]=element
+            else:slide['elements'].append(element)
+            changed=True
 
         elif media_type == "none":
             # Remove image/video elements and expand text to full width

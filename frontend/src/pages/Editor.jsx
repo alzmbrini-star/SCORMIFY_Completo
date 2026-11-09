@@ -2623,6 +2623,14 @@ export default function Editor() {
         />
 
         <HeygenDialog
+          onUseHeygemVideo={async (url) => {
+            try {
+              await addElement(currentSlide.id,{type:'video',src:url,provider:'heygem',
+                x:0,y:0,width:currentSlide.width||1920,height:currentSlide.height||820,
+                objectFit:'contain',autoplay:false,loop:false});
+              setShowHeygenDialog(false);toast.success('Vídeo HeyGem adicionado ao slide.');
+            } catch (_) { toast.error('Não foi possível inserir o vídeo. Ele continua na biblioteca HeyGem.'); }
+          }}
           open={showHeygenDialog} onOpenChange={setShowHeygenDialog}
           heygenLoading={heygenLoading} heygenGenerating={heygenGenerating}
           heygenAvatars={heygenAvatars} heygenVoices={heygenVoices}

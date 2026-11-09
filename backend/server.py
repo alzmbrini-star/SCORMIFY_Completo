@@ -265,6 +265,8 @@ if enable_legacy_ai_routes:
 
 from routes import gallery as gallery_routes
 app.include_router(gallery_routes.router, prefix="/api")
+from routes import heygem as heygem_routes
+app.include_router(heygem_routes.router, prefix="/api")
 
 if enable_legacy_ai_routes:
     from routes import heygen as heygen_routes
