@@ -114,6 +114,31 @@ test('tabs keep content while changing steps and footer actions remain outside t
   expect(container.querySelector('#gamma-panel-history').hidden).toBe(false);
 });
 
+test('slide quantity is editable and sent to backend, never fixed at five', async()=>{
+  await open(); await fill();
+  const input=container.querySelector('[aria-label="Quantidade de slides Gamma"]');
+  await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'25');input.dispatchEvent(new Event('input',{bubbles:true}));});
+  expect(container.querySelector('[data-testid="gamma-generate"]').textContent).toBe('Gerar 25 slides');
+  global.fetch.mockResolvedValue({ok:true,json:async()=>({id:'job',title:'Teste',status:'pending',numCards:25})});
+  await act(async()=>container.querySelector('[data-testid="gamma-generate"]').click());
+  const call=global.fetch.mock.calls.find(([,options])=>options?.method==='POST');
+  expect(JSON.parse(call[1].body).numCards).toBe(25);
+  expect(container.textContent).toContain('Quantidade solicitada: 25');
+});
+
+test('empty, zero, fractional and oversized slide quantities disable paid generation', async()=>{
+  await open(); await fill();
+  const input=container.querySelector('[aria-label="Quantidade de slides Gamma"]');
+  for(const value of ['', '0','1.5','101']){
+    await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));});
+    expect(container.querySelector('[data-testid="gamma-generate"]').disabled).toBe(true);
+  }
+  await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'100');input.dispatchEvent(new Event('input',{bubbles:true}));});
+  expect(container.querySelector('[data-testid="gamma-generate"]').disabled).toBe(false);
+  expect(container.querySelector('[data-testid="gamma-generate"]').textContent).toBe('Gerar 100 slides');
+  expect(global.fetch.mock.calls.filter(([,options])=>options?.method==='POST')).toHaveLength(0);
+});
+
 test('catalog paginates six colorful cards without an inner scrolling region', async () => {
   await open();
   global.fetch.mockResolvedValue({ok:true,json:async()=>({items:Array.from({length:13},(_,i)=>({id:`theme${i}`,name:`Tema ${i}`,colors:i%2?['blue','white']:['gold','black'],source:'standard'}))})});

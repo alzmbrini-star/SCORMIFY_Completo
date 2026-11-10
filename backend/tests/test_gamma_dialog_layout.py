@@ -48,6 +48,7 @@ def test_gamma_dialog_responsive_fixed_actions():
                     print('LOCAL QA ERROR', errors, page.locator('body').inner_text()[:1600])
                     raise
                 page.get_by_test_id('gamma-create-open').click()
+                page.wait_for_function("getComputedStyle(document.querySelector('.gamma-dialog')).opacity === '1'")
                 company=page.get_by_test_id('gamma-company-trigger')
                 assert company.evaluate('(e)=>e.tagName')=='SELECT'
                 company.select_option('other-company')
@@ -56,6 +57,8 @@ def test_gamma_dialog_responsive_fixed_actions():
                 page.screenshot(path=str(output/f'gamma-company-{name}.png'))
                 page.get_by_label('Título Gamma', exact=True).fill('Gestão do Tempo')
                 page.get_by_label('Conteúdo Gamma', exact=True).fill('Introdução didática à gestão do tempo, com prioridades, foco e pausas.')
+                page.get_by_label('Quantidade de slides Gamma', exact=True).fill('12')
+                assert page.get_by_test_id('gamma-generate').inner_text()=='Gerar 12 slides'
                 page.locator('[data-step="design"]').click()
                 page.get_by_label('Modo visual Gamma').select_option('theme')
                 page.get_by_role('button',name='Basic Dark',exact=True).click()

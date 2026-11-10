@@ -26,6 +26,9 @@ export default function GammaCreateDialog({ onCreated }) {
   const [configured, setConfigured] = useState(null);
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [slideCount, setSlideCount] = useState('5');
+  const count = Number(slideCount);
+  const validCount = slideCount.trim() !== '' && Number.isInteger(count) && count >= 1 && count <= 100;
   const [companyId, setCompanyId] = useState('');
   const [jobs, setJobs] = useState([]);
   const [error, setError] = useState('');
@@ -57,12 +60,12 @@ export default function GammaCreateDialog({ onCreated }) {
 
   if (!allowed) return null;
   const generate = async () => {
-    if (submitting.current || busy || uncertain) return;
+    if (submitting.current || busy || uncertain || !validCount) return;
     submitting.current = true;
     setBusy(true); setError('');
     requestId.current = requestId.current || crypto.randomUUID();
     try {
-      const row = await api('/generate', { method: 'POST', body: JSON.stringify({ requestId: requestId.current, title: title.trim(), prompt: prompt.trim(), companyId: companyId || null,
+      const row = await api('/generate', { method: 'POST', body: JSON.stringify({ requestId: requestId.current, title: title.trim(), prompt: prompt.trim(), companyId: companyId || null, numCards: count,
         ...(design?.kind === 'theme' ? {themeId: design.id} : design?.kind === 'template' ? {templateId: design.id} : {}) }) });
       setJobs(previous => [row, ...previous.filter(item => item.id !== row.id)]);
       if (row.status === 'unknown') setUncertain(true);
@@ -86,7 +89,7 @@ export default function GammaCreateDialog({ onCreated }) {
     <Button variant="outline" onClick={() => setOpen(true)} data-testid="gamma-create-open">Criar com Gamma</Button>
     <Dialog open={open} onOpenChange={next => {setOpen(next); if (!next) {setDesign(null); setDesignRequired(false); setStep('content');}}}><DialogContent className="gamma-dialog">
       <div className="gamma-head"><div className="gamma-eyebrow">SCORMIFY + GAMMA</div>
-      <DialogHeader><DialogTitle>Criar 5 slides com Gamma</DialogTitle><DialogDescription>Português do Brasil · novo projeto independente · qualidade standard</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>Criar apresentação com Gamma</DialogTitle><DialogDescription>Português do Brasil · novo projeto independente · qualidade standard</DialogDescription></DialogHeader>
       <nav className="gamma-tabs" role="tablist" aria-label="Etapas da criação Gamma" onKeyDown={e => {const keys=['content','design','history'];const index=keys.indexOf(step);if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();const next=keys[(index+(e.key==='ArrowRight'?1:2))%3];setStep(next);e.currentTarget.querySelector(`[data-step="${next}"]`)?.focus();}}}>
         {[['content','Conteúdo'],['design','Aparência'],['history',`Histórico (${jobs.length})`]].map(([id,label],index)=><button type="button" key={id} id={`gamma-tab-${id}`} data-step={id} role="tab" aria-selected={step===id} aria-controls={`gamma-panel-${id}`} tabIndex={step===id?0:-1} onClick={()=>setStep(id)}><span>{index+1}</span>{label}</button>)}
       </nav></div>
@@ -96,9 +99,11 @@ export default function GammaCreateDialog({ onCreated }) {
       <div className="gamma-content-grid"><div className="gamma-section gamma-fields">
       <div><h3>O que vamos ensinar?</h3><p className="text-sm">Defina o conteúdo. Depois, escolha o visual.</p></div>
       <label>Título do curso<Input aria-label="Título Gamma" maxLength={160} value={title} disabled={busy} onChange={e => setTitle(e.target.value)} /></label>
-      <label>Conteúdo dos cinco slides<textarea aria-label="Conteúdo Gamma" className="w-full min-h-28 p-3" maxLength={10000} value={prompt} disabled={busy} onChange={e => setPrompt(e.target.value)} placeholder="Tema, público, objetivos e tópicos. Inclua o conteúdo que deseja ensinar." /></label>
+      <label>Quantidade de slides<Input aria-label="Quantidade de slides Gamma" type="number" inputMode="numeric" min="1" max="100" step="1" value={slideCount} disabled={busy} onChange={e=>setSlideCount(e.target.value)} aria-invalid={!validCount} aria-describedby="gamma-count-help"/></label>
+      <p id="gamma-count-help" className={validCount?'gamma-help':'gamma-error'}>Digite de 1 a 100. O Gamma limita o plano gratuito a 10 slides e os pagos a até 100. Quantidades maiores podem consumir mais créditos. O limite da sua conta será validado pelo Gamma.</p>
+      <label>Conteúdo da apresentação<textarea aria-label="Conteúdo Gamma" className="w-full min-h-28 p-3" maxLength={10000} value={prompt} disabled={busy} onChange={e => setPrompt(e.target.value)} placeholder="Tema, público, objetivos e tópicos. Inclua o conteúdo que deseja ensinar." /></label>
       <CompanySelector value={companyId} onChange={setCompanyId} testIdPrefix="gamma-company" native disabled={busy}/>
-      </div><aside className="gamma-side"><strong>Seu curso, um novo começo</strong><p>5 slides em PT-BR, sem alterar seus projetos existentes.</p><p>Você poderá acrescentar textos, perguntas e interações no Editor.</p><details className="gamma-help mt-4"><summary>Créditos e edição dos slides</summary><p>Usa créditos da conta Gamma configurada no servidor. Preserva o visual como imagem-base por slide; o texto da imagem não será editável separadamente. Confira o resultado antes de publicar.</p></details></aside></div>
+      </div><aside className="gamma-side"><strong>Seu curso, um novo começo</strong><p>{validCount?`${count} ${count===1?'slide':'slides'} em PT-BR`:'Defina a quantidade de slides'}, sem alterar seus projetos existentes.</p><p>Você poderá acrescentar textos, perguntas e interações no Editor.</p><details className="gamma-help mt-4"><summary>Créditos e edição dos slides</summary><p>Usa créditos da conta Gamma configurada no servidor. A quantidade é uma meta: o Gamma pode entregar um número diferente, que será informado no histórico, sem gerar novamente. Preserva o visual como imagem-base por slide; o texto da imagem não será editável separadamente. Arquivos muito grandes podem atingir os limites de importação de 80 MB no ZIP e 160 MB nas imagens descompactadas. Confira o resultado antes de publicar.</p></details></aside></div>
       </section>
       <section id="gamma-panel-design" role="tabpanel" aria-labelledby="gamma-tab-design" hidden={step!=='design'}>
       <GammaDesignPicker api={api} value={design} onChange={(selection, required) => {setDesign(selection); if (required !== undefined) setDesignRequired(required);}} disabled={busy || uncertain || configured !== true}/>
@@ -108,6 +113,7 @@ export default function GammaCreateDialog({ onCreated }) {
         {jobs.length===0&&<div className="gamma-info">Nenhuma geração ainda. Comece em Conteúdo e escolha a aparência.</div>}
         {jobs.map(job => <article key={job.id} className="gamma-job space-y-2" data-testid="gamma-job">
           <strong>{job.title}</strong><div><span role="status" className={`gamma-status gamma-status-${job.status}`}>{labels[job.status] || job.status}{job.progress?.percent != null ? ` · ${job.progress.percent}%` : ''}{job.actualSlides ? ` · ${job.actualSlides} slides` : ''}</span></div>
+          <p>Quantidade solicitada: {job.numCards || 5}{job.actualSlides ? ` · recebida: ${job.actualSlides}` : ''}</p>
           {job.error && <p className="text-sm text-amber-500">{job.error}</p>}{job.warning && <p>{job.warning}</p>}
           {job.credits?.deducted != null && <p className="text-sm">Créditos informados pelo Gamma: {job.credits.deducted} consumidos{job.credits.remaining != null ? ` · saldo ${job.credits.remaining}` : ''}.</p>}
           <div className="flex flex-wrap gap-2">
@@ -123,7 +129,7 @@ export default function GammaCreateDialog({ onCreated }) {
       {uncertain && <p role="status" className="gamma-error">Solicitação sem confirmação. Não repetiremos automaticamente. Reabra esta janela para consultar o histórico e confira também sua conta Gamma.</p>}
       <div className="gamma-footer-main"><div className="gamma-footer-summary"><strong>{design?.name || (designRequired?'Escolha um visual':'Visual automático')}</strong><div>{title.trim().length<3||prompt.trim().length<20?'Preencha o título e pelo menos 20 caracteres de conteúdo.':'Conteúdo pronto · gera um novo projeto · usa créditos Gamma'}</div></div>
       <div className="gamma-footer-actions">{step==='content'?<Button variant="outline" onClick={()=>setStep('design')}>Escolher aparência →</Button>:<Button variant="outline" onClick={()=>setStep('content')}>← Conteúdo</Button>}
-      <Button onClick={generate} disabled={busy || uncertain || configured !== true || (designRequired && !design) || title.trim().length < 3 || prompt.trim().length < 20} data-testid="gamma-generate">{busy ? 'Enviando…' : 'Gerar 5 slides'}</Button></div></div>
+      <Button onClick={generate} disabled={busy || uncertain || !validCount || configured !== true || (designRequired && !design) || title.trim().length < 3 || prompt.trim().length < 20} data-testid="gamma-generate">{busy ? 'Enviando…' : validCount ? `Gerar ${count} ${count===1?'slide':'slides'}` : 'Informe a quantidade'}</Button></div></div>
       </footer>
     </DialogContent></Dialog>
   </>;

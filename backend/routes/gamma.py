@@ -35,7 +35,7 @@ def owner(user):
 def public(job):
     # Explicit allowlist: no API keys, signed export URLs or raw provider responses.
     return {key: job.get(key) for key in ['id', 'projectId', 'title', 'status', 'createdAt', 'error',
-            'progress', 'actualSlides', 'gammaUrl', 'credits', 'warning', 'requestId', 'themeId', 'templateId']}
+            'progress', 'actualSlides', 'gammaUrl', 'credits', 'warning', 'requestId', 'themeId', 'templateId', 'numCards']}
 
 
 def sharing_warning(response):
@@ -51,6 +51,7 @@ class Generate(BaseModel):
     title: str = Field(min_length=3, max_length=160)
     prompt: str = Field(min_length=20, max_length=10000)
     companyId: str | None = None
+    numCards: int = Field(default=5, ge=1, le=100, strict=True)
     themeId: str | None = Field(default=None, min_length=1, max_length=128, pattern=r'^[A-Za-z0-9_-]+$')
     templateId: str | None = Field(default=None, min_length=1, max_length=128, pattern=r'^[A-Za-z0-9_-]+$')
 
@@ -64,7 +65,7 @@ class Generate(BaseModel):
 @router.get('/gamma/status')
 async def configuration(user=Depends(require_auth)):
     creator(user)
-    return {'configured': gamma_api.configured(), 'slides': 5, 'language': 'pt-BR'}
+    return {'configured': gamma_api.configured(), 'defaultSlides': 5, 'minSlides': 1, 'maxSlides': gamma_api.MAX_SLIDES, 'language': 'pt-BR'}
 
 
 @router.get('/gamma/jobs')
@@ -103,7 +104,7 @@ async def generate(data: Generate, user=Depends(require_auth)):
     project['course']['slides'] = []
     job = {'_id': ident, 'id': ident, 'projectId': project['id'], 'userId': owner(user),
            'companyId': company, 'title': data.title, 'requestId': str(data.requestId),
-           'status': 'submitting', 'createdAt': now(), 'themeId': data.themeId, 'templateId': data.templateId}
+           'status': 'submitting', 'createdAt': now(), 'themeId': data.themeId, 'templateId': data.templateId, 'numCards': data.numCards}
     from pymongo.errors import DuplicateKeyError
     try:
         await db.gamma_generations.insert_one(job)
@@ -115,7 +116,7 @@ async def generate(data: Generate, user=Depends(require_auth)):
         await db.gamma_generations.update_one({'_id': ident}, {'$set': {'status': 'failed', 'error': 'Não foi possível criar o projeto. Nenhuma geração foi solicitada.'}})
         raise HTTPException(503, 'Não foi possível criar o projeto; nenhuma geração foi solicitada.') from None
     try:
-        response = await gamma_api.request('POST', '/agent/generations', gamma_api.generation_payload(data.title, data.prompt, data.themeId, data.templateId))
+        response = await gamma_api.request('POST', '/agent/generations', gamma_api.generation_payload(data.title, data.prompt, data.themeId, data.templateId, num_cards=data.numCards))
         update = {'generationId': gamma_api.generation_id(response.get('generationId')), 'status': 'pending', 'warning': sharing_warning(response)}
     except gamma_api.GammaError as exc:
         update = {'status': 'unknown', 'error': str(exc)}
@@ -140,9 +141,14 @@ async def import_archive(job, raw):
         file_id = await bucket.upload_from_stream('gamma-slides.zip', raw, metadata={'projectId': pid})
         await db.gamma_generations.update_one({'id': job['id']}, {'$set': {'archiveId': file_id}})
     # Conversion happens outside the event loop. No original file path is ever extracted.
-    images = await asyncio.to_thread(lambda: list(gamma_api.png_slides(raw)))
+    images = gamma_api.png_slides(raw)
     slides = []
-    for index, (content, width, height) in enumerate(images):
+    while True:
+        image = await asyncio.to_thread(next, images, None)
+        if image is None:
+            break
+        index = len(slides)
+        content, width, height = image
         filename = f'gamma_{job["id"]}_{index+1}.webp'
         path = Path(PROJECTS_DIR) / pid / 'assets' / filename
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -191,8 +197,9 @@ async def poll(ident: str, user=Depends(require_auth)):
             else:
                 raw = await gamma_api.download(export_url)
                 count = await import_archive(job, raw)
+                requested = job.get('numCards') or 5
                 update.update(status='completed', actualSlides=count, progress={'percent': 100},
-                              warning=warning if count == 5 else ((warning or '') + f' Gamma entregou {count} slides; 5 é uma meta flexível do provedor. Não houve nova geração automática.').strip())
+                              warning=warning if count == requested else ((warning or '') + f' Gamma entregou {count} slides; foram solicitados {requested}. A quantidade é uma meta flexível do provedor. Não houve nova geração automática.').strip())
     except gamma_api.GammaError as exc:
         update.update(error=str(exc))
         if 'já contém slides' in str(exc):

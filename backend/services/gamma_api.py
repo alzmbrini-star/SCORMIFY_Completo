@@ -13,6 +13,7 @@ from PIL import Image
 
 BASE = 'https://public-api.gamma.app/v1.0'
 MAX_ARCHIVE = 80 * 1024 * 1024
+MAX_SLIDES = 100
 
 
 class GammaError(ValueError):
@@ -44,14 +45,16 @@ async def request(method, path, payload=None):
         raise GammaError('Resposta Gamma não reconhecida. Não repita a geração automaticamente.') from None
 
 
-def generation_payload(title, prompt, theme_id=None, template_id=None):
+def generation_payload(title, prompt, theme_id=None, template_id=None, num_cards=5):
+    if type(num_cards) is not int or not 1 <= num_cards <= MAX_SLIDES:
+        raise GammaError('Informe uma quantidade inteira entre 1 e 100 slides.')
     if theme_id and template_id:
         raise GammaError('Escolha um tema OU um modelo; o Gamma não combina os dois nesta geração.')
-    result = {'prompt': prompt, 'title': title, 'format': 'presentation', 'numCards': 5,
+    result = {'prompt': prompt, 'title': title, 'format': 'presentation', 'numCards': num_cards,
             'quality': 'standard', 'exportAs': 'png', 'disableConnectors': True,
-            'additionalInstructions': 'Produza exatamente 5 slides, integralmente em Português do Brasil (pt-BR), incluindo títulos e legendas. '
+            'additionalInstructions': f'Produza uma apresentação com meta de {num_cards} slides, integralmente em Português do Brasil (pt-BR), incluindo títulos e legendas. '
             'Use proporção horizontal 16:9, ilustrações contextualizadas, fontes grandes e bom contraste. '
-            'Uma capa com o nome do curso, três slides de desenvolvimento e uma conclusão prática. Evite excesso de texto.',
+            'Distribua o conteúdo de forma proporcional à quantidade solicitada. Inclua abertura com o nome do curso e conclusão prática quando a quantidade permitir; para um único slide, faça uma síntese. Evite excesso de texto.',
             'sharingOptions': {'externalAccess': 'noAccess', 'workspaceAccess': 'noAccess'}}
     if theme_id:
         result['themeId'] = theme_id
@@ -126,7 +129,7 @@ def png_slides(raw):
     try:
         archive = zipfile.ZipFile(io.BytesIO(raw))
         entries = [i for i in archive.infolist() if not i.is_dir() and i.filename.lower().endswith('.png') and not i.filename.startswith('__MACOSX/')]
-        if not 1 <= len(entries) <= 20 or len(archive.infolist()) > 100:
+        if not 1 <= len(entries) <= MAX_SLIDES + 2 or len(archive.infolist()) > 300:
             raise GammaError('Quantidade de imagens inesperada na exportação Gamma.')
         if sum(i.file_size for i in entries) > 160 * 1024 * 1024 or any(i.file_size > 24 * 1024 * 1024 for i in entries):
             raise GammaError('Imagens Gamma excedem o limite de importação.')
@@ -138,8 +141,8 @@ def png_slides(raw):
                 w, h = image.size
                 if image.format != 'PNG' or w < 100 or h < 100 or w * h > 25_000_000:
                     raise GammaError('Imagem Gamma com formato ou dimensões inválidas.')
-                image = image.convert('RGB')
                 image.thumbnail((2560, 2560))
+                image = image.convert('RGB')
                 result = io.BytesIO()
                 image.save(result, 'WEBP', quality=92, method=4)
                 if len(result.getvalue()) > 6 * 1024 * 1024:

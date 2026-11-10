@@ -40,6 +40,40 @@ def archive(names):
 
 
 class GammaTests(unittest.IsolatedAsyncioTestCase):
+    def test_flexible_count_validated_in_model_and_payload(self):
+        model=routes().Generate
+        for value in [1, 12, 25, 100]:
+            data=model(requestId=uuid.uuid4(), title='Teste', prompt='Conteúdo para apresentação', numCards=value)
+            body=gamma_api.generation_payload('Teste','Conteúdo',num_cards=data.numCards)
+            self.assertEqual(body['numCards'], value)
+            self.assertIn(f'meta de {value} slides', body['additionalInstructions'])
+            self.assertNotIn('três slides de desenvolvimento', body['additionalInstructions'])
+        for value in [0,-1,101,1.5,True,'12',None]:
+            with self.assertRaises(ValidationError): model(requestId=uuid.uuid4(), title='Teste', prompt='Conteúdo para apresentação', numCards=value)
+            with self.assertRaises(gamma_api.GammaError): gamma_api.generation_payload('Teste','Conteúdo',num_cards=value)
+        self.assertEqual(model(requestId=uuid.uuid4(),title='Teste',prompt='Conteúdo para apresentação').numCards,5)
+
+    def test_archive_accepts_more_than_twenty_cards(self):
+        self.assertEqual(len(list(gamma_api.png_slides(archive([(f'card{i}.png','red') for i in range(25)])))),25)
+
+    async def test_import_converts_and_persists_sequentially(self):
+        import tempfile
+        emitted=[]; saved=[]
+        def images(_):
+            for index in range(25):
+                emitted.append(index)
+                yield (b'image',320,180)
+        async def store(*_):
+            self.assertEqual(len(emitted),len(saved)+1, 'Never convert all slides before persisting the first')
+            saved.append(len(saved))
+            return True
+        with tempfile.TemporaryDirectory() as directory:
+            projects=SimpleNamespace(update_one=AsyncMock(return_value=SimpleNamespace(modified_count=1)))
+            module=routes(PROJECTS_DIR=directory, db=SimpleNamespace(projects=projects),store_asset_async=store)
+            with patch.object(gamma_api,'png_slides',side_effect=images):
+                count=await module.import_archive({'id':'j','projectId':'new','archiveId':'stored','title':'Teste'},b'archive')
+            self.assertEqual(count,25)
+
     def test_payload_ptbr_private_no_connectors_or_max_quality(self):
         body = gamma_api.generation_payload('Teste Gamma', 'Conteúdo da apresentação')
         self.assertEqual(body['numCards'], 5)
@@ -114,12 +148,13 @@ class GammaTests(unittest.IsolatedAsyncioTestCase):
                              projects=SimpleNamespace(insert_one=AsyncMock()))
         module = routes(db=db, resolve_company_id_for_creation=AsyncMock(return_value='company'))
         with patch.object(gamma_api, 'configured', return_value=True), patch.object(gamma_api, 'request', new_callable=AsyncMock, return_value={'generationId': 'gen_abc123'}):
-            row = await module.generate(module.Generate(requestId=uuid.uuid4(), title='Teste Gamma', prompt='conteúdo para cinco slides'), {'roles': ['editor'], 'id': 'user'})
+            row = await module.generate(module.Generate(requestId=uuid.uuid4(), title='Teste Gamma', prompt='conteúdo para apresentação', numCards=12), {'roles': ['editor'], 'id': 'user'})
         project = db.projects.insert_one.call_args.args[0]
         self.assertEqual(project['course']['slides'], [])
         self.assertEqual(project['course']['metadata']['title'], 'Teste Gamma')
         self.assertEqual(project['companyId'], 'company')
         self.assertEqual(row['status'], 'pending')
+        self.assertEqual(row['numCards'],12)
 
     async def test_unknown_paid_submission_is_not_retried(self):
         db = SimpleNamespace(gamma_generations=SimpleNamespace(find_one=AsyncMock(return_value=None), insert_one=AsyncMock(), update_one=AsyncMock()),
@@ -149,6 +184,20 @@ class GammaTests(unittest.IsolatedAsyncioTestCase):
         importer.assert_awaited_once()
         update = collection.update_one.call_args.kwargs if collection.update_one.call_args.kwargs else collection.update_one.call_args.args[1]
         self.assertNotIn('https://signed', str(update))
+
+    async def test_mismatch_warning_uses_requested_quantity_without_regenerating(self):
+        job={'id':'j','projectId':'new','status':'pending','generationId':'gen_abc','numCards':12}
+        collection=SimpleNamespace(update_one=AsyncMock(return_value=SimpleNamespace(modified_count=1)),find_one=AsyncMock(return_value=job))
+        module=routes(db=SimpleNamespace(gamma_generations=collection))
+        module.poll.__globals__['authorized']=AsyncMock(return_value=job)
+        module.poll.__globals__['import_archive']=AsyncMock(return_value=13)
+        with patch.object(gamma_api,'request',new_callable=AsyncMock,return_value={'status':'completed','exportUrl':'https://signed'}) as request, patch.object(gamma_api,'download',new_callable=AsyncMock,return_value=b'zip'):
+            await module.poll('j', {'id':'user'})
+        warning=collection.update_one.call_args.args[1]['$set']['warning']
+        self.assertIn('entregou 13',warning)
+        self.assertIn('solicitados 12',warning)
+        self.assertEqual(request.await_count,1)
+        self.assertEqual(request.call_args.args[0],'GET')
 
     async def test_import_compare_and_set_never_overwrites_existing_course(self):
         import tempfile
