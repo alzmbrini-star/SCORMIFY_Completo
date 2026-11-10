@@ -1,4 +1,5 @@
 import { withVideoQuizProviders } from './videoQuizProviders';
+import { videoQuizMobileControlsRuntime } from './videoQuizMobileControls';
 // Presentation-only upgrade: never changes questions, answers or LMS status.
 export function videoQuizPlaybackRuntime() {
   'use strict';
@@ -84,6 +85,10 @@ export function videoQuizFeedbackLayoutRuntime() {
 export function upgradeVideoQuizPlayback(html) {
   if (typeof html !== 'string' || !/id=["']video-quiz-data["']/.test(html)) return html;
   html = withVideoQuizProviders(html);
+  if (!html.includes('id="video-quiz-mobile-controls-v1"')) {
+    const mobile = '<script id="video-quiz-mobile-controls-v1">(' + videoQuizMobileControlsRuntime.toString() + ')();</script>';
+    html = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, mobile + '</body>') : html + mobile;
+  }
   if (!html.includes('id="video-quiz-responsive-v1"')) {
     const css = '<style id="video-quiz-responsive-v1">main,.avatar,#panel{min-width:0}header{min-width:0;flex-wrap:wrap}header h1{min-width:0;overflow-wrap:anywhere}#panel{overflow-wrap:anywhere}.controls{flex-shrink:0}#panel .option{overflow-wrap:anywhere;min-width:0}@media(max-width:650px){html,body{overflow-x:hidden}body{gap:8px}header{gap:6px}header h1{flex-basis:100%;font-size:20px}main{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(170px,.9fr) minmax(180px,1.1fr);gap:8px;flex-shrink:0}.avatar{padding:6px}button{min-height:44px;padding:8px 10px}#panel{font-size:16px;padding:12px}#panel h2{font-size:19px}.controls{gap:6px}#seek{min-width:60px;width:0}footer{font-size:11px;overflow-wrap:anywhere}}</style>';
     const responsiveCSS = css.replace('</style>', 'body.large #panel{font-size:20px}</style>');
