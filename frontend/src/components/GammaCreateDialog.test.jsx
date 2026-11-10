@@ -58,3 +58,45 @@ test('lost POST response never automatically resubmits', async () => {
   expect(container.querySelector('[data-testid="gamma-generate"]').disabled).toBe(true);
   expect(container.textContent).toContain('Não repetiremos automaticamente');
 });
+
+test('theme discovery costs no generation; chosen ID is sent only on explicit generate', async () => {
+  await open(); await fill();
+  global.fetch.mockImplementation(async (url, options) => ({ok: true, json: async () => options?.method === 'POST'
+    ? {id: 'job', title: 'Teste', status: 'pending'} : {items: [{id: 'ocean', name: 'Oceano', source: 'custom', colors: ['azul', 'branco'], tones: ['profissional']}], nextCursor: 'page2'}}));
+  await act(async () => {const select = container.querySelector('[aria-label="Modo visual Gamma"]'); select.value = 'theme'; select.dispatchEvent(new Event('change', {bubbles:true}));});
+  expect(container.querySelector('[data-testid="gamma-generate"]').disabled).toBe(true);
+  expect(global.fetch.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(0);
+  expect(container.textContent).toContain('azul · branco');
+  await act(async () => [...container.querySelectorAll('button')].find(b => b.textContent === 'Oceano').click());
+  expect(container.querySelector('[data-testid="gamma-generate"]').disabled).toBe(false);
+  await act(async () => container.querySelector('[data-testid="gamma-generate"]').click());
+  const body = JSON.parse(global.fetch.mock.calls.find(([, options]) => options?.method === 'POST')[1].body);
+  expect(body.themeId).toBe('ocean'); expect(body).not.toHaveProperty('templateId');
+});
+
+test('changing theme to template clears selection and sends template only', async () => {
+  await open(); await fill();
+  global.fetch.mockImplementation(async (url, options) => ({ok: true, json: async () => options?.method === 'POST'
+    ? {id: 'job', status: 'pending'} : {items: [{id: url.includes('kind=themes') ? 'theme' : 'model', name: 'Escolha', source: 'official'}], nextCursor: null}}));
+  async function mode(value) { await act(async () => { const select = container.querySelector('[aria-label="Modo visual Gamma"]'); select.value = value; select.dispatchEvent(new Event('change', {bubbles:true})); }); }
+  await mode('theme');
+  await act(async () => [...container.querySelectorAll('button')].find(b => b.textContent === 'Escolha').click());
+  await mode('template');
+  expect(container.querySelector('[data-testid="gamma-generate"]').disabled).toBe(true);
+  await act(async () => [...container.querySelectorAll('button')].find(b => b.textContent === 'Escolha').click());
+  await act(async () => container.querySelector('[data-testid="gamma-generate"]').click());
+  const body = JSON.parse(global.fetch.mock.calls.find(([, options]) => options?.method === 'POST')[1].body);
+  expect(body.templateId).toBe('model'); expect(body).not.toHaveProperty('themeId');
+});
+
+test('catalog failure can be bypassed by returning to automatic without paid requests', async () => {
+  await open(); await fill();
+  global.fetch.mockRejectedValue(new Error('Catálogo temporariamente indisponível'));
+  const select = container.querySelector('[aria-label="Modo visual Gamma"]');
+  await act(async () => { select.value = 'theme'; select.dispatchEvent(new Event('change', {bubbles:true})); });
+  expect(container.textContent).toContain('Catálogo temporariamente indisponível');
+  expect(container.querySelector('[data-testid="gamma-generate"]').disabled).toBe(true);
+  await act(async () => { select.value = 'auto'; select.dispatchEvent(new Event('change', {bubbles:true})); });
+  expect(container.querySelector('[data-testid="gamma-generate"]').disabled).toBe(false);
+  expect(global.fetch.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(0);
+});

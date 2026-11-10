@@ -6,7 +6,7 @@ import zipfile
 import socket
 import ipaddress
 import asyncio
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlencode
 
 import httpx
 from PIL import Image
@@ -44,13 +44,44 @@ async def request(method, path, payload=None):
         raise GammaError('Resposta Gamma não reconhecida. Não repita a geração automaticamente.') from None
 
 
-def generation_payload(title, prompt):
-    return {'prompt': prompt, 'title': title, 'format': 'presentation', 'numCards': 5,
+def generation_payload(title, prompt, theme_id=None, template_id=None):
+    if theme_id and template_id:
+        raise GammaError('Escolha um tema OU um modelo; o Gamma não combina os dois nesta geração.')
+    result = {'prompt': prompt, 'title': title, 'format': 'presentation', 'numCards': 5,
             'quality': 'standard', 'exportAs': 'png', 'disableConnectors': True,
             'additionalInstructions': 'Produza exatamente 5 slides, integralmente em Português do Brasil (pt-BR), incluindo títulos e legendas. '
             'Use proporção horizontal 16:9, ilustrações contextualizadas, fontes grandes e bom contraste. '
             'Uma capa com o nome do curso, três slides de desenvolvimento e uma conclusão prática. Evite excesso de texto.',
             'sharingOptions': {'externalAccess': 'noAccess', 'workspaceAccess': 'noAccess'}}
+    if theme_id:
+        result['themeId'] = theme_id
+    if template_id:
+        result['templateId'] = template_id
+        result['additionalInstructions'] += ' Use o modelo escolhido como base visual, adaptando o conteúdo ao pedido sem modificar o modelo original.'
+    return result
+
+
+async def design_catalog(kind, query='', after='', theme_type=''):
+    """Read-only catalogs. Never return signed previews, credentials or raw provider data."""
+    if kind == 'themes':
+        params = {'limit': 50, 'query': query}
+        if after: params['after'] = after
+        if theme_type: params['type'] = theme_type
+        response = await request('GET', '/themes?' + urlencode(params))
+        rows = response.get('data') or []
+        return {'items': [{'id': str(row['id'])[:128], 'name': str(row.get('name') or 'Tema sem nome')[:200],
+                  'source': row.get('type'), 'colors': [str(c)[:50] for c in (row.get('colorKeywords') or [])[:8]],
+                  'tones': [str(c)[:50] for c in (row.get('toneKeywords') or [])[:6]]}
+                 for row in rows[:50] if isinstance(row, dict) and row.get('id')],
+                'nextCursor': response.get('nextCursor') if response.get('hasMore') else None}
+    response = await request('GET', '/templates/search?' + urlencode({'q': query, 'limit': 25}))
+    items = []
+    for key, source in [('workspaceTemplates', 'workspace'), ('exploreTemplates', 'official')]:
+        for row in (response.get(key) or [])[:25]:
+            if isinstance(row, dict) and row.get('id'):
+                items.append({'id': str(row['id'])[:128], 'name': str(row.get('title') or 'Modelo sem título')[:200],
+                              'source': source, 'url': public_gamma_url(row.get('url'))})
+    return {'items': items, 'nextCursor': None}
 
 
 def generation_id(value):

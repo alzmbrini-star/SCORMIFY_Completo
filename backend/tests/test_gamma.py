@@ -8,9 +8,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Query
 from PIL import Image
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from services import gamma_api
 from models import Project
 
@@ -22,7 +22,7 @@ def routes(**values):
         if hasattr(node, 'decorator_list'): node.decorator_list = []
     from datetime import datetime, timezone, timedelta
     scope = dict(Depends=lambda _: None, require_auth=None, HTTPException=HTTPException, BaseModel=BaseModel,
-        ConfigDict=ConfigDict, Field=Field, uuid=uuid, gamma_api=gamma_api, Project=Project,
+        ConfigDict=ConfigDict, Field=Field, model_validator=model_validator, Query=Query, uuid=uuid, gamma_api=gamma_api, Project=Project,
         datetime=datetime, timezone=timezone, timedelta=timedelta, asyncio=asyncio, Path=Path,
         has_any_role=lambda u, *roles: bool(set(u.get('roles', [])) & (set(roles) | {'super_admin'})))
     scope.update(values)
@@ -48,6 +48,35 @@ class GammaTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(body['disableConnectors'])
         self.assertEqual(body['sharingOptions']['externalAccess'], 'noAccess')
         self.assertEqual(body['exportAs'], 'png')
+
+    def test_theme_or_template_payload_not_both(self):
+        self.assertEqual(gamma_api.generation_payload('Teste', 'Conteúdo', theme_id='custom_1')['themeId'], 'custom_1')
+        body = gamma_api.generation_payload('Teste', 'Conteúdo', template_id='template_1')
+        self.assertEqual(body['templateId'], 'template_1')
+        self.assertNotIn('themeId', body)
+        with self.assertRaises(gamma_api.GammaError): gamma_api.generation_payload('Teste', 'Conteúdo', 't', 'm')
+        model = routes().Generate
+        with self.assertRaises(ValidationError): model(requestId=uuid.uuid4(), title='Teste', prompt='conteúdo para cinco slides', themeId='t', templateId='m')
+
+    async def test_theme_catalog_read_only_bounded_and_encoded(self):
+        response = {'data': [{'id': 'theme1', 'name': 'Ocean', 'type': 'custom', 'colorKeywords': ['blue'], 'secret': 'hidden'}], 'hasMore': True, 'nextCursor': 'next'}
+        with patch.object(gamma_api, 'request', new_callable=AsyncMock, return_value=response) as request:
+            result = await gamma_api.design_catalog('themes', 'a&b', 'cursor/x', 'custom')
+        self.assertEqual(request.call_args.args[0], 'GET')
+        self.assertIn('query=a%26b', request.call_args.args[1])
+        self.assertIn('after=cursor%2Fx', request.call_args.args[1])
+        self.assertEqual(result['nextCursor'], 'next')
+        self.assertEqual(result['items'][0]['colors'], ['blue'])
+        self.assertNotIn('secret', result['items'][0])
+
+    async def test_template_catalog_includes_both_sources_without_signed_previews(self):
+        response = {'workspaceTemplates': [{'id': 'w', 'title': 'Marca', 'url': 'https://gamma.app/docs/w', 'previewUrl': 'https://signed-private'}], 'exploreTemplates': [{'id': 'o', 'title': 'Oficial', 'url': 'javascript:bad'}]}
+        with patch.object(gamma_api, 'request', new_callable=AsyncMock, return_value=response) as request:
+            result = await gamma_api.design_catalog('templates', 'vendas')
+        self.assertEqual(request.call_args.args[0], 'GET')
+        self.assertEqual([item['source'] for item in result['items']], ['workspace', 'official'])
+        self.assertNotIn('signed-private', str(result))
+        self.assertIsNone(result['items'][1]['url'])
 
     def test_archive_natural_order_and_no_path_extraction(self):
         slides = list(gamma_api.png_slides(archive([('card10.png', 'blue'), ('../../card2.png', 'red')])))

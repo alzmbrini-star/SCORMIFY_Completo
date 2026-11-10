@@ -13,3 +13,7 @@ Limits: archive 80 MB, 20 imported images, 160 MB uncompressed PNG total, 25 mil
 Verification: backend `.venv/Scripts/python -m pytest tests/test_gamma.py tests/test_creator_tutor.py tests/test_creator_admin_guide.py tests/test_creator_faithful_guide.py tests/test_creator_scenario_guide.py`; frontend targeted Jest + production build.
 
 Official contract: https://developers.gamma.app/agent-gamma-5/create-agent-generation and https://developers.gamma.app/agent-gamma-5/get-agent-generation-status .
+
+## Theme and template selection
+
+Dashboard → Criar com Gamma → Aparência da apresentação: automatic, theme OR template (mutually exclusive in Pydantic and transport). Read-only `/gamma/designs` proxies Gamma `/themes` (query/type/cursor, 50 items/page) or `/templates/search` (up to 25 hits per source). Authenticated creator roles only. Exposes names, textual color/style keywords and safe Gamma viewing links; no signed preview URLs or credentials. Catalogs use the server key workspace, not per-user Gamma accounts. Custom brand themes must be created in Gamma first. No new generation is needed to test discovery/selection; existing projects remain unchanged.

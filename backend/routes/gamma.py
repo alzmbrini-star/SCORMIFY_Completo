@@ -4,10 +4,10 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from models import Project
 from routes.auth import require_auth, has_any_role
@@ -35,7 +35,7 @@ def owner(user):
 def public(job):
     # Explicit allowlist: no API keys, signed export URLs or raw provider responses.
     return {key: job.get(key) for key in ['id', 'projectId', 'title', 'status', 'createdAt', 'error',
-            'progress', 'actualSlides', 'gammaUrl', 'credits', 'warning', 'requestId']}
+            'progress', 'actualSlides', 'gammaUrl', 'credits', 'warning', 'requestId', 'themeId', 'templateId']}
 
 
 def sharing_warning(response):
@@ -51,6 +51,14 @@ class Generate(BaseModel):
     title: str = Field(min_length=3, max_length=160)
     prompt: str = Field(min_length=20, max_length=10000)
     companyId: str | None = None
+    themeId: str | None = Field(default=None, min_length=1, max_length=128, pattern=r'^[A-Za-z0-9_-]+$')
+    templateId: str | None = Field(default=None, min_length=1, max_length=128, pattern=r'^[A-Za-z0-9_-]+$')
+
+    @model_validator(mode='after')
+    def exclusive_design(self):
+        if self.themeId and self.templateId:
+            raise ValueError('Escolha um tema OU um modelo, não os dois.')
+        return self
 
 
 @router.get('/gamma/status')
@@ -64,6 +72,17 @@ async def jobs(user=Depends(require_auth)):
     creator(user)
     rows = await db.gamma_generations.find({'userId': owner(user)}, {'_id': 0}).sort('createdAt', -1).limit(30).to_list(30)
     return [public(row) for row in rows]
+
+
+@router.get('/gamma/designs')
+async def designs(kind: str = Query('themes', pattern='^(themes|templates)$'),
+                  query: str = Query('', max_length=200), after: str = Query('', max_length=512),
+                  themeType: str = Query('', pattern='^(|standard|custom)$'), user=Depends(require_auth)):
+    creator(user)
+    try:
+        return await gamma_api.design_catalog(kind, query, after, themeType)
+    except gamma_api.GammaError as exc:
+        raise HTTPException(503, str(exc)) from None
 
 
 @router.post('/gamma/generate')
@@ -84,7 +103,7 @@ async def generate(data: Generate, user=Depends(require_auth)):
     project['course']['slides'] = []
     job = {'_id': ident, 'id': ident, 'projectId': project['id'], 'userId': owner(user),
            'companyId': company, 'title': data.title, 'requestId': str(data.requestId),
-           'status': 'submitting', 'createdAt': now()}
+           'status': 'submitting', 'createdAt': now(), 'themeId': data.themeId, 'templateId': data.templateId}
     from pymongo.errors import DuplicateKeyError
     try:
         await db.gamma_generations.insert_one(job)
@@ -96,7 +115,7 @@ async def generate(data: Generate, user=Depends(require_auth)):
         await db.gamma_generations.update_one({'_id': ident}, {'$set': {'status': 'failed', 'error': 'Não foi possível criar o projeto. Nenhuma geração foi solicitada.'}})
         raise HTTPException(503, 'Não foi possível criar o projeto; nenhuma geração foi solicitada.') from None
     try:
-        response = await gamma_api.request('POST', '/agent/generations', gamma_api.generation_payload(data.title, data.prompt))
+        response = await gamma_api.request('POST', '/agent/generations', gamma_api.generation_payload(data.title, data.prompt, data.themeId, data.templateId))
         update = {'generationId': gamma_api.generation_id(response.get('generationId')), 'status': 'pending', 'warning': sharing_warning(response)}
     except gamma_api.GammaError as exc:
         update = {'status': 'unknown', 'error': str(exc)}
