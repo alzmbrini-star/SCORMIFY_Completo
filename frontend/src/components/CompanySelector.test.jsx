@@ -1,0 +1,45 @@
+import React, {act} from 'react';
+import {createRoot} from 'react-dom/client';
+import axios from 'axios';
+import CompanySelector from './CompanySelector';
+jest.mock('axios',()=>({get:jest.fn()}));
+let mockAdmin=true;
+jest.mock('../contexts/AuthContext',()=>({useAuth:()=>({isSuperAdmin:mockAdmin,user:{companyId:'a'}}),authHeaders:()=>({Authorization:'Bearer test-only-token'})}));
+jest.mock('../utils/apiUrl',()=>({getApiUrl:()=> 'https://backend.test'}));
+jest.mock('./ui/label',()=>({Label:props=><label {...props}/>}));
+jest.mock('./ui/select',()=>({Select:({children})=><div>{children}</div>,SelectContent:({children})=><div>{children}</div>,SelectItem:({children})=><div>{children}</div>,SelectTrigger:({children,...props})=><button {...props}>{children}</button>,SelectValue:({placeholder})=><span>{placeholder}</span>}));
+let root,container;
+beforeEach(()=>{global.IS_REACT_ACT_ENVIRONMENT=true;mockAdmin=true;axios.get.mockReset();container=document.createElement('div');document.body.append(container);root=createRoot(container);});
+afterEach(async()=>{await act(async()=>root.unmount());container.remove();});
+test('native company selector uses authenticated request and returns chosen ID',async()=>{
+  axios.get.mockResolvedValue({data:[{id:'a',name:'Empresa A'},{id:'b',name:'Empresa B'}]});
+  const changed=jest.fn();
+  await act(async()=>root.render(<CompanySelector native value="a" onChange={changed} testIdPrefix="gamma-company"/>));
+  const select=container.querySelector('select');
+  expect(select.disabled).toBe(false);
+  expect(select.options.length).toBe(3);
+  await act(async()=>{select.value='b';select.dispatchEvent(new Event('change',{bubbles:true}));});
+  expect(changed).toHaveBeenLastCalledWith('b');
+  expect(axios.get.mock.calls[0][1].headers.Authorization).toBe('Bearer test-only-token');
+  expect(axios.get.mock.calls[0][1]).not.toHaveProperty('withCredentials');
+});
+test('failed lookup displays retry and recovers without reloading or generating',async()=>{
+  axios.get.mockRejectedValueOnce(new Error('Temporary failure')).mockResolvedValueOnce({data:[{id:'a',name:'Empresa A'}]});
+  await act(async()=>root.render(<CompanySelector native value="" onChange={()=>{}}/>));
+  expect(container.querySelector('select').disabled).toBe(true);
+  expect(container.querySelector('[role="alert"]').textContent).toContain('Não foi possível carregar');
+  await act(async()=>container.querySelector('button').click());
+  expect(axios.get).toHaveBeenCalledTimes(2);
+  expect(container.querySelector('select').disabled).toBe(false);
+  expect(container.querySelector('[role="alert"]')).toBeNull();
+});
+test('empty catalog is distinguished from network failure and no cross-company choice for other roles',async()=>{
+  axios.get.mockResolvedValue({data:[]});
+  await act(async()=>root.render(<CompanySelector native value="" onChange={()=>{}}/>));
+  expect(container.querySelector('[role="status"]').textContent).toContain('Não há empresas');
+  expect(container.querySelector('[role="alert"]')).toBeNull();
+  await act(async()=>root.unmount());root=createRoot(container);mockAdmin=false;axios.get.mockClear();
+  await act(async()=>root.render(<CompanySelector native onChange={()=>{}}/>));
+  expect(container.textContent).toBe('');
+  expect(axios.get).not.toHaveBeenCalled();
+});

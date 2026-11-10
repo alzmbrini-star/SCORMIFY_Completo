@@ -4,7 +4,7 @@ import { Label } from './ui/label';
 import { Building2, Loader2 } from 'lucide-react';
 import axios from 'axios';
 import { getApiUrl } from '../utils/apiUrl';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth, authHeaders } from '../contexts/AuthContext';
 
 const API_URL = getApiUrl();
 
@@ -23,52 +23,60 @@ const API_URL = getApiUrl();
  */
 export default function CompanySelector({
   value, onChange, label = 'Empresa cliente',
-  testIdPrefix = 'company-selector', disabled = false,
+  testIdPrefix = 'company-selector', disabled = false, native = false,
 }) {
   const { user, isSuperAdmin } = useAuth();
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     if (!isSuperAdmin) return;
     setLoading(true);
-    axios.get(`${API_URL}/api/companies`)
+    setError('');
+    axios.get(`${API_URL}/api/companies`, {headers: authHeaders(), timeout: 30000})
       .then((res) => {
         if (cancelled) return;
-        const list = Array.isArray(res.data) ? res.data : (res.data?.companies || []);
+        const list = (Array.isArray(res.data) ? res.data : (res.data?.companies || [])).filter(c => typeof c?.id === 'string' && c.id);
         setCompanies(list);
         // Default to current user's company on first load if no value is set yet
-        if (!value && user?.companyId) {
+        if (!value && user?.companyId && list.some(c => c.id === user.companyId)) {
           onChange?.(user.companyId);
         }
       })
-      .catch(() => {})
+      .catch(() => {if (!cancelled) setError('Não foi possível carregar as empresas. Verifique sua conexão e tente novamente.');})
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSuperAdmin]);
+  }, [isSuperAdmin, attempt]);
 
   // Hide for non-super-admin — they can only attribute to their own company
   if (!isSuperAdmin) return null;
 
   return (
     <div className="space-y-2" data-testid={`${testIdPrefix}-wrapper`}>
-      <Label className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
+      <Label htmlFor={`${testIdPrefix}-select`} className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
         <Building2 className="w-3.5 h-3.5" /> {label}
       </Label>
-      <Select
+      {native ? <select id={`${testIdPrefix}-select`} aria-label={label} data-testid={`${testIdPrefix}-trigger`}
+        className="h-10 w-full rounded-md border border-input px-3 text-sm bg-background text-foreground disabled:opacity-50"
+        value={value || ''} disabled={disabled || loading || companies.length === 0} onChange={event => onChange?.(event.target.value)}>
+        <option value="" disabled>{loading ? 'Carregando empresas...' : error ? 'Falha ao carregar empresas' : companies.length ? 'Selecione a empresa...' : 'Nenhuma empresa disponível'}</option>
+        {companies.map(c => <option key={c.id} value={c.id}>{c.name || '(sem nome)'}{c.id === user?.companyId ? ' (sua empresa)' : ''}</option>)}
+      </select> : <Select
         value={value || ''}
         onValueChange={onChange}
         disabled={disabled || loading || companies.length === 0}
       >
-        <SelectTrigger className="h-9 text-sm" data-testid={`${testIdPrefix}-trigger`}>
+        <SelectTrigger id={`${testIdPrefix}-select`} className="h-9 text-sm" data-testid={`${testIdPrefix}-trigger`}>
           {loading ? (
             <span className="flex items-center gap-2 text-slate-400">
               <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando empresas...
             </span>
           ) : (
-            <SelectValue placeholder="Selecione a empresa..." />
+            <SelectValue placeholder={error ? 'Falha ao carregar empresas' : companies.length ? 'Selecione a empresa...' : 'Nenhuma empresa disponível'} />
           )}
         </SelectTrigger>
         <SelectContent>
@@ -85,7 +93,9 @@ export default function CompanySelector({
             </SelectItem>
           ))}
         </SelectContent>
-      </Select>
+      </Select>}
+      {error && <div role="alert" className="text-xs text-amber-300 space-y-1"><p>{error}</p><button type="button" className="underline font-semibold" disabled={disabled || loading} onClick={() => setAttempt(previous => previous + 1)}>Tentar novamente</button></div>}
+      {!loading && !error && companies.length === 0 && <p role="status" className="text-xs text-amber-300">Não há empresas cadastradas disponíveis para seleção. Confira Administração → Empresas.</p>}
       <p className="text-[10px] text-slate-500">
         Como super-admin, você pode atribuir cursos a qualquer empresa cliente para depois identificar custos no relatório.
       </p>

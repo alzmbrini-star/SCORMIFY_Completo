@@ -97,7 +97,7 @@ export default function GammaCreateDialog({ onCreated }) {
       <div><h3>O que vamos ensinar?</h3><p className="text-sm">Defina o conteúdo. Depois, escolha o visual.</p></div>
       <label>Título do curso<Input aria-label="Título Gamma" maxLength={160} value={title} disabled={busy} onChange={e => setTitle(e.target.value)} /></label>
       <label>Conteúdo dos cinco slides<textarea aria-label="Conteúdo Gamma" className="w-full min-h-28 p-3" maxLength={10000} value={prompt} disabled={busy} onChange={e => setPrompt(e.target.value)} placeholder="Tema, público, objetivos e tópicos. Inclua o conteúdo que deseja ensinar." /></label>
-      <CompanySelector value={companyId} onChange={setCompanyId} testIdPrefix="gamma-company" />
+      <CompanySelector value={companyId} onChange={setCompanyId} testIdPrefix="gamma-company" native disabled={busy}/>
       </div><aside className="gamma-side"><strong>Seu curso, um novo começo</strong><p>5 slides em PT-BR, sem alterar seus projetos existentes.</p><p>Você poderá acrescentar textos, perguntas e interações no Editor.</p><details className="gamma-help mt-4"><summary>Créditos e edição dos slides</summary><p>Usa créditos da conta Gamma configurada no servidor. Preserva o visual como imagem-base por slide; o texto da imagem não será editável separadamente. Confira o resultado antes de publicar.</p></details></aside></div>
       </section>
       <section id="gamma-panel-design" role="tabpanel" aria-labelledby="gamma-tab-design" hidden={step!=='design'}>

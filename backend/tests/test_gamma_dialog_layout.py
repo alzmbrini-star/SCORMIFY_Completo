@@ -27,7 +27,7 @@ def test_gamma_dialog_responsive_fixed_actions():
             if path.endswith('/auth/me'): data={'id':'mock-user','roles':['super_admin'],'role':'super_admin','companyId':'mock-company','company':{'permissions':{}}}
             elif path.endswith('/gamma/status'): data={'configured':True}
             elif path.endswith('/gamma/designs'): data={'items':cards,'nextCursor':None}
-            elif path.endswith('/companies'): data=[{'id':'mock-company','name':'Empresa de demonstração'}]
+            elif path.endswith('/companies'): data=[{'id':'mock-company','name':'Empresa de demonstração'},{'id':'other-company','name':'Outra empresa'}]
             elif path.endswith('/dashboard/metrics'): data={}
             assert route.request.method in ['GET','OPTIONS'], 'Layout QA must never submit a paid generation'
             route.fulfill(status=200, content_type='application/json', body=json.dumps(data), headers={'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Credentials':'true','Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Allow-Methods':'GET, OPTIONS'})
@@ -48,6 +48,12 @@ def test_gamma_dialog_responsive_fixed_actions():
                     print('LOCAL QA ERROR', errors, page.locator('body').inner_text()[:1600])
                     raise
                 page.get_by_test_id('gamma-create-open').click()
+                company=page.get_by_test_id('gamma-company-trigger')
+                assert company.evaluate('(e)=>e.tagName')=='SELECT'
+                company.select_option('other-company')
+                assert company.input_value()=='other-company'
+                assert company.evaluate('(e)=>{const r=e.getBoundingClientRect();return e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}'), 'Company control is covered'
+                page.screenshot(path=str(output/f'gamma-company-{name}.png'))
                 page.get_by_label('Título Gamma', exact=True).fill('Gestão do Tempo')
                 page.get_by_label('Conteúdo Gamma', exact=True).fill('Introdução didática à gestão do tempo, com prioridades, foco e pausas.')
                 page.locator('[data-step="design"]').click()
