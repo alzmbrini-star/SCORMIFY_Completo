@@ -53,6 +53,7 @@ def test_gamma_dialog_responsive_fixed_actions():
                 assert company.evaluate('(e)=>e.tagName')=='SELECT'
                 company.select_option('other-company')
                 assert company.input_value()=='other-company'
+                company.scroll_into_view_if_needed()
                 assert company.evaluate('(e)=>{const r=e.getBoundingClientRect();return e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}'), 'Company control is covered'
                 page.screenshot(path=str(output/f'gamma-company-{name}.png'))
                 page.get_by_label('Título Gamma', exact=True).fill('Gestão do Tempo')
