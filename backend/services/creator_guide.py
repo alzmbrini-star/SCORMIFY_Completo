@@ -207,10 +207,10 @@ GUIDE=[
  entry('pdf','Adicionar PDF e flipbook','pdf flipbook documento páginas livro',[
   'No Editor, use Adicionar PDF ou Flipbook, conforme a apresentação desejada para o documento.',
   'Revise as páginas, o enquadramento e a leitura na prévia. Para documentos importados, confira também as imagens.'],'editor','pdf'),
- entry('import','Importar apresentação e tutoriais','importar powerpoint ppt pptx tutorial apresentação arquivo',[
+ entry('import','Importar apresentação','importar powerpoint ppt pptx tutorial apresentação arquivo',[
   'No painel de projetos, use Importar PPT para trazer uma apresentação para edição.',
   'Outra opção para preservar a aparência de uma apresentação é exportá-la para PDF, enviá-la ao Agente e escolher Gerar em Modo Fiel. Cada página fica como imagem de fundo de um slide, não como objetos editáveis separados.',
-  'A opção de importar tutoriais usa a integração de tutoriais disponível no produto.',
+  'A opção Importar Tutorial foi retirada do painel. Cursos que já tinham sido importados continuam disponíveis, sem exclusão ou alteração do conteúdo. Use Importar PPT ou o Agente para novas importações.',
   'Confira a diagramação, imagens e interações do conteúdo importado antes de exportar.'],'dashboard','import'),
  entry('preview','Visualizar o curso','prévia preview visualizar player responsivo testar singlepage',[
   'No Editor, abra Visualizar para testar o curso como participante. Há também a prévia Single Page quando apropriada.',
