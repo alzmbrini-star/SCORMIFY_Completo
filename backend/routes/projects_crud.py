@@ -65,6 +65,8 @@ PROJECT_CLEANUP_FILTERS = {
     "krea_generations": lambda project_id: {"projectId": project_id},
     "kling_generations": lambda project_id: {"projectId": project_id},
     "gamma_generations": lambda project_id: {"projectId": project_id},
+    "gamma_refreshes": lambda project_id: {"projectId": project_id},
+    "gamma_refresh_backups": lambda project_id: {"projectId": project_id},
     "tts_generations": lambda project_id: {
         "$or": [{"projectId": project_id}, {"project_id": project_id}]
     },

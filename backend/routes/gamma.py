@@ -1,4 +1,4 @@
-"""Create Gamma presentations only in NEW projects. Existing courses are never targets."""
+"""Generate new Gamma projects; separate explicit refresh preserves existing layers."""
 import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -161,6 +161,7 @@ async def import_archive(job, raw):
                        'elements': [{'id': str(uuid.uuid5(uuid.NAMESPACE_DNS, filename)), 'type': 'image',
                          'src': f'/api/projects/{pid}/assets/{filename}', 'x': 0, 'y': 0,
                          'width': stage_w, 'height': stage_h, 'objectFit': 'contain', 'startTime': 0, 'duration': 10}],
+                       'gammaSource': {'jobId': job['id'], 'index': index, 'elementId': str(uuid.uuid5(uuid.NAMESPACE_DNS, filename))},
                        'notes': 'Criado com Gamma. Imagem-base: textos originais não são objetos editáveis separados.', 'audio': [], 'annotations': []})
     # Compare-and-set: never replace a course edited while the generation was pending.
     result = await db.projects.update_one({'id': pid, 'gammaJobId': job['id'], 'course.slides': {'$size': 0}},
@@ -222,3 +223,7 @@ async def original(ident: str, user=Depends(require_auth)):
                 break
             yield chunk
     return StreamingResponse(chunks(), media_type='application/zip', headers={'Content-Disposition': 'attachment; filename="Gamma-slides.zip"'})
+
+
+from routes.gamma_refresh import router as refresh_router
+router.include_router(refresh_router)

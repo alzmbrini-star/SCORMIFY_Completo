@@ -15,6 +15,7 @@ import { fetchHtmlDiagnostic } from '../utils/htmlDiagnostic';
 import { getApiUrl } from '../utils/apiUrl';
 import { mergeRunwayProject } from './Editor/utils/runwayJobs';
 import LayoutRecoveryNotice from '../components/editor/LayoutRecoveryNotice';
+import GammaRefreshDialog from '../components/GammaRefreshDialog';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { ScrollArea } from '../components/ui/scroll-area';
@@ -1472,6 +1473,10 @@ export default function Editor() {
               <Download className="w-4 h-4" />
               Exportar
             </Button>
+            <GammaRefreshDialog project={currentProject} saveCourse={saveCourse} onApplied={async pid => {
+              await fetchProject(pid);
+              toast.success('Imagens atualizadas do Gamma. Interações preservadas. Confira o alinhamento e reexporte o curso.');
+            }} />
             <Button
               variant="outline"
               className="gap-2 border-cyan-700/50 text-cyan-300 hover:bg-cyan-900/20"
