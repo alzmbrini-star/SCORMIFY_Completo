@@ -17,3 +17,7 @@ Official contract: https://developers.gamma.app/agent-gamma-5/create-agent-gener
 ## Theme and template selection
 
 Dashboard → Criar com Gamma → Aparência da apresentação: automatic, theme OR template (mutually exclusive in Pydantic and transport). Read-only `/gamma/designs` proxies Gamma `/themes` (query/type/cursor, 50 items/page) or `/templates/search` (up to 25 hits per source). Authenticated creator roles only. Exposes names, textual color/style keywords and safe Gamma viewing links; no signed preview URLs or credentials. Catalogs use the server key workspace, not per-user Gamma accounts. Custom brand themes must be created in Gamma first. No new generation is needed to test discovery/selection; existing projects remain unchanged.
+
+## Compact dialog UX
+
+Content / Appearance / History tabs retain form state. Header and action footer remain outside the single scrollable body. Catalog cards paginate six at a time without nested scrolling; selected cards use both a green border and a text/check indicator. Swatches are explicitly **approximate**, derived locally from provider color keywords, never represented as official hex colors or exact previews. Unknown colors use a neutral palette. Only normal explicit Generate submits a paid request. Local Chrome QA: `python -m pytest tests/test_gamma_dialog_layout.py` after a frontend production build, using mocked API data and no external generation. Screenshots go to `artifacts/gamma-ui-desktop.png` and `artifacts/gamma-ui-mobile.png`.

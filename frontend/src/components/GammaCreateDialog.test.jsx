@@ -67,7 +67,7 @@ test('theme discovery costs no generation; chosen ID is sent only on explicit ge
   expect(container.querySelector('[data-testid="gamma-generate"]').disabled).toBe(true);
   expect(global.fetch.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(0);
   expect(container.textContent).toContain('azul · branco');
-  await act(async () => [...container.querySelectorAll('button')].find(b => b.textContent === 'Oceano').click());
+  await act(async () => container.querySelector('[aria-label="Oceano"]').click());
   expect(container.querySelector('[data-testid="gamma-generate"]').disabled).toBe(false);
   await act(async () => container.querySelector('[data-testid="gamma-generate"]').click());
   const body = JSON.parse(global.fetch.mock.calls.find(([, options]) => options?.method === 'POST')[1].body);
@@ -80,10 +80,10 @@ test('changing theme to template clears selection and sends template only', asyn
     ? {id: 'job', status: 'pending'} : {items: [{id: url.includes('kind=themes') ? 'theme' : 'model', name: 'Escolha', source: 'official'}], nextCursor: null}}));
   async function mode(value) { await act(async () => { const select = container.querySelector('[aria-label="Modo visual Gamma"]'); select.value = value; select.dispatchEvent(new Event('change', {bubbles:true})); }); }
   await mode('theme');
-  await act(async () => [...container.querySelectorAll('button')].find(b => b.textContent === 'Escolha').click());
+  await act(async () => container.querySelector('[aria-label="Escolha"]').click());
   await mode('template');
   expect(container.querySelector('[data-testid="gamma-generate"]').disabled).toBe(true);
-  await act(async () => [...container.querySelectorAll('button')].find(b => b.textContent === 'Escolha').click());
+  await act(async () => container.querySelector('[aria-label="Escolha"]').click());
   await act(async () => container.querySelector('[data-testid="gamma-generate"]').click());
   const body = JSON.parse(global.fetch.mock.calls.find(([, options]) => options?.method === 'POST')[1].body);
   expect(body.templateId).toBe('model'); expect(body).not.toHaveProperty('themeId');
@@ -99,4 +99,31 @@ test('catalog failure can be bypassed by returning to automatic without paid req
   await act(async () => { select.value = 'auto'; select.dispatchEvent(new Event('change', {bubbles:true})); });
   expect(container.querySelector('[data-testid="gamma-generate"]').disabled).toBe(false);
   expect(global.fetch.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(0);
+});
+
+test('tabs keep content while changing steps and footer actions remain outside the scroll body', async () => {
+  await open(); await fill();
+  expect(container.querySelector('#gamma-panel-content').hidden).toBe(false);
+  await act(async () => container.querySelector('[data-step="design"]').click());
+  expect(container.querySelector('#gamma-panel-content').hidden).toBe(true);
+  expect(container.querySelector('#gamma-panel-design').hidden).toBe(false);
+  expect(container.querySelector('[aria-label="Título Gamma"]').value).toBe('Teste técnico Gamma');
+  expect(container.querySelector('.gamma-footer [data-testid="gamma-generate"]')).not.toBeNull();
+  expect(container.querySelector('.gamma-body [data-testid="gamma-generate"]')).toBeNull();
+  await act(async () => container.querySelector('[data-step="history"]').click());
+  expect(container.querySelector('#gamma-panel-history').hidden).toBe(false);
+});
+
+test('catalog paginates six colorful cards without an inner scrolling region', async () => {
+  await open();
+  global.fetch.mockResolvedValue({ok:true,json:async()=>({items:Array.from({length:13},(_,i)=>({id:`theme${i}`,name:`Tema ${i}`,colors:i%2?['blue','white']:['gold','black'],source:'standard'}))})});
+  await act(async()=>{const select=container.querySelector('[aria-label="Modo visual Gamma"]');select.value='theme';select.dispatchEvent(new Event('change',{bubbles:true}));});
+  expect(container.querySelectorAll('.gamma-design-card')).toHaveLength(6);
+  expect(container.querySelectorAll('.gamma-palette i').length).toBeGreaterThan(6);
+  expect(container.querySelector('.gamma-design-grid').className).not.toContain('overflow');
+  await act(async()=>container.querySelector('[aria-label="Próximos visuais"]').click());
+  expect(container.querySelector('[aria-label="Tema 6"]')).not.toBeNull();
+  expect(container.querySelector('[aria-label="Tema 0"]')).toBeNull();
+  await act(async()=>container.querySelector('[aria-label="Tema 6"]').click());
+  expect(container.querySelector('.gamma-design-card.selected').textContent).toContain('Selecionado');
 });
