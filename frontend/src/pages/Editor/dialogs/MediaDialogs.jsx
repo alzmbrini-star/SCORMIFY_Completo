@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui
 import { Loader2, Sparkles, Plus, Check, Code, Image, Palette, Music, Mic, Trash2, FileText, Upload } from 'lucide-react';
 import RichTextEditor from '../../../components/RichTextEditor';
 import KlingVideoForm from './KlingVideoForm';
+import RunwayVideoForm from './RunwayVideoForm';
 import SimulatorExperienceOptions from '../../../components/SimulatorExperienceOptions';
 import ComponentSceneReview from '../../../components/ComponentSceneReview';
 
@@ -38,16 +39,17 @@ function GalleryImage({ src, alt }) {
   return <img src={`${src}${retries > 0 ? `?r=${retries}` : ''}`} alt={alt} className="w-full h-full object-cover" loading="lazy" onError={handleError} />;
 }
 
-export function MediaDialog({ open, onOpenChange, videoUrl, setVideoUrl, handleAddMedia, handleGenerateKling, klingContext }) {
+export function MediaDialog({ open, onOpenChange, videoUrl, setVideoUrl, handleAddMedia, handleGenerateKling, handleGenerateRunway, handleUseRunwayVideo, refreshRunway, projectId, klingContext }) {
   const [busy, setBusy] = useState(false);
   return (
     <Dialog open={open} onOpenChange={next => { if (!busy) onOpenChange(next); }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Adicionar Vídeo</DialogTitle></DialogHeader>
         <Tabs defaultValue="link">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="link" disabled={busy}>Inserir por link</TabsTrigger>
             <TabsTrigger value="kling" disabled={busy}>Criar com Kling</TabsTrigger>
+            <TabsTrigger value="runway" disabled={busy}>Criar com Runway</TabsTrigger>
           </TabsList>
           <TabsContent value="link">
         <div className="py-4">
@@ -65,6 +67,7 @@ export function MediaDialog({ open, onOpenChange, videoUrl, setVideoUrl, handleA
         </DialogFooter>
           </TabsContent>
           <TabsContent value="kling"><KlingVideoForm onGenerate={handleGenerateKling} context={klingContext} onBusyChange={setBusy} /></TabsContent>
+          <TabsContent value="runway"><RunwayVideoForm onGenerate={handleGenerateRunway} onUseVideo={handleUseRunwayVideo} onRefresh={refreshRunway} projectId={projectId} context={klingContext} onBusyChange={setBusy} /></TabsContent>
         </Tabs>
       </DialogContent>
     </Dialog>

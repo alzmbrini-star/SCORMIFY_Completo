@@ -13,6 +13,7 @@ import { refinementModel, objectImageCount } from '../utils/refinementModel';
 import { generateHtmlJob } from '../utils/htmlGenerationJob';
 import { fetchHtmlDiagnostic } from '../utils/htmlDiagnostic';
 import { getApiUrl } from '../utils/apiUrl';
+import { mergeRunwayProject } from './Editor/utils/runwayJobs';
 import LayoutRecoveryNotice from '../components/editor/LayoutRecoveryNotice';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -569,6 +570,30 @@ export default function Editor() {
   }, [currentProject?.id, currentProject?.course?.slides, API_URL, setCurrentProject]);
 
   // Apply design template to current project
+  const refreshRunway = useCallback(async () => {
+    if (!currentProject?.id) return {videos:[]};
+    const target = currentProject.id;
+    const {data} = await axios.get(`${API_URL}/api/runway/projects/${target}/status`, {headers:authHeaders()});
+    const saved = await axios.get(`${API_URL}/api/projects/${target}`, {headers:authHeaders()});
+    setCurrentProject(previous => previous?.id === target ? mergeRunwayProject(previous, saved.data) : previous);
+    return data;
+  }, [currentProject?.id, API_URL, setCurrentProject]);
+
+  const hasActiveRunway = (currentProject?.runwayPending || []).some(job => !['failed','completed','unknown'].includes(job.status));
+  useEffect(() => {
+    if (!hasActiveRunway) return undefined;
+    let stopped = false, running = false;
+    const poll = async () => {
+      if (stopped || running) return;
+      running = true;
+      try { await refreshRunway(); } catch (_) { /* Recover the same task on the next poll. */ }
+      finally { running = false; }
+    };
+    poll();
+    const timer = window.setInterval(poll, 15000);
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, [hasActiveRunway, refreshRunway]);
+
   const handleApplyDesignTemplate = async (templateId) => {
     if (!currentProject?.id || !templateId) return;
     setApplyingTemplate(true);
@@ -799,6 +824,40 @@ export default function Editor() {
       if (!err.response) throw new Error('Não foi possível confirmar a resposta do Kling. A solicitação pode ter sido enviada; acompanhe o status ou reabra o projeto antes de tentar novamente, para evitar outra cobrança.');
       throw err;
     }
+  };
+
+  const handleGenerateRunway = async (options) => {
+    const target = currentProject?.id, slideId = currentSlide?.id;
+    if (!target || !slideId) throw new Error('Abra um slide antes de gerar.');
+    try {
+      const {data} = await axios.post(`${API_URL}/api/runway/generate`, {
+        ...options, projectId:target, slideId, title:currentSlide.title || 'Vídeo Runway',
+      }, {headers:authHeaders()});
+      if (!data.placeholder) throw new Error('Envio sem confirmação. Reabra o projeto antes de tentar novamente.');
+      setCurrentProject(previous => previous?.id !== target ? previous : ({...previous,
+        runwayPending:[...(previous.runwayPending || []), {id:data.placeholder.id, slideId, status:data.status, error:data.error}],
+        course:{...previous.course, slides:previous.course.slides.map(slide => slide.id !== slideId ? slide : ({...slide,
+          duration:Math.max(Number(slide.duration || 5), options.duration),
+          elements:[...(slide.elements || []).filter(el => el.id !== data.placeholder.id), data.placeholder],
+        }))}}));
+      if (data.error) throw new Error(data.error);
+      setShowMediaDialog(false);
+      toast.success('Geração Runway iniciada. Acompanhe também em Adicionar Vídeo → Criar com Runway.');
+    } catch (err) {
+      if (!err.response && !err.message?.includes('Runway')) {
+        throw new Error('Não foi possível confirmar o envio à Runway. Reabra o projeto e consulte as tarefas antes de gerar novamente, para evitar outra cobrança.');
+      }
+      throw err;
+    }
+  };
+
+  const handleUseRunwayVideo = async (job) => {
+    if (!currentSlide || !job.videoUrl || job.status !== 'completed') return;
+    await addElement(currentSlide.id, {type:'video', src:job.videoUrl, provider:'runway',
+      x:40, y:40, width:currentSlide.width ? currentSlide.width * .8 : 768,
+      height:currentSlide.height ? currentSlide.height * .8 : 432, duration:job.duration || 5,
+      startTime:0, controls:true, autoplay:false, objectFit:'contain'});
+    setShowMediaDialog(false);
   };
 
   const handleAddMedia = async () => {
@@ -2546,6 +2605,8 @@ export default function Editor() {
           open={showMediaDialog} onOpenChange={setShowMediaDialog}
           videoUrl={videoUrl} setVideoUrl={setVideoUrl} handleAddMedia={handleAddMedia}
           handleGenerateKling={handleGenerateKling}
+          handleGenerateRunway={handleGenerateRunway} handleUseRunwayVideo={handleUseRunwayVideo}
+          refreshRunway={refreshRunway} projectId={currentProject?.id}
           klingContext={`Curso: ${currentProject?.name || ''}. Slide: ${currentSlide?.title || ''}. ${currentSlide?.notes || ''}`}
         />
 

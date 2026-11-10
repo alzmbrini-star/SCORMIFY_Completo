@@ -293,6 +293,8 @@ app.include_router(krea_routes.router, prefix="/api")
 
 from routes import kling as kling_routes
 app.include_router(kling_routes.router, prefix="/api")
+from routes import runway as runway_routes
+app.include_router(runway_routes.router, prefix="/api")
 
 from routes import aesthetics as aesthetics_routes
 app.include_router(aesthetics_routes.router, prefix="/api")
