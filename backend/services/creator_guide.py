@@ -6,6 +6,12 @@ def entry(ident,title,keywords,steps,target='editor',action='',access='author'):
     return dict(id=ident,title=title,keywords=keywords,steps=steps,target=target,action=action,access=access)
 
 GUIDE=[
+ entry('gamma-create','Criar cinco slides com Gamma','gamma apresentação apresentacao cinco 5 slides API criar apresentação',[
+  'No painel de projetos, clique em Criar com Gamma. Informe título e conteúdo; a integração solicita cinco slides em Português do Brasil, com qualidade standard. É necessário perfil Editor, Admin da Empresa ou Super Admin e GAMMA_API_KEY configurada no servidor. Nunca envie a chave ao Tutor.',
+  'Gerar consome os créditos da conta Gamma vinculada à chave. O custo depende da geração; consulte o saldo no Gamma. A geração cria sempre um projeto novo, sem alterar os cursos existentes. Conectores externos do Gamma são desabilitados nesta solicitação.',
+  'Acompanhe o histórico na janela Criar com Gamma. Pode fechar e reabrir para continuar consultando a mesma geração. Uma resposta incerta não dispara outra geração automaticamente: confira o histórico e os créditos antes de solicitar uma nova.',
+  'Quando concluir, abra o novo projeto no Editor. O visual de cada slide é importado como imagem-base, não como textos ou objetos separados. É possível acrescentar textos e interações sobre essa imagem e exportar HTML/SCORM; a imagem-base não oferece a mesma acessibilidade de texto nativo.',
+  'O ZIP PNG original fica disponível para baixar nessa janela. Cinco slides é uma meta flexível da API Gamma; se houver diferença, a quantidade recebida é informada e não se faz outra geração paga automaticamente. Confira o conteúdo, o idioma, as imagens e a leitura antes de publicar.'],'dashboard'),
  entry('agent-faithful','Converter PDF pelo Agente em Modo Fiel','modo fiel faithful converter conversão conversao pdf páginas paginas apresentação preservar layout original sem reescrever',[
   'Sim, o Agente permite converter um PDF em curso usando o Modo Fiel. Abra o Agente IA, crie ou abra a sessão de trabalho e envie o PDF na etapa Conteúdo.',
   'No painel do PDF enviado, clique em Gerar em Modo Fiel. Acompanhe o processamento; cada página do PDF gera um slide. Esse caminho pula a geração por IA de análise, estrutura e storyboard: não exige reescrever o material para converter.',

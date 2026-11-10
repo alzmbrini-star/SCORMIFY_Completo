@@ -64,6 +64,7 @@ PROJECT_CLEANUP_FILTERS = {
     "leonardo_generations": lambda project_id: {"projectId": project_id},
     "krea_generations": lambda project_id: {"projectId": project_id},
     "kling_generations": lambda project_id: {"projectId": project_id},
+    "gamma_generations": lambda project_id: {"projectId": project_id},
     "tts_generations": lambda project_id: {
         "$or": [{"projectId": project_id}, {"project_id": project_id}]
     },
@@ -90,6 +91,11 @@ async def delete_project_owned_records(project_id: str) -> dict:
     largest assets orphaned.
     """
     deleted = {}
+    # Gamma originals are chunked in GridFS, not oversized BSON asset records.
+    from motor.motor_asyncio import AsyncIOMotorGridFSBucket
+    gamma_bucket = AsyncIOMotorGridFSBucket(db, bucket_name='gamma_exports')
+    async for original in db['gamma_exports.files'].find({'metadata.projectId': project_id}, {'_id': 1}):
+        await gamma_bucket.delete(original['_id'])
     for collection_name, build_filter in PROJECT_CLEANUP_FILTERS.items():
         result = await db[collection_name].delete_many(build_filter(project_id))
         if result.deleted_count:

@@ -28,6 +28,7 @@ import {
 import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import CompanySelector from '../components/CompanySelector';
+import GammaCreateDialog from '../components/GammaCreateDialog';
 import {
   Plus,
   Upload,
@@ -471,6 +472,7 @@ export default function Dashboard() {
             Convert your PowerPoint presentations to SCORM 1.2 packages
           </p>
           <div className="flex gap-4">
+            <GammaCreateDialog onCreated={fetchProjects} />
             <Dialog open={showNewProjectDialog} onOpenChange={setShowNewProjectDialog}>
               <DialogTrigger asChild>
                 <Button className="btn-primary gap-2" data-testid="new-project-btn">
