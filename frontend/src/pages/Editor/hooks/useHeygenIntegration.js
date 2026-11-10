@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { getApiUrl } from '../../../utils/apiUrl';
+import { authHeaders } from '../../../contexts/AuthContext';
 
 const API_URL = getApiUrl();
 
@@ -389,19 +390,30 @@ export function useHeygenIntegration({ currentProject, currentSlide, projectId, 
   const loadVideoLibrary = async () => {
     setVideoLibraryLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/api/heygen/videos`);
-      setVideoLibraryItems(response.data.videos || []);
+      const items = [];
+      let more = true;
+      while (more) {
+        const response = await axios.get(`${API_URL}/api/videos/library`, {headers:authHeaders(), params:{offset:items.length, limit:100}});
+        items.push(...(response.data.videos || []));
+        more = Boolean(response.data.hasMore) && Boolean(response.data.videos?.length);
+      }
+      setVideoLibraryItems(items.map(v => ({...v, video_url:v.video_url?.startsWith('/') ? API_URL + v.video_url : v.video_url})));
     } catch (err) {
       console.error('Error loading video library:', err);
       toast.error('Falha ao carregar biblioteca de vídeos');
     } finally { setVideoLibraryLoading(false); }
   };
 
-  const refreshVideoStatus = async (videoId) => {
-    setRefreshingVideoId(videoId);
+  const refreshVideoStatus = async (video) => {
+    const item = typeof video === 'string' ? videoLibraryItems.find(v => v.video_id === video) : video;
+    if (!item) return;
+    const videoId = item.video_id;
+    setRefreshingVideoId(item.library_id);
     try {
-      const response = await axios.get(`${API_URL}/api/heygen/videos/${videoId}/refresh`);
-      setVideoLibraryItems(prev => prev.map(v => v.video_id === videoId ? { ...v, ...response.data } : v));
+      const response = await axios.post(`${API_URL}/api/videos/library/${item.provider || 'heygen'}/${encodeURIComponent(videoId)}/refresh`, {}, {headers:authHeaders()});
+      const updated = response.data;
+      if (updated.video_url?.startsWith('/')) updated.video_url = API_URL + updated.video_url;
+      setVideoLibraryItems(prev => prev.map(v => v.library_id === item.library_id ? { ...v, ...updated } : v));
       if (response.data.status === 'completed') toast.success('Vídeo pronto!');
     } catch (err) {
       console.error('Error refreshing video:', err);
@@ -437,7 +449,8 @@ export function useHeygenIntegration({ currentProject, currentSlide, projectId, 
       await addElement(currentSlide.id, {
         type: 'video', src: videoUrl,
         x: 0, y: 0, width: currentSlide.width || 960, height: currentSlide.height || 540,
-        objectFit: 'contain', autoplay: true, loop: false,
+        objectFit: 'contain', autoplay: false, controls: true, loop: false,
+        ...(typeof video === 'object' ? {provider:video.provider, duration:Number(video.duration) || 5, startTime:0} : {}),
       });
       toast.success('Video adicionado ao slide!');
       setShowVideoLibrary(false);
@@ -449,8 +462,8 @@ export function useHeygenIntegration({ currentProject, currentSlide, projectId, 
   // Delete library video
   const handleDeleteLibraryVideo = async (videoId) => {
     try {
-      await axios.delete(`${API_URL}/api/heygen/videos/${videoId}`);
-      setVideoLibraryItems(prev => prev.filter(v => v.video_id !== videoId));
+      await axios.delete(`${API_URL}/api/videos/library/heygen/${encodeURIComponent(videoId)}`, {headers:authHeaders()});
+      setVideoLibraryItems(prev => prev.filter(v => !(v.video_id === videoId && v.provider === 'heygen')));
       toast.success('Video removido');
     } catch (err) {
       toast.error('Falha ao remover video');

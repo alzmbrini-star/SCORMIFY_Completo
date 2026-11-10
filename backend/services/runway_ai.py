@@ -76,7 +76,31 @@ async def get_task(task_id):
     return await request('GET', f'tasks/{task_id}')
 
 
-async def download(url, destination):
+def validate_music(value):
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError('Configuração de trilha sonora inválida.')
+    if value.get('enabled') is not True:
+        return None
+    prompt = value.get('prompt', '')
+    volume = value.get('volume', 15)
+    if not isinstance(prompt, str) or not 1 <= len(prompt.strip()) <= 1000:
+        raise ValueError('Descreva a trilha instrumental com 1 a 1000 caracteres, sem citar artistas ou músicas existentes.')
+    if type(volume) not in (int, float) or not 0 <= volume <= 50:
+        raise ValueError('O volume da trilha deve ficar entre 0 e 50%.')
+    return {'enabled': True, 'prompt': prompt.strip(), 'volume': volume, 'instrumental': True}
+
+
+async def submit_music(music, seconds):
+    data = await request('POST', 'text_to_music', {'model': 'eleven_music_v2_5',
+        'promptText': music['prompt'], 'instrumental': True, 'duration': seconds})
+    task_id = str(data.get('id') or '')
+    uuid.UUID(task_id)
+    return task_id
+
+
+async def download(url, destination, media_type='video'):
     """Bounded streaming; provider output is copied before its URL expires."""
     if urlparse(url).scheme != 'https':
         raise ValueError('O resultado Runway não contém uma URL HTTPS válida.')
@@ -87,12 +111,12 @@ async def download(url, destination):
             async with client.stream('GET', url) as response:
                 response.raise_for_status()
                 content_type = response.headers.get('content-type', '').split(';')[0].lower()
-                if content_type and not content_type.startswith('video/') and content_type != 'application/octet-stream':
-                    raise ValueError('O resultado Runway não é um arquivo de vídeo válido.')
+                if content_type and not content_type.startswith(media_type + '/') and content_type != 'application/octet-stream':
+                    raise ValueError('O resultado Runway não é um arquivo de mídia válido.')
                 with destination.open('wb') as handle:
                     async for chunk in response.aiter_bytes(1024 * 1024):
                         total += len(chunk)
-                        if total > 180 * 1024 * 1024:
+                        if total > (20 if media_type == 'audio' else 180) * 1024 * 1024:
                             raise ValueError('O vídeo Runway excede o limite de 180 MB.')
                         handle.write(chunk)
         if not total:

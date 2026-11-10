@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from services import runway_ai
+from services import runway_ai, runway_narration
 
 
 def route(name, **values):
@@ -14,10 +14,10 @@ def route(name, **values):
     node = next(n for n in nodes if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == name)
     node.decorator_list = []
     from datetime import datetime, timezone, timedelta
-    import uuid
+    import uuid, math
     from fastapi import HTTPException
     scope = dict(Request=object, Depends=lambda _:None, require_auth=None, HTTPException=HTTPException,
-                 runway_ai=runway_ai, uuid=uuid, datetime=datetime, timezone=timezone, timedelta=timedelta,
+                 runway_ai=runway_ai, runway_narration=runway_narration, uuid=uuid, math=math, datetime=datetime, timezone=timezone, timedelta=timedelta,
                  now=lambda:'2026-11-10T12:00:00+00:00', ACTIVE=['submitting','submitted','processing','saving','unknown'])
     scope.update(values)
     exec(compile(ast.Module(body=[node], type_ignores=[]), str(path), 'exec'), scope)
@@ -84,7 +84,7 @@ class RunwayRouteTests(unittest.IsolatedAsyncioTestCase):
         collection=SimpleNamespace(update_one=AsyncMock(return_value=SimpleNamespace(modified_count=1)))
         async def load(*_):return {'course':{'slides':[{'id':'s1'}]}}
         submit=AsyncMock(return_value='task')
-        provider=SimpleNamespace(configured=lambda:True,build_payload=runway_ai.build_payload,submit=submit)
+        provider=SimpleNamespace(configured=lambda:True,build_payload=runway_ai.build_payload,validate_music=runway_ai.validate_music,submit=submit)
         class Request:
             async def json(self):return {'projectId':'p1','slideId':'s1','prompt':'Cena'}
         fn=route('generate',db=SimpleNamespace(projects=collection),can_edit=lambda _:None,
@@ -103,7 +103,7 @@ class RunwayRouteTests(unittest.IsolatedAsyncioTestCase):
         collection=SimpleNamespace(update_one=AsyncMock(return_value=SimpleNamespace(modified_count=1)))
         class Request:
             async def json(self):return {'projectId':'p1','slideId':'s1','prompt':'Cena'}
-        provider=SimpleNamespace(configured=lambda:True,build_payload=runway_ai.build_payload,submit=AsyncMock(side_effect=TimeoutError))
+        provider=SimpleNamespace(configured=lambda:True,build_payload=runway_ai.build_payload,validate_music=runway_ai.validate_music,submit=AsyncMock(side_effect=TimeoutError))
         fn=route('generate',db=SimpleNamespace(projects=collection),can_edit=lambda _:None,
                  load_authorized_project=AsyncMock(return_value={'course':{'slides':[{'id':'s1'}]}}),
                  placeholder=route('placeholder'),runway_ai=provider)

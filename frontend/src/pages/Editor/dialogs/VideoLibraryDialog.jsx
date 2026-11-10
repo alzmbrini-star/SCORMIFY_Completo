@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '../../../components/ui/dialog';
@@ -16,6 +16,9 @@ export function VideoLibraryDialog({
   loadVideoLibrary, refreshVideoStatus,
   handleAddLibraryVideoToSlide, handleDeleteLibraryVideo,
 }) {
+  const [provider, setProvider] = useState('all');
+  const [search, setSearch] = useState('');
+  const filtered = videoLibraryItems.filter(v => (provider === 'all' || v.provider === provider) && `${v.title || ''} ${v.script || ''} ${v.project_title || ''}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
@@ -24,25 +27,29 @@ export function VideoLibraryDialog({
             <Film className="w-5 h-5 text-cyan-500" />
             Biblioteca de Vídeos
           </DialogTitle>
-          <DialogDescription>Vídeos gerados anteriormente. Clique em um vídeo para adicioná-lo ao slide.</DialogDescription>
+          <DialogDescription>HeyGen, Runway, Kling e HeyGem dos projetos permitidos. Os vídeos concluídos podem ser reutilizados sem nova geração.</DialogDescription>
         </DialogHeader>
+        <div className="flex flex-wrap gap-2">
+          <Input aria-label="Buscar vídeos" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar título, roteiro ou projeto…" className="flex-1 min-w-[180px]" />
+          <select aria-label="Provedor de vídeo" value={provider} onChange={e => setProvider(e.target.value)} className="rounded border bg-background p-2"><option value="all">Todos os provedores</option>{['heygen','runway','kling','heygem'].map(p => <option key={p} value={p}>{({heygen:'HeyGen',runway:'Runway',kling:'Kling',heygem:'HeyGem'})[p]}</option>)}</select>
+        </div>
 
         <div className="flex-1 overflow-hidden">
           {videoLibraryLoading ? (
             <div className="flex items-center justify-center h-64">
               <Loader2 className="w-8 h-8 animate-spin text-cyan-500" />
             </div>
-          ) : videoLibraryItems.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-center">
               <Film className="w-16 h-16 text-muted-foreground/30 mb-4" />
               <h3 className="text-lg font-medium text-muted-foreground">Nenhum vídeo encontrado</h3>
-              <p className="text-sm text-muted-foreground/60 mt-1">Crie um vídeo com avatar usando o botão na barra de ferramentas</p>
+              <p className="text-sm text-muted-foreground mt-1">Revise os filtros ou crie um vídeo em Adicionar Vídeo ou Avatares.</p>
             </div>
           ) : (
             <ScrollArea className="h-[calc(85vh-200px)]">
               <div className="space-y-3 p-1 pr-4">
-                {videoLibraryItems.map((video) => (
-                  <div key={video.video_id}
+                {filtered.map((video) => (
+                  <div key={video.library_id || video.video_id}
                     className={`group border rounded-lg overflow-hidden transition-all hover:border-cyan-500/50 hover:shadow-md ${video.status === 'completed' ? 'cursor-pointer' : 'opacity-80'}`}
                     onClick={() => video.status === 'completed' && handleAddLibraryVideoToSlide(video)}>
                     <div className="flex gap-4 p-4">
@@ -60,17 +67,18 @@ export function VideoLibraryDialog({
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <h4 className="font-medium truncate">{video.title || 'Sem título'}</h4>
+                            <p className="text-xs text-cyan-400">{({heygen:'HeyGen',runway:'Runway',kling:'Kling',heygem:'HeyGem'})[video.provider] || 'HeyGen'}{video.narrated && ' · Narração PT-BR'}{video.music && ' · Trilha sonora'}{video.project_title && ` · ${video.project_title}`}</p>
                             <div className="flex items-center gap-2 mt-1">
                               {getStatusBadge(video.status)}
                               <span className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" />{formatDateTime(video.created_at)}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
-                            {video.status !== 'completed' && (
+                            {video.can_refresh && (
                               <Button variant="ghost" size="sm" className="h-8 px-2"
-                                onClick={(e) => { e.stopPropagation(); refreshVideoStatus(video.video_id); }}
-                                disabled={refreshingVideoId === video.video_id} data-testid={`refresh-video-${video.video_id}`}>
-                                {refreshingVideoId === video.video_id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                                onClick={(e) => { e.stopPropagation(); refreshVideoStatus(video); }}
+                                disabled={refreshingVideoId === video.library_id} data-testid={`refresh-video-${video.video_id}`}>
+                                {refreshingVideoId === video.library_id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                                 <span className="ml-1 text-xs">Atualizar</span>
                               </Button>
                             )}
@@ -80,10 +88,10 @@ export function VideoLibraryDialog({
                                 <Plus className="w-4 h-4" /><span className="ml-1 text-xs">Adicionar</span>
                               </Button>
                             )}
-                            <Button variant="ghost" size="sm" className="h-8 px-2 text-red-500 hover:text-red-600 hover:bg-red-50"
+                            {video.can_delete && <Button variant="ghost" size="sm" className="h-8 px-2 text-red-500 hover:text-red-600 hover:bg-red-50"
                               onClick={(e) => { e.stopPropagation(); handleDeleteLibraryVideo(video.video_id, video.title); }} data-testid={`delete-video-${video.video_id}`}>
                               <Trash2 className="w-4 h-4" /><span className="ml-1 text-xs">Excluir</span>
-                            </Button>
+                            </Button>}
                           </div>
                         </div>
                         {video.script && (
@@ -92,11 +100,12 @@ export function VideoLibraryDialog({
                             <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-muted/50 to-transparent" />
                           </div>
                         )}
+                        {video.error && <p role="status" className="mt-2 text-xs text-amber-400">{video.error}</p>}
                       </div>
                     </div>
                     {video.status === 'completed' && video.video_url && (
                       <div className="hidden group-hover:block border-t bg-black" onClick={(e) => e.stopPropagation()}>
-                        <video src={video.video_url} controls className="w-full max-h-48" preload="metadata" />
+                        <video src={video.video_url} controls className="w-full max-h-48" preload="none" />
                       </div>
                     )}
                   </div>

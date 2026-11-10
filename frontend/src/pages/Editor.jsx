@@ -855,8 +855,10 @@ export default function Editor() {
     if (!currentSlide || !job.videoUrl || job.status !== 'completed') return;
     await addElement(currentSlide.id, {type:'video', src:job.videoUrl, provider:'runway',
       x:40, y:40, width:currentSlide.width ? currentSlide.width * .8 : 768,
-      height:currentSlide.height ? currentSlide.height * .8 : 432, duration:job.duration || 5,
+      height:currentSlide.height ? currentSlide.height * .8 : 432, duration:job.durationActual || job.duration || 5,
       startTime:0, controls:true, autoplay:false, objectFit:'contain'});
+    const finalDuration = Number(job.durationActual || job.duration || 5);
+    if (finalDuration > Number(currentSlide.duration || 5)) await updateSlide(currentSlide.id, {duration:finalDuration});
     setShowMediaDialog(false);
   };
 
