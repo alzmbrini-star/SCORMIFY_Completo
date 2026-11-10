@@ -247,6 +247,9 @@ def export_single_page_scorm_package(
         gamification_config=gamification_config,
     ).replace('<script src="scorm-api.js"></script>', '<script src="scripts/scorm-api.js"></script>')
 
+    from services.scorm_initial_loading import install_initial_loader
+    html_content = install_initial_loader(html_content)
+
     # Build package in a temp dir
     package_dir = Path(tempfile.mkdtemp(prefix="scorm_sp_"))
     try:

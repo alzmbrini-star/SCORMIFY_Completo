@@ -196,6 +196,8 @@ html, body {{ background: {canvas}; }}
     html = html.replace("__LOADER_TITLE__", loader_title)
     html = html.replace("__LOADER_PRIMARY__", loader_primary)
     html = html.replace("__LOADER_ACCENT__", loader_accent)
+    from services.scorm_initial_loading import install_initial_loader
+    html = install_initial_loader(html)
     
     # Conditionally include VLibras
     if enable_vlibras:
@@ -1018,6 +1020,11 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                         except Exception as e:
                             logger.warning(f"Audio recovery failed (non-fatal): {e}")
     
+    # Separate raster assets from the JSON bootstrap; keep exact image bytes.
+    from services.scorm_initial_loading import externalize_scorm_images
+    image_stats = externalize_scorm_images(course_data, package_dir / 'assets')
+    logger.info('SCORM raster assets: %s', image_stats)
+
     # Log summary of embedded images
     embedded_count = sum(1 for s in course_data.get('slides', []) 
                         if (s.get('backgroundImage') or '').startswith('data:'))
