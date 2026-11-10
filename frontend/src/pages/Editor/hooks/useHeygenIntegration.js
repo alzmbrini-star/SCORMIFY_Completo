@@ -460,13 +460,24 @@ export function useHeygenIntegration({ currentProject, currentSlide, projectId, 
   };
 
   // Delete library video
-  const handleDeleteLibraryVideo = async (videoId) => {
+  const handleDeleteLibraryVideo = async (video) => {
+    if (!video?.video_id || !video?.provider) return;
+    const endpoint = `${API_URL}/api/videos/library/${encodeURIComponent(video.provider)}/${encodeURIComponent(video.video_id)}`;
     try {
-      await axios.delete(`${API_URL}/api/videos/library/heygen/${encodeURIComponent(videoId)}`, {headers:authHeaders()});
-      setVideoLibraryItems(prev => prev.filter(v => !(v.video_id === videoId && v.provider === 'heygen')));
-      toast.success('Video removido');
+      const response = await axios.delete(endpoint, {headers:authHeaders()});
+      setVideoLibraryItems(prev => prev.filter(v => v.library_id !== video.library_id));
+      toast.success('Registro removido da biblioteca. Os arquivos e slides foram preservados.', response.data.recoverable ? {
+        duration:10000,
+        action:{label:'Desfazer', onClick:async()=>{
+          try {
+            await axios.post(`${endpoint}/restore`, {}, {headers:authHeaders()});
+            await loadVideoLibrary();
+            toast.success('Registro restaurado na biblioteca.');
+          } catch (_) {toast.error('Não foi possível restaurar o registro.');}
+        }},
+      } : {});
     } catch (err) {
-      toast.error('Falha ao remover video');
+      toast.error(err.response?.data?.detail || 'Falha ao remover vídeo');
     }
   };
 

@@ -1,6 +1,6 @@
 """Unified, authenticated generated-video catalog. Listing never starts paid jobs."""
 from fastapi import APIRouter, Depends, HTTPException, Query
-from routes.auth import require_auth, has_role
+from routes.auth import require_auth, has_role, has_any_role
 from routes.deps import db
 
 router = APIRouter(tags=['Video Library'])
@@ -13,7 +13,7 @@ def project_scope(user):
 
 
 def normalize(provider, row, project=None):
-    identifier = str(row.get('video_id') or row.get('taskId') or row.get('id') or row.get('slideId') or '')
+    identifier = str((row.get('id') if provider == 'runway' else None) or row.get('video_id') or row.get('taskId') or row.get('id') or row.get('slideId') or '')
     created = row.get('created_at') or row.get('createdAt') or row.get('submittedAt') or ''
     created = created.isoformat() if hasattr(created, 'isoformat') else str(created)
     url = row.get('libraryVideoUrl') or row.get('video_url') or row.get('videoUrl')
@@ -28,7 +28,7 @@ def normalize(provider, row, project=None):
             'project_id': (project or {}).get('id') or row.get('project_id') or row.get('projectId'),
             'project_title': (project or {}).get('title') or (project or {}).get('name'),
             'narrated': bool(row.get('narration')), 'music': bool(row.get('music')),
-            'error': row.get('error'), 'can_delete': provider == 'heygen',
+            'error': row.get('error'), 'can_delete': (provider == 'heygen' and state == 'completed') or state == 'failed',
             'can_refresh': provider in ('heygen', 'runway', 'heygem') and state not in ('completed', 'failed')}
 
 
@@ -65,8 +65,12 @@ async def catalog(provider: str = '', search: str = '', offset: int = Query(0, g
     if owner:
         async for row in db.heygem_videos.find({'userId': owner}):
             add('heygem', row)
+    # Separate tombstones survive project saves and keep original jobs/assets
+    # available for diagnostics and undo. Completed results are never hidden.
+    hidden = {row['_id'] async for row in db.video_library_hidden.find({'_id': {'$in': list(rows)}})}
     needle = search.strip().casefold()[:120]
-    matches = [r for r in rows.values() if (not provider or r['provider'] == provider)
+    matches = [r for r in rows.values() if not (r['status'] == 'failed' and r['library_id'] in hidden)
+               and (not provider or r['provider'] == provider)
                and (not needle or needle in ' '.join(str(r.get(k) or '') for k in ('title', 'script', 'project_title')).casefold())]
     matches.sort(key=lambda r: (r['created_at'], r['library_id']), reverse=True)
     return {'videos': matches[offset:offset+limit], 'total': len(matches),
@@ -88,14 +92,25 @@ async def authorize_item(provider, video_id, user):
             await load_authorized_project(row.get('project_id'), user)
             return row
     elif provider == 'runway':
-        project = await db.projects.find_one({**project_scope(user), 'runwayPending.id': video_id}, {'id': 1})
+        project = await db.projects.find_one({**project_scope(user), 'runwayPending.id': video_id}, {'id': 1, 'runwayPending': 1})
         if project:
             return project
+    elif provider == 'kling':
+        projects = await accessible_projects(user)
+        row = await db.kling_generations.find_one({'taskId': video_id, 'projectId': {'$in': [p['id'] for p in projects]}})
+        if row:
+            return row
+        for project in projects:
+            for job in project.get('klingPending', []):
+                if normalize('kling', job)['video_id'] == video_id:
+                    return job
     raise HTTPException(404, 'Vídeo não encontrado.')
 
 
 @router.post('/videos/library/{provider}/{video_id}/refresh')
 async def refresh(provider: str, video_id: str, user=Depends(require_auth)):
+    if provider not in ('heygen', 'heygem', 'runway'):
+        raise HTTPException(400, 'Atualize a tarefa Kling pelo projeto de origem.')
     row = await authorize_item(provider, video_id, user)
     if provider == 'heygen':
         from routes.heygen import refresh_heygen_video_status
@@ -108,10 +123,31 @@ async def refresh(provider: str, video_id: str, user=Depends(require_auth)):
     return normalize(provider, next(j for j in result['videos'] if j['id'] == video_id), row)
 
 
-@router.delete('/videos/library/heygen/{video_id}')
-async def delete(video_id: str, user=Depends(require_auth)):
-    await authorize_item('heygen', video_id, user)
-    from routes.runway import can_edit
-    can_edit(user)
-    await db.heygen_videos.delete_one({'video_id': video_id})
-    return {'deleted': True}
+def require_editor(user):
+    if not has_any_role(user, 'editor', 'company_admin'):
+        raise HTTPException(403, 'Permissão de edição necessária para remover vídeos da biblioteca.')
+
+
+@router.delete('/videos/library/{provider}/{video_id}')
+async def delete(provider: str, video_id: str, user=Depends(require_auth)):
+    require_editor(user)
+    row = await authorize_item(provider, video_id, user)
+    job = next((j for j in row.get('runwayPending', []) if j.get('id') == video_id), {}) if provider == 'runway' else row
+    if job.get('status') == 'failed':
+        await db.video_library_hidden.update_one({'_id': provider + ':' + video_id},
+            {'$set': {'provider': provider, 'videoId': video_id,
+                      'removedBy': str(user.get('user_id') or user.get('id') or '')}}, upsert=True)
+        return {'deleted': True, 'recoverable': True}
+    # Keep the existing HeyGen-only removal behavior for finished library rows.
+    if provider == 'heygen' and job.get('status') == 'completed':
+        await db.heygen_videos.delete_one({'video_id': video_id, 'status': 'completed'})
+        return {'deleted': True, 'recoverable': False}
+    raise HTTPException(409, 'Somente registros com falha podem ser removidos. Vídeos em processamento ou concluídos foram preservados.')
+
+
+@router.post('/videos/library/{provider}/{video_id}/restore')
+async def restore(provider: str, video_id: str, user=Depends(require_auth)):
+    require_editor(user)
+    await authorize_item(provider, video_id, user)
+    await db.video_library_hidden.delete_one({'_id': provider + ':' + video_id})
+    return {'restored': True}

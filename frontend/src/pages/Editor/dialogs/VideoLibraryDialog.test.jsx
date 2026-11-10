@@ -23,3 +23,16 @@ test('unifies providers, filters, and reuses a completed narrated/music video',a
     expect(container.querySelector('[data-testid="delete-video-id"]')).toBeNull();
   } finally {await act(async()=>root.unmount());container.remove();}
 });
+
+test('failed video delete passes the provider and record without adding it to a slide',async()=>{
+  global.IS_REACT_ACT_ENVIRONMENT=true;
+  const container=document.createElement('div');document.body.append(container);const root=createRoot(container);
+  const remove=jest.fn(), add=jest.fn();
+  const video={library_id:'runway:failed',video_id:'failed',provider:'runway',title:'Falhou',status:'failed',can_delete:true};
+  try {
+    await act(async()=>root.render(<VideoLibraryDialog open onOpenChange={()=>{}} videoLibraryItems={[video]} loadVideoLibrary={()=>{}} handleAddLibraryVideoToSlide={add} handleDeleteLibraryVideo={remove}/>));
+    await act(async()=>container.querySelector('[data-testid="delete-video-failed"]').click());
+    expect(remove).toHaveBeenCalledWith(video);
+    expect(add).not.toHaveBeenCalled();
+  } finally {await act(async()=>root.unmount());container.remove();}
+});
