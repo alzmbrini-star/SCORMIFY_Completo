@@ -31,7 +31,7 @@ function create(plan,seed){
     if(!payload||!Array.isArray(payload.texts)||!Array.isArray(payload.checks))return {ok:false};
     state.project[a.id]=a.deliverables.map((_,i)=>String(payload.texts[i]||'').slice(0,10000));state.checks[a.id]=a.deliverables.map((_,i)=>payload.checks[i]===true);
     state.done[a.id]=payload.review===true&&state.project[a.id].every((t,i)=>t.trim().length>=a.minChars&&state.checks[a.id][i]);
-  }else if(kind==='note'){state.notes[s.unitId||id]=String(payload||'').slice(0,5000);}
+  }else if(kind==='note'){state.notes[s.unitId||plan.units?.[0]?.id||id]=String(payload||'').slice(0,5000);}
   else return {ok:false};return {ok:true,view:view()};
  }
  function compact(){var rows=view().slides,bits='',scores=[];for(var i=0;i<rows.length;i+=4){var value=0;for(var j=0;j<4;j++)if(rows[i+j]?.done)value|=1<<j;bits+=value.toString(16);}slides.forEach((s,i)=>{if(s.activity&&state.scores[s.activity.id]!==undefined)scores.push([i,state.scores[s.activity.id]]);});return {v:2,f:plan.fingerprint,d:bits,s:scores};}

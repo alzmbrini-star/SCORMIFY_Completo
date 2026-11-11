@@ -7,6 +7,7 @@ const plan={id:'p',fingerprint:'v1',unitPassingScore:100,passingScore:80,project
  {id:'project',index:4,stage:'project',activity:{id:'c',minChars:60,deliverables:[{title:'Plan'}]}},
  {id:'final',index:5,stage:'final',activity:{id:'d'}}]};
 const engine=create(plan);assert.equal(engine.view().complete,false);
+const unitNotes=create({...plan,units:[{id:'unit'}]});unitNotes.act('final','note','Final reflection');assert.equal(unitNotes.view().state.notes.unit,'Final reflection');
 engine.act('final','assessment',100);assert.equal(engine.view().complete,false,'Final score cannot bypass unit work');
 engine.act('read','confirm');engine.act('original','confirm');
 assert.equal(engine.act('practice','practice',[2,1,0]).ok,false);
