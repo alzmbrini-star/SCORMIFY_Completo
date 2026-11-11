@@ -1133,7 +1133,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
           />
         </div>
         
-        <div className="flex-1 flex items-center justify-between px-6">
+        <div className="flex-1 min-w-0 flex items-center justify-between gap-2 px-2 md:px-6">
           {/* Left controls */}
           <div className="flex items-center gap-2">
             <Button
@@ -1154,24 +1154,25 @@ const CoursePreview = ({ course, projectId, onClose }) => {
             >
               {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
             </Button>
-            <span className="text-white/60 text-sm font-mono min-w-[80px]">
+            <span className="hidden md:inline text-white/60 text-sm font-mono min-w-[80px]">
               {currentTime.toFixed(1)}s / {timelineDuration}s
             </span>
           </div>
           
           {/* Center - Navigation */}
-          <div className="flex items-center gap-4">
+          <div className="flex min-w-0 shrink-0 items-center gap-2 md:gap-4">
             <Button
               variant="outline"
               className="border-white/20 text-white hover:bg-white/10"
               onClick={prevSlide}
               disabled={currentSlideIndex === 0}
+              aria-label="Slide anterior"
             >
               <ChevronLeft className="w-4 h-4 mr-1" />
-              Anterior
+              <span className="hidden sm:inline">Anterior</span>
             </Button>
             <div className="flex items-center gap-2">
-              {slides.map((_, index) => (
+              {slides.length <= 9 ? slides.map((_, index) => (
                 <button
                   key={index}
                   className={`w-2.5 h-2.5 rounded-full transition-all ${
@@ -1180,16 +1181,19 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                       : 'bg-white/30 hover:bg-white/50'
                   }`}
                   onClick={() => goToSlide(index)}
+                  aria-label={`Ir ao slide ${index + 1}`}
+                  aria-current={index === currentSlideIndex ? 'step' : undefined}
                 />
-              ))}
+              )) : <span className="whitespace-nowrap text-sm text-white/80" aria-label={`Slide ${currentSlideIndex + 1} de ${slides.length}`}>{currentSlideIndex + 1} / {slides.length}</span>}
             </div>
             <Button
               variant="outline"
               className="border-white/20 text-white hover:bg-white/10"
               onClick={nextSlide}
               disabled={currentSlideIndex === slides.length - 1}
+              aria-label="Próximo slide"
             >
-              Próximo
+              <span className="hidden sm:inline">Próximo</span>
               <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           </div>
@@ -1210,7 +1214,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
               max={100}
               step={1}
               onValueChange={(v) => { setVolume(v[0] / 100); setIsMuted(false); }}
-              className="w-24"
+              className="hidden lg:block w-24"
             />
           </div>
         </div>

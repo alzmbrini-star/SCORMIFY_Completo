@@ -2182,16 +2182,19 @@ var CoursePlayer = (function() {
         
         if (dotsContainer) {
             var html = '';
-            for (var i = 0; i < totalSlides; i++) {
+            var navIndices = window.ScormifyNavigation ? window.ScormifyNavigation.indices(totalSlides, currentSlide) : Array.from({length:totalSlides}, function(_, n){return n;});
+            for (var navIndex = 0; navIndex < navIndices.length; navIndex++) {
+                var i = navIndices[navIndex];
+                if (i === null) { html += '<span class="navigation-gap" aria-hidden="true">…</span>'; continue; }
                 var cls = 'progress-dot';
                 var state = slideCompletionState(i);
                 if (i === currentSlide) cls += ' active';
                 if (state.kind === 'quiz-pending') cls += ' quiz-pending';
                 else if (state.kind === 'completed') cls += ' completed';
                 var description = 'Slide ' + (i + 1) + ': ' + state.label;
-                html += '<div class="' + cls + '" title="' + description + '" aria-label="' + description + '" onclick="CoursePlayer.goTo(' + i + ')"></div>';
+                html += '<button type="button" class="' + cls + '" title="' + description + '" aria-label="' + description + '"' + (i === currentSlide ? ' aria-current="step"' : '') + ' onclick="CoursePlayer.goTo(' + i + ')"></button>';
             }
-            dotsContainer.innerHTML = html;
+            dotsContainer.innerHTML = html + '<span class="navigation-slide-count" aria-label="Slide ' + (currentSlide + 1) + ' de ' + totalSlides + '">' + (currentSlide + 1) + ' / ' + totalSlides + '</span>';
         }
         
         // Update mobile slide counter

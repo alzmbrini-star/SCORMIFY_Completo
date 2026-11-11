@@ -3129,13 +3129,16 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             function updateProgress() {{
                 var dots = document.getElementById('progress-dots');
                 var html = '';
-                for (var i = 0; i < totalSlides; i++) {{
+                var navIndices = window.ScormifyNavigation.indices(totalSlides, currentSlide);
+                for (var navIndex = 0; navIndex < navIndices.length; navIndex++) {{
+                    var i = navIndices[navIndex];
+                    if (i === null) {{ html += '<span class="navigation-gap" aria-hidden="true">…</span>'; continue; }}
                     var cls = 'progress-dot';
                     if (i === currentSlide) cls += ' active';
                     else if (i < currentSlide) cls += ' completed';
-                    html += '<div class="' + cls + '" onclick="Player.goTo(' + i + ')"></div>';
+                    html += '<button type="button" class="' + cls + '" aria-label="Ir ao slide ' + (i + 1) + '"' + (i === currentSlide ? ' aria-current="step"' : '') + ' onclick="Player.goTo(' + i + ')"></button>';
                 }}
-                dots.innerHTML = html;
+                dots.innerHTML = html + '<span class="navigation-slide-count" aria-label="Slide ' + (currentSlide + 1) + ' de ' + totalSlides + '">' + (currentSlide + 1) + ' / ' + totalSlides + '</span>';
                 
                 // Update nav buttons
                 document.getElementById('prev-btn').disabled = currentSlide === 0;
@@ -3817,6 +3820,8 @@ html,body{{background:{canvas}}}
 .sidebar-item.active .sidebar-item-title,.sidebar-item.active .sidebar-item-number{{color:{sidebar_active_text}}}
 </style>"""
     html = html.replace("</head>", branded_player_css + "</head>", 1)
+    from services.export_navigation import install_navigation_window
+    html = install_navigation_window(html)
     if output_path:
         return write_html_file(output_path, html, sanitized_data)
     return html
