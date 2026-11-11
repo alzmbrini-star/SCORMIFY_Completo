@@ -1408,9 +1408,12 @@ PARA TODOS OS SLIDES:
 - narrationScript: MÍNIMO 5 frases completas e detalhadas
 - NUNCA retorne conteúdo vazio ou com apenas 1-2 linhas"""
 
+        from services.storyboard_batches import teaching_prompt, decode_batch
+        prompt = teaching_prompt(batch, config, batch_source(content_text, batch), story_bible) or prompt
         retries = 0
         max_retries = 2
         batch_success = False
+        last_batch_error = ''
         quality_type = batch[0].get("type") if len(batch) == 1 else ""
         quality_checked = quality_type in {"simulator", "game", "flashcard", "timeline", "case_study"}
         required_simulator_mechanic = (
@@ -1432,6 +1435,8 @@ PARA TODOS OS SLIDES:
                 chat = (_new_simulator_chat(chat_id) if quality_type == "simulator"
                         else _new_chat(chat_id, provider=provider, model=model))
                 attempt_prompt = prompt
+                if last_batch_error:
+                    attempt_prompt += '\n\nCORRIJA A RESPOSTA ANTERIOR: ' + last_batch_error
                 if quality_checked and retries > 0:
                     if quality_type == "simulator":
                         attempt_prompt += """
@@ -1478,7 +1483,7 @@ A tentativa anterior ficou superficial. Entregue contexto realista, dados e evid
 pelo menos 3 perguntas de reflexao/decisao com consequencias, analise revelavel e debrief com
 licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas externas."""
                 response = await asyncio.wait_for(chat.send_message(UserMessage(text=attempt_prompt)), timeout=150)
-                data = _extract_json(response)
+                data = decode_batch(response, batch)
                 if data and isinstance(data.get("slides"), list) and len(data['slides']) == len(batch) and all(isinstance(item, dict) for item in data['slides']):
                     for j, slide_data in enumerate(data["slides"]):
                         if not slide_data.get("moduleName") and j < len(batch):
@@ -1545,6 +1550,7 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                     await asyncio.sleep(2)
             except Exception as e:
                 error_str = str(e)
+                last_batch_error = error_str[:600]
                 if "Budget has been exceeded" in error_str:
                     raise Exception("BUDGET_EXCEEDED: O orçamento da chave Universal foi excedido. Acesse Perfil > Universal Key > Adicionar Saldo para continuar.")
                 retries += 1
@@ -1559,7 +1565,7 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
         # If batch failed, use fallback content
         if not batch_success:
             if any(sl.get('sourceRequired') for sl in batch):
-                raise StoryboardActivityError('conteúdo', batch[0].get('title'), ValueError('A IA não desenvolveu os itens obrigatórios deste lote. Os lotes anteriores foram preservados; tente retomar. Não foi inserido conteúdo genérico no lugar da ementa.'))
+                raise StoryboardActivityError('conteúdo', batch[0].get('title'), ValueError('O lote obrigatório não pôde ser concluído. '+(last_batch_error or 'A resposta não contém todas as telas solicitadas.')+' Os lotes anteriores foram preservados; tente retomar. Não foi inserido conteúdo genérico no lugar da ementa.'))
             if quality_type == "simulator":
                 raise RuntimeError(f"SIMULATOR_FAILED: {provider} nao conseguiu gerar um simulador valido. Tente novamente e verifique a chave, a cota e o faturamento do provedor configurado.")
             for sl in batch:
