@@ -533,7 +533,7 @@ export default function Agent() {
       setFileName(file.name);
       const msg = data?.pdfProcessing
         ? `Arquivo "${file.name}" recebido! Extraindo imagens e texto em segundo plano...`
-        : `Arquivo "${file.name}" recebido! ${data?.contentLength || 0} caracteres extraídos. Clique em "Analisar".`;
+        : `Arquivo "${file.name}" recebido! ${data?.contentLength || 0} caracteres extraídos.${data?.sourceImageCount ? ` ${data.sourceImageCount} imagens originais preservadas para os slides.` : ''} Clique em "Analisar".`;
       addChatMsg('agent', msg);
       setCurrentStep(1);
     } catch (err) {

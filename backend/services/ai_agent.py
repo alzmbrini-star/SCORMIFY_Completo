@@ -147,7 +147,7 @@ def _build_storyboard_batches(slides: list, regular_batch_size: int = 4) -> list
     batches = []
     regular = []
     for slide in slides:
-        if slide.get("type") in _RICH_INTERACTIVE_TYPES:
+        if slide.get("type") in _RICH_INTERACTIVE_TYPES or slide.get('sourceImageOnly'):
             if regular:
                 batches.append(regular)
                 regular = []
@@ -1023,6 +1023,10 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
                 all_slides.extend(cached_batch)
                 await save_batch(batch_num, batch, saved_start)
                 continue
+        if len(batch) == 1 and batch[0].get('sourceImageOnly'):
+            all_slides.append({**batch[0], 'elements':[], 'notes':'Captura original da fonte; sem recriação por IA.', 'quizQuestions':[]})
+            await save_batch(batch_num, batch, saved_start)
+            continue
         batch_info = [{
             "id": s.get("id", ""),
             "title": s.get("title", ""),
@@ -3351,7 +3355,7 @@ def _build_visual_content_fallback_html(slide: dict) -> str:
 
 def _normalize_visual_content_slide(slide: dict) -> dict:
     """Reject blank or handout-like content slides before persistence."""
-    if str((slide or {}).get("type") or "") != "content":
+    if str((slide or {}).get("type") or "") != "content" or slide.get('sourceImageOnly'):
         return slide
     elements = slide.get("elements", []) or []
     text_elements = [element for element in elements if element.get("type") in ("text", "html")]
@@ -3513,6 +3517,9 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
     ai_image_tasks = []
     for i, sb_slide in enumerate(slides_data):
         stype = sb_slide.get("type", "content")
+        if sb_slide.get('sourceImageOnly'):
+            slide_media[i] = {'type':'none'}
+            continue
         if stype not in ("content", "title"):
             continue
         # A specifically chosen cover image is honored. Without one, reuse
@@ -3776,7 +3783,11 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 })
                 slide_question_ids.append(qid)
 
-        if stype == "title":
+        if sb_slide.get('sourceImageOnly'):
+            from services.docx_assets import reference_elements
+            bg = '#f4f8fc'
+            slide_elements = reference_elements(sb_slide, project_id)
+        elif stype == "title":
             bg = palette.get("coverBg", palette["primary"])
             cover_media=slide_media.get(i,{})
             cover_image=cover_media.get('url') if cover_media.get('type')=='image' else None
@@ -4146,6 +4157,8 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             "moduleName": sb_slide.get("moduleName", ""),
             "contentType": stype,
             "sourceRefs": sb_slide.get('sourceRefs', []),
+            "sourceImage": sb_slide.get('sourceImage'),
+            "sourceImageOnly": bool(sb_slide.get('sourceImageOnly')),
             "gameQuestionIds": sb_slide.get("gameQuestionIds", []) if stype == "game" else [],
             "gameMechanic": (
                 sb_slide.get("gameMechanic")

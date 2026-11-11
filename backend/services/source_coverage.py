@@ -14,7 +14,7 @@ def complete_source(text):
     return text
 
 
-def docx_text(raw):
+def docx_text(raw, image_handler=None):
     from docx import Document
     from docx.text.paragraph import Paragraph
     from docx.table import Table
@@ -31,6 +31,12 @@ def docx_text(raw):
             for row in Table(child, doc).rows:
                 cells = [c.text.strip() for c in row.cells if c.text.strip()]
                 if cells: blocks.append(' | '.join(cells))
+        if image_handler:
+            for blip in child.iter('{http://schemas.openxmlformats.org/drawingml/2006/main}blip'):
+                rid = blip.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed')
+                if rid and rid in doc.part.related_parts:
+                    marker = image_handler(doc.part.related_parts[rid])
+                    if marker: blocks.append(marker)
     return '\n\n'.join(blocks)
 
 
@@ -62,6 +68,9 @@ def source_sections(text):
             current = {'id': f'SRC{len(sections)+1:03}', 'title': clean, 'items': []}
             sections.append(current)
         elif current and clean:
+            picture = re.fullmatch(r'\[IMG:([a-zA-Z0-9_.-]+)\]', clean)
+            if picture:
+                current.setdefault('images', []).append(picture.group(1)); continue
             if re.match(r'^(?:conte[uú]dos e funcionalidades|carga sugerida|figura\s+\d)', clean, re.I): continue
             current['items'].append({'id': f'{current["id"]}.I{len(current["items"])+1:03}', 'text': clean.lstrip('•- ').strip()})
         elif clean:
@@ -69,15 +78,20 @@ def source_sections(text):
     if sections and preamble:
         sections.insert(0, {'id': 'SRC000', 'title': 'Contexto e fundamentos do material',
             'items': source_items('SRC000', preamble)})
-    if not sections and len(text) >= 250:
+    if not sections and (len(text) >= 250 or '[IMG:' in text):
         # Articles, reports and unnumbered material have scope too. Preserve
         # every paragraph/table row instead of relying on a numbered syllabus.
         paragraphs = [re.sub(r'\s+', ' ', p).strip() for p in re.split(r'\n\s*\n', text) if p.strip()]
         sections = [{'id': 'SRC001', 'title': 'Conteúdo do material fornecido',
             'items': source_items('SRC001', paragraphs)}]
     for section in sections:
+        for item in section['items'][:]:
+            picture = re.fullmatch(r'\[IMG:([a-zA-Z0-9_.-]+)\]', item['text'])
+            if picture:
+                section.setdefault('images', []).append(picture.group(1))
+                section['items'].remove(item)
         section['items'] = source_items(section['id'], [i['text'] for i in section['items']])
-    return [s for s in sections if s['items']]
+    return [s for s in sections if s['items'] or s.get('images')]
 
 
 def source_contract(text):
@@ -133,6 +147,20 @@ def ensure_coverage(structure, text):
                 'type': 'content', 'purpose': 'Explicar e exemplificar, sem apenas anunciar o assunto: ' + ' '.join(i['text'] for i in items),
                 'sourceRefs': [i['id'] for i in items], 'sourceExcerpt': '\n'.join(i['text'] for i in items),
                 'sourceRequired': True, 'estimatedDuration': 120})
+    # Original figures are deterministic reference slides, not AI reconstructions.
+    for section in sections:
+        for filename in section.get('images', []):
+            if any(filename == s.get('sourceImage') for m in modules for s in m.get('slides', [])): continue
+            target = next((m for m in modules if any(r.startswith(section['id']+'.') for s in m.get('slides', []) for r in s.get('sourceRefs', []))), None)
+            if target is None:
+                target = {'id':'source_'+section['id'], 'title':section['title'], 'description':'Referências visuais do material.', 'slides':[]}
+                modules.append(target)
+            anchor = next((i+1 for i,s in enumerate(target['slides']) if any(r.startswith(section['id']+'.') for r in s.get('sourceRefs', []))), 0)
+            while anchor < len(target['slides']) and target['slides'][anchor].get('sourceImageOnly'): anchor += 1
+            target['slides'].insert(anchor, {'id': 'source_image_' + filename.replace('.', '_'),
+                'type': 'content', 'title': 'Referência visual — ' + section['title'],
+                'purpose': 'Observar a captura original desta unidade. A imagem não será recriada por IA.',
+                'sourceImageOnly': True, 'sourceRequired': True, 'sourceImage': filename, 'estimatedDuration': 60})
     result['sourceCoverage'] = {'version': 1, 'sections': len(sections), 'items': len(all_items),
         'plannedItems': len(all_items), 'status': 'planned', 'note': 'Itens distribuídos para desenvolvimento; planejamento não certifica profundidade ou correção do conteúdo.'}
     # A conclusion originally at the end must not precede appended teaching units.

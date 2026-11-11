@@ -568,6 +568,7 @@ async def agent_upload_content(session_id: str, request: Request, file: UploadFi
 
     Extraction preserves document order. Source-first analysis and structure
     planning do not silently discard the ending of the submitted material.
+    DOCX screenshots persist as source assets and keep their unit association.
 
     For PDFs: the raw bytes are saved to GridFS and the heavy extraction
     (image extraction + OCR + gallery preparation) is processed in a
@@ -595,6 +596,7 @@ async def _agent_upload_content_impl(session_id: str, request, file, text, url, 
     file_name = ""
     ext = ""
     file_bytes = b""
+    document_extraction = None
 
     # Handle URL scraping
     if url and url.strip():
@@ -663,13 +665,13 @@ async def _agent_upload_content_impl(session_id: str, request, file, text, url, 
                 content_text = ""
 
         elif ext in ("docx",):
-            # Native DOCX extraction
             try:
-                from services.source_coverage import docx_text
-                content_text = docx_text(file_bytes)
+                from services.docx_assets import extract_docx_source, save_source_images
+                content_text, source_images = await asyncio.to_thread(extract_docx_source, file_bytes)
+                document_extraction = await save_source_images(db, source_images, s.get('userId'), s.get('companyId'))
             except Exception as e:
                 logger.warning(f"python-docx extraction failed: {e}")
-                content_text = await _convert_api_extract(file_name, file_bytes, ext)
+                raise HTTPException(422, f'Não foi possível preservar o DOCX e suas imagens. {str(e)[:250]}') from e
 
         elif ext in ("pptx", "ppt", "doc"):
             # Use ConvertAPI for PPT/legacy doc
@@ -701,6 +703,7 @@ async def _agent_upload_content_impl(session_id: str, request, file, text, url, 
     }
     if pdf_gridfs_id:
         set_doc["rawFileGridFS"] = str(pdf_gridfs_id)
+    set_doc['documentExtraction'] = document_extraction
 
     # For PDFs: mark the session as ready-for-Modo-Fiel. Image extraction is
     # NO LONGER done automatically because it was unreliable in production
@@ -724,6 +727,7 @@ async def _agent_upload_content_impl(session_id: str, request, file, text, url, 
         "contentLength": len(content_text),
         "fileName": file_name,
         "pdfReady": ext == "pdf" and bool(file_bytes),
+        "sourceImageCount": len((document_extraction or {}).get('images', [])),
     }
 
 
@@ -2242,6 +2246,9 @@ async def agent_generate_course(session_id: str, request: Request):
                 {"$set": {"courseProgress": {"message": "Gerando slides com IA..."}, "projectId": project.id, "updatedAt": datetime.now(timezone.utc).isoformat()}}
             ))
 
+            if _s.get('documentExtraction'):
+                from services.docx_assets import copy_source_images
+                loop.run_until_complete(copy_source_images(_db, _s['documentExtraction'], project.id))
             course_data = loop.run_until_complete(generate_course_from_storyboard(
                 session_id, _s["storyboard"], {**config, '_courseSourceText': _s.get('contentText') or ''},
                 project_dir=str(PROJECTS_DIR), project_id=project.id,
