@@ -7,7 +7,7 @@ import './CreatorTutor.css';
 
 const API = getApiUrl();
 const welcome = {role:'assistant', text:'Olá! Sou o Tutor do Criador. Posso orientar você no Agente, no Editor e na Administração, conforme seu perfil. Escolha um guia rápido ou escreva sua dúvida. Não altero nem salvo seus cursos.', links:[], mode:'guide'};
-const quickIds=['start','agent','agent-faithful','agent-faithful-access','assessment','scenario','video','export','simulators','simulator-access','storyboard','approvals','admin-overview','batch-export','batch-export-access','users','admin-game-bank','student-tutor','admin-tutor-dashboard','admin-reports','companies','costs','admin-integrations','admin-migration','admin-cleanup'];
+const quickIds=['start','agent','guided-path','agent-faithful','agent-faithful-access','assessment','scenario','video','export','simulators','simulator-access','storyboard','approvals','admin-overview','batch-export','batch-export-access','users','admin-game-bank','student-tutor','admin-tutor-dashboard','admin-reports','companies','costs','admin-integrations','admin-migration','admin-cleanup'];
 const settingsKey=id=>`scormify-creator-tutor-reading-v1:${id}`;
 function preferences(id) {
   try {const p=JSON.parse(localStorage.getItem(settingsKey(id))||'{}');return {font:[16,18,20,22,24,26,28].includes(p.font)?p.font:18, palette:['dark','light','contrast'].includes(p.palette)?p.palette:'dark'};}

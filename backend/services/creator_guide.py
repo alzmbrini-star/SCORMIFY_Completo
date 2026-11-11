@@ -102,6 +102,7 @@ GUIDE=[
  entry('start','Conhecer os modos de criação','começar recursos funcionalidades possibilidades misto tradicional manual',[
   'No painel de projetos, crie um projeto para trabalhar manualmente no Editor ou abra o Agente IA para construir um curso a partir de conteúdo.',
   'No Agente, revise análise, configuração, estrutura e storyboard antes de gerar o curso. Depois, use o Editor para ajustes finos.',
+  'Em Configurar → Estilo da experiência, o Percurso guiado com prática e projeto acrescenta etapas por unidade, Avaliações interativas com imagens, projeto e avaliação final; Slides premium variados e Jornada Visual Ilustrada permanecem disponíveis. Consulte o guia rápido específico para critérios de conclusão, créditos e limites do portfólio.',
   'O Editor reúne slides, textos, imagens, vídeos, áudio, interações e exportação. Os recursos disponíveis dependem das permissões da sua conta.'],'dashboard'),
  entry('new-project','Criar um projeto no Editor','novo projeto curso criar manual vazio',[
   'No painel de projetos, clique em Novo Projeto, informe um nome e confirme a criação.',
