@@ -39,6 +39,7 @@ import asyncio
 import io
 import logging
 import math
+import sys
 import os
 import re
 import subprocess
@@ -877,8 +878,26 @@ def faithful_page_scale(width, height):
     """
     if not math.isfinite(width) or not math.isfinite(height) or min(width,height) <= 0:
         raise ValueError('Dimensões inválidas na página PDF.')
-    return min((FAITHFUL_MAX_EDGE-2)/max(width,height),
-               math.sqrt((FAITHFUL_MAX_PIXELS-10000)/(width*height)))
+    from services.faithful_page_worker import page_scale
+    return page_scale(width,height)
+
+
+def _faithful_isolated_page(source, index, target):
+    import json
+    worker=Path(__file__).with_name('faithful_page_worker.py')
+    for budget in (FAITHFUL_MAX_PIXELS,1_500_000):
+        try:
+            completed=subprocess.run([sys.executable,str(worker),str(source),str(index),str(target),str(budget)],
+                                     capture_output=True,text=True,encoding='utf8',timeout=90,check=False)
+        except subprocess.TimeoutExpired:
+            raise ValueError('A renderização desta página excedeu 90 segundos; o processo foi encerrado com segurança.') from None
+        if completed.returncode==0:
+            result=json.loads(completed.stdout)
+            logger.info('Faithful page %s: PNG %sx%s (isolated process)',index+1,result['width'],result['height'])
+            return result['text']
+        if completed.returncode not in (2,-9):
+            raise ValueError('Não foi possível renderizar a página no processo isolado.')
+    raise ValueError('Esta página excede a memória disponível mesmo no modo nítido compacto. Otimize o PDF ou divida a página.')
 
 
 async def extract_pdf_faithful(pdf_bytes: bytes | Path, assets_dir: Path,
@@ -913,10 +932,13 @@ async def extract_pdf_faithful(pdf_bytes: bytes | Path, assets_dir: Path,
     pages_out: list = []
 
     async def _render_page(i: int) -> dict:
-        page = pdf.load_page(i)
         page_num = i + 1
         filename = f"pdf_page_{page_num}.png"
         target = assets_dir / filename
+        if not isinstance(pdf_bytes,bytes):
+            text=await _run_blocking(_faithful_isolated_page,pdf_bytes,i,target)
+            return {"page_num":page_num,"filename":filename,"text":text.strip()}
+        page = pdf.load_page(i)
 
         # Memory-efficient render: use fitz.Matrix to scale directly to final
         # size in a single pass (no PIL intermediate canvas), and release the
@@ -940,6 +962,7 @@ async def extract_pdf_faithful(pdf_bytes: bytes | Path, assets_dir: Path,
                         pix = None
                     except Exception:
                         pass
+                fitz.TOOLS.store_shrink(100)
             # Extract text AFTER pixmap is released to reduce peak memory.
             try:
                 return _extract_text_with_layout(page)[:10000]

@@ -858,7 +858,7 @@ async def get_faithful_status(project_id: str, user: dict = Depends(require_auth
         p = await asyncio.wait_for(
             db.projects.find_one(
                 {"id": project_id},
-                {"_id": 0, "id": 1, "faithfulStatus": 1}
+                {"_id": 0, "id": 1, "faithfulStatus": 1, "updatedAt": 1}
             ),
             timeout=2.5,
         )
@@ -874,6 +874,18 @@ async def get_faithful_status(project_id: str, user: dict = Depends(require_auth
     if p is None:
         raise HTTPException(404, "Project not found")
     status = p.get("faithfulStatus") or {"status": "done", "progress": 100, "message": ""}
+    if status.get('status')=='processing':
+        # A cache miss after restart must not become an eternal cached spinner.
+        stamp=p.get('updatedAt') or status.get('startedAt')
+        try:
+            touched=datetime.fromisoformat(str(stamp).replace('Z','+00:00'))
+            if touched.tzinfo is None: touched=touched.replace(tzinfo=timezone.utc)
+            if (datetime.now(timezone.utc)-touched).total_seconds()>300:
+                return {'status':'error','progress':status.get('progress',0),
+                        'message':'A conversão foi interrompida após reinício ou falta de recursos do servidor. O PDF original foi preservado; tente novamente em Modo Fiel.'}
+        except (TypeError,ValueError):
+            pass
+        return status
     # Warm the cache so subsequent polls are instant.
     _faithful_set_cache(project_id, status)
     return status
