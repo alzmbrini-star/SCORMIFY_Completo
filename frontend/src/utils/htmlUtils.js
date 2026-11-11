@@ -196,6 +196,7 @@ export const fitGameElementToSlide = (element, slideWidth = 960, slideHeight = 5
 
 export const wrapInteractiveFullbleed = (html, mode = 'page') => {
   if (!html || typeof html !== 'string') return html;
+  if (/id=["']guided-data["']/.test(html)) return html;
   // Recorded-video interactions own a responsive, height-bounded viewport.
   if (/id=["']video-quiz-data["']/.test(html)) return upgradeVideoQuizPlayback(trustedHostedVideoQuizDocument(html));
   html = upgradeSimulatorSlide(html);

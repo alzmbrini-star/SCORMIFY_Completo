@@ -107,11 +107,53 @@ class AgentConfigUpdate(BaseModel):
     interactivity: Optional[str] = "media"
     visualStyle: Optional[str] = "moderno e profissional"
     visualCourseMode: Optional[str] = "standard"
+    guidedUnitPassingScore: int = Field(default=100, ge=0, le=100)
+    guidedPassingScore: int = Field(default=80, ge=0, le=100)
+    guidedQuestionsPerUnit: int = Field(default=3, ge=1, le=10)
+    guidedFinalQuestionCount: int = Field(default=12, ge=3, le=100)
+    guidedProjectRequired: bool = True
+    guidedAssessmentImages: bool = True
+    guidedConfirmReading: bool = True
     format: Optional[str] = "curso_completo"
     description: Optional[str] = None
 
 class AgentChatMessage(BaseModel):
     message: str
+
+
+class GuidedRenderRequest(BaseModel):
+    projectId: str = Field(max_length=100)
+    elementId: str = Field(max_length=100)
+    spec: Dict[str, Any]
+
+
+@router.post('/agent/guided/render')
+async def render_guided_edit(data: GuidedRenderRequest, user: dict = Depends(require_auth)):
+    """Re-render structured data, without AI credits or writing the course."""
+    project=await load_authorized_project(data.projectId,user)
+    if len(json.dumps(data.spec))>250000:raise HTTPException(400,'Atividade muito extensa.')
+    course=project.get('course') or {};path=(course.get('metadata') or {}).get('guidedPath')
+    found=next(((s,e) for s in course.get('slides',[]) for e in s.get('elements',[]) if e.get('id')==data.elementId and e.get('guidedActivity')),None)
+    if not path or not found:raise HTTPException(404,'Recurso do percurso não encontrado. Salve o curso antes de editar.')
+    slide,element=found;original=element['guidedActivity'];spec=data.spec
+    from services.guided_path import validate_activity, activity_element, text
+    try:
+        if original['kind'] in ('assessment','final'):
+            from routes.assessments import normalise
+            questions=spec.get('questions')
+            if not isinstance(questions,list) or len(questions)!=len(original['questions']):raise ValueError('Mantenha a quantidade de questões configurada para o percurso.')
+            validated={**original,'title':text(spec.get('title'),240),'instructions':text(spec.get('instructions'),1200),'questions':[]}
+            for q,before in zip(questions,original['questions']):
+                item=normalise(q,project,str(user.get('id') or ''),before['id'])
+                item.update(unitId=before['unitId'],imageGenerationStatus='ready' if item.get('media') else before.get('imageGenerationStatus','disabled'))
+                validated['questions'].append(item)
+        else:
+            request={'id':original['id'],'title':original['title'],'guidedRequest':original['kind'],'guidedUnitId':slide.get('guidedUnitId')}
+            validated=validate_activity(spec,request,path)
+        rendered=activity_element(validated)
+        rendered['id']=element['id']
+        return {'guidedActivity':validated,'htmlContent':rendered['htmlContent'],**({'assessmentConfig':rendered['assessmentConfig']} if 'assessmentConfig' in rendered else {})}
+    except (ValueError,KeyError,TypeError) as exc:raise HTTPException(422,str(exc)) from exc
 
 
 def _is_light_color(hex_color: str) -> bool:
@@ -2262,6 +2304,14 @@ async def agent_generate_course(session_id: str, request: Request):
                 brand_library_mode=(_s.get("brandLibraryMode") or config.get("brandLibraryMode") or "preferred"),
             ))
 
+            if (course_data.get('metadata') or {}).get('guidedPath'):
+                # Preserve the generated course before requesting paid images.
+                loop.run_until_complete(_db.projects.update_one({'id':project.id}, {'$set':{'course.slides':course_data['slides'], 'course.metadata':course_data['metadata']}}))
+                from services.guided_path import populate_assessments
+                async def image_progress(done, total):
+                    await _db.agent_sessions.update_one({'id':session_id},{'$set':{'courseProgress':{'message':f'Preparando imagens das avaliações interativas: {done}/{total}'}}})
+                loop.run_until_complete(populate_assessments(course_data, project_dict, _db, PROJECTS_DIR, image_progress))
+
             # PDF imports: migrate extracted images from the temp project to the
             # real one, and replace [IMG:filename] markers in slides with real
             # image elements.
@@ -2399,6 +2449,8 @@ async def agent_generate_course(session_id: str, request: Request):
                 "projectName": title,
                 "slidesCount": len(course_data["slides"]),
                 "quizCount": len(course_data.get("quizQuestions", [])),
+                "assessmentQuestionCount": sum(len((e.get('assessmentConfig') or {}).get('questions',[])) for slide in course_data['slides'] for e in slide.get('elements',[]) if e.get('guidedActivity')),
+                "assessmentImages": (course_data.get('metadata') or {}).get('guidedAssessmentImages') if ((course_data.get('metadata') or {}).get('guidedPath') or {}).get('assessmentImages') else None,
                 "heygenPending": len(heygen_pending),
                 "klingPending": len(kling_pending),
                 "narrationPending": narration_count,
@@ -2470,6 +2522,7 @@ async def agent_generate_course(session_id: str, request: Request):
             try:
                 slides_count = len(course_data.get("slides", []))
                 ai_images_count = sum(1 for s in course_data.get("slides", []) for e in s.get("elements", []) if e.get("type") == "image" and "ai_img" in e.get("src", ""))
+                assessment_images_count = (course_data.get('metadata',{}).get('guidedAssessmentImages') or {}).get('ready',0)
                 leonardo_images_count = sum(1 for s in course_data.get("slides", []) for e in s.get("elements", []) if e.get("type") == "image" and "leonardo_" in e.get("src", ""))
                 usage_log = {
                     "id": str(uuid.uuid4()),
@@ -2488,7 +2541,7 @@ async def agent_generate_course(session_id: str, request: Request):
                     },
                     "estimatedCost": {
                         "textGeneration": round((len(_s.get("storyboard", {}).get("slides", [])) / 5 + 2) * 0.006, 4),
-                        "imageGeneration": round(ai_images_count * 0.02, 4),
+                        "imageGeneration": round((ai_images_count + assessment_images_count) * 0.02, 4),
                         "leonardoGeneration": round(leonardo_images_count * 0.036, 4),
                         "narration": round(narration_count * 0.01, 4) if narration_count else 0,
                         "currency": "USD"

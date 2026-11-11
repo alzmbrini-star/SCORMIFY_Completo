@@ -225,6 +225,7 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
                 <SelectContent>
                   <SelectItem value="standard">Slides premium variados</SelectItem>
                   <SelectItem value="illustrated_journey">Jornada Visual Ilustrada</SelectItem>
+                  <SelectItem value="guided_practice_project">Percurso guiado com prática e projeto</SelectItem>
                 </SelectContent>
               </Select>
               {config.visualCourseMode === 'illustrated_journey' && (
@@ -250,6 +251,28 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
             </div>
           </CardContent>
         </Card>
+
+        {config.visualCourseMode === 'guided_practice_project' && <Card className="border-teal-500/40 bg-teal-950/30" data-testid="guided-path-options">
+          <CardContent className="p-4 space-y-4">
+            <h3 className="font-semibold text-teal-200">Aprender → explorar → praticar → avaliar → aplicar</h3>
+            <p className="text-sm text-slate-300">Preserva as explicações e as imagens originais. Acrescenta práticas com cartões de revisão, Avaliações interativas por unidade, projeto integrador e Avaliação interativa final — sem o Quiz tradicional.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                ['guidedQuestionsPerUnit','Questões por unidade',3,1,10],
+                ['guidedFinalQuestionCount','Questões na avaliação final',12,3,100],
+                ['guidedUnitPassingScore','Nota mínima da unidade (%)',100,0,100],
+                ['guidedPassingScore','Nota mínima final (%)',80,0,100],
+              ].map(([key,label,fallback,min,max])=><label key={key} className="text-sm">{label}<Input type="number" min={min} max={max} value={config[key] ?? fallback} onChange={e=>update(key,Number(e.target.value))} data-testid={key}/></label>)}
+            </div>
+            <p className="text-xs text-slate-400">A avaliação final terá ao menos uma questão por unidade. Novas tentativas são permitidas e a melhor nota é preservada.</p>
+            {[
+              ['guidedAssessmentImages','Gerar imagem IA para cada questão e salvar na biblioteca'],
+              ['guidedProjectRequired','Exigir projeto com autoverificação para concluir'],
+              ['guidedConfirmReading','Solicitar confirmação de leitura e exploração'],
+            ].map(([key,label])=><label key={key} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={config[key] !== false} onChange={e=>update(key,e.target.checked)}/>{label}</label>)}
+            <p className="text-xs text-amber-200">Imagens das avaliações consomem créditos de IA e podem aumentar o tempo de geração. A quantidade será mostrada em Mídia. O projeto usa autoverificação, não correção automática: textos ficam no navegador do aluno e podem ser exportados como portfólio TXT; o LMS guarda somente o progresso.</p>
+          </CardContent>
+        </Card>}
 
         {canCreateSimulators ? <SimulatorExperienceOptions complexity={config.simulatorComplexity || 'guided'} visualStyle={config.simulatorVisualStyle || 'illustrated'} disabled={loading}
           activityType={config.simulatorActivityType || 'simulation'} objectImages={config.simulatorObjectImages === true} onChange={({ complexity, visualStyle, activityType, objectImages }) => setConfig(previous => ({ ...previous, simulatorComplexity: complexity, simulatorVisualStyle: visualStyle, simulatorActivityType: activityType, simulatorObjectImages:objectImages === true }))} /> : <p role="note" className="text-sm text-amber-400">Criação de simuladores desabilitada pela Administração para seu usuário.</p>}

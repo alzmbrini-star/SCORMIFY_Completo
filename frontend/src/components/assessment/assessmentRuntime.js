@@ -43,7 +43,9 @@ export function assessmentRuntime(resolveVideoLink) {
     questions.forEach(q => { total += q.points || 1; if (submitted.has(q.id) && correct(q, submitted.get(q.id))) points += q.points || 1; });
     // Exported players expose an initialized SCORM API in the parent chain.
     // Record this assessment's score without completing the surrounding course.
+    if (data.guidedPath) window.parent.postMessage({type:'scormify-guided-assessment-result',id:data.guidedActivityId,score:Math.round(total ? points / total * 100 : 0)},'*');
     try {
+      if (data.guidedPath) throw new Error('O percurso registra a avaliação, sem concluir o curso isoladamente.');
       let owner = window;
       for (let depth = 0; depth < 8; depth++) {
         if(owner.ScormAPI && owner.ScormAPI.recordAssessment && owner.CoursePlayer){
@@ -69,7 +71,7 @@ export function assessmentRuntime(resolveVideoLink) {
     node('div', 'score', `${Math.round(total ? points / total * 100 : 0)}%`, box);
     node('p', '', `${points} de ${total} pontos · ${submitted.size} de ${questions.length} respondidas`, box);
     button('Revisar respostas', '', () => { index = 0; render(); }, box);
-    button('Tentar novamente', '', () => { answers.clear(); submitted.clear(); index = 0; selectedCard = null; window.parent.postMessage({type:'scormify-assessment-retry'},'*'); render(); }, box);
+    button('Tentar novamente', '', () => { answers.clear(); submitted.clear(); index = 0; selectedCard = null; if(!data.guidedPath)window.parent.postMessage({type:'scormify-assessment-retry'},'*'); render(); }, box);
   }
   function advance() {
     if (index < questions.length - 1) navigate(index + 1); else finish();

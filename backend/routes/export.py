@@ -254,6 +254,9 @@ async def export_scorm(
     use_single_page = single_page_override if single_page_override is not None \
         else bool(project_doc.get("singlePageMode", False))
 
+    if (project_doc.get('course',{}).get('metadata') or {}).get('guidedPath'):
+        use_single_page = False  # The guided host and its completion gates use slides.
+
     # Capture URL from the request synchronously — it cannot be derived from a
     # background task because `request` is not valid outside the request scope.
     external_url = _get_external_url(request)
@@ -688,7 +691,7 @@ async def _run_batch_scorm(
                 "status": "processing",
                 "message": f"Exportando ({idx + 1}/{len(child_jobs)})...",
             })
-            use_single_page = bool(doc.get("singlePageMode", False))
+            use_single_page = bool(doc.get("singlePageMode", False)) and not bool((doc.get('course',{}).get('metadata') or {}).get('guidedPath'))
             await _run_scorm_export_job(
                 job_id=job_id,
                 project_id=pid,
@@ -734,6 +737,9 @@ async def export_html(
         pass
     use_single_page = single_page_override if single_page_override is not None \
         else bool(project_doc.get("singlePageMode", False))
+
+    if (project_doc.get('course',{}).get('metadata') or {}).get('guidedPath'):
+        use_single_page = False
 
     external_url = _get_external_url(request)
 

@@ -927,6 +927,11 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
 
   return (
     <div className="space-y-4" data-testid="media-config-panel">
+      {storyboard.guidedPath && <aside className="rounded-xl border border-teal-500/40 bg-teal-950/40 p-4 text-sm text-teal-100" data-testid="guided-media-summary">
+        <strong>Percurso guiado · Avaliações interativas com imagens</strong>
+        <p>{storyboard.slides.reduce((n,s)=>n+(s.guidedActivity?.questions?.length||0),0)} questões contextualizadas, separadas das imagens dos slides.</p>
+        <p>{storyboard.guidedPath.assessmentImages !== false ? 'Será solicitada uma imagem IA por questão ao gerar o curso. Usa créditos e pode levar vários minutos. As imagens ficam no material de apoio, na biblioteca e no Banco; falhas de imagem não apagam questões.' : 'A geração de imagens das avaliações está desabilitada nesta configuração.'}</p>
+      </aside>}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <Image className="w-5 h-5 text-emerald-400" /> Configurar Mídia dos Slides
@@ -1451,7 +1456,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
           const mc = mediaConfig[String(idx)] || { type: 'ai_image' };
           const borderColor = !isContent ? 'border-slate-700/50'
             : mc.type === 'ai_image' ? 'border-emerald-600/40' : mc.type === 'gallery_image' ? 'border-amber-600/40' : mc.type === 'youtube' ? 'border-red-600/40' : mc.type === 'vimeo' ? 'border-blue-600/40' : mc.type === 'heygen' ? 'border-purple-600/40' : mc.type === 'kling' ? 'border-sky-600/40' : 'border-slate-700';
-          const typeLabel = { title: 'Capa', content: 'Conteúdo', quiz: 'Quiz', summary: 'Resumo' };
+          const typeLabel = { title: 'Capa', content: 'Conteúdo', quiz: 'Quiz', summary: 'Resumo', guided_activity:'Recurso do percurso' };
           const typeColor = { title: 'text-blue-400 border-blue-500/40', content: 'text-slate-400 border-slate-600', quiz: 'text-amber-400 border-amber-500/40', summary: 'text-purple-400 border-purple-500/40' };
 
           return (
@@ -1466,8 +1471,9 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
                 </div>
 
                 {slide.sourceImageOnly && <p className="rounded-lg border border-cyan-700/50 bg-cyan-950/30 p-3 text-sm text-cyan-100">Captura original preservada — será incorporada inteira ao slide, sem recriação nem créditos de imagem IA.</p>}
+                {slide.guidedActivity && <p className="rounded-lg border border-teal-700/50 bg-teal-950/30 p-3 text-sm text-teal-100">{slide.guidedActivity.questions ? 'As imagens de cada questão serão criadas como material de apoio na geração do curso, conforme a configuração do percurso. Não é necessário selecionar imagem de fundo para a avaliação.' : 'Recurso interativo estruturado do percurso, com apresentação própria. Confira seu conteúdo no Storyboard.'}</p>}
                 {/* Original screenshots use a fixed readable reference layout. */}
-                {!slide.sourceImageOnly && <SlideBackgroundPicker
+                {!slide.sourceImageOnly && !slide.guidedActivity && <SlideBackgroundPicker
                   slideIndex={idx}
                   bgConfig={bgConfig}
                   setBgConfig={setBgConfig}

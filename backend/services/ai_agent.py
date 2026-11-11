@@ -675,6 +675,9 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
     """
     if not isinstance(structure, dict):
         return structure
+    if config.get('visualCourseMode') == 'guided_practice_project':
+        from services.guided_path import plan_guided_path
+        return plan_guided_path(structure, config)
 
     balance = str(config.get("resourceBalance") or config.get("interactivity") or "media").lower()
     illustrated_journey = config.get("visualCourseMode") == "illustrated_journey"
@@ -917,6 +920,7 @@ CONFIGURAÇÃO:
 - Módulos: {config.get('modules', 3)}
 - Formato: {config.get('format', 'curso_completo')}
 - Estilo da experiência: {config.get('visualCourseMode', 'standard')}
+- Percurso guiado, quando selecionado: mantenha explicações completas e imagens originais. Organize unidades de aprendizagem com objetivos claros. As práticas, Avaliações interativas com imagens, projeto e avaliação final serão acrescentados como etapas editáveis. Não crie Quizzes tradicionais nesse modo nem substitua a fonte por atividades. Proponha um caso fictício coerente com o tema, sem regras de produto inventadas.
 
 CONTEÚDO BASE:
 {complete_source(content_text)}
@@ -1008,16 +1012,31 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
     for mod in structure.get("modules", []):
         for sl in mod.get("slides", []):
             flat_slides.append({**sl, "moduleName": mod.get("title", "")})
+    storyboard_batches = None
+    if structure.get('guidedPath'):
+        storyboard_batches = []
+        regular = []
+        for item in flat_slides:
+            if item.get('guidedRequest'):
+                storyboard_batches.extend(_build_storyboard_batches(regular, regular_batch_size=4))
+                regular = []
+                storyboard_batches.append([item])
+            else:
+                regular.append(item)
+        storyboard_batches.extend(_build_storyboard_batches(regular, regular_batch_size=4))
 
     # Full HTML interactives need a complete response budget of their own.
     # Regular slides remain grouped for speed and cost efficiency.
-    storyboard_batches = _build_storyboard_batches(flat_slides, regular_batch_size=4)
+    storyboard_batches = storyboard_batches or _build_storyboard_batches(flat_slides, regular_batch_size=4)
     total_batches = len(storyboard_batches)
     processed_slides = 0
     async def save_batch(index, source_batch, start):
         completed = all_slides[start:]
         from services.learning_complements import preserve_complement_metadata
         preserve_complement_metadata(completed, source_batch)
+        for item,source in zip(completed,source_batch):
+            for key in ('guidedStage','guidedUnitId'):
+                if key in source:item[key]=source[key]
         for item in completed:
             _normalize_interactive_storyboard_slide(item)
             _normalize_visual_content_slide(item)
@@ -1039,6 +1058,22 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
         if len(batch) == 1 and batch[0].get('sourceImageOnly'):
             all_slides.append({**batch[0], 'elements':[], 'notes':'Captura original da fonte; sem recriação por IA.', 'quizQuestions':[]})
             await save_batch(batch_num, batch, saved_start)
+            continue
+        if len(batch)==1 and batch[0].get('guidedRequest'):
+            from services.guided_path import generate_activity, activity_element
+            async def ask_guided(attempt, prompt):
+                provider,model=(PRIMARY_MODEL,FALLBACK_MODEL)[attempt]
+                chat=_new_chat(f'{session_id}_guided_{batch_start}_{attempt}',provider=provider,model=model)
+                return _extract_json(await asyncio.wait_for(chat.send_message(UserMessage(text=prompt)),timeout=150))
+            source=batch[0]
+            try:
+                spec=await generate_activity(source,structure['guidedPath'],
+                    complete_source(content_text) if source['guidedRequest'] in ('project','final') else batch_source(content_text,batch), ask_guided)
+            except Exception as exc:
+                raise StoryboardActivityError('recurso do percurso',source.get('title'),exc) from exc
+            all_slides.append({**source,'guidedActivity':spec,'elements':[activity_element(spec,960,540)],
+                               'notes':spec['instructions'],'quizQuestions':[]})
+            await save_batch(batch_num,batch,saved_start)
             continue
         batch_info = [{
             "id": s.get("id", ""),
@@ -1628,6 +1663,7 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
         "slides": all_slides,
         **({'sourceCoverage': dict(structure['sourceCoverage'], status='generated')} if structure.get('sourceCoverage') else {}),
         **({'learningComplements': structure['learningComplements']} if structure.get('learningComplements') else {}),
+        **({'guidedPath': structure['guidedPath']} if structure.get('guidedPath') else {}),
         "qualityProfile": "illustrated_journey" if illustrated_journey else "premium",
         **({"visualStoryBible": story_bible} if illustrated_journey else {}),
     }
@@ -3535,7 +3571,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
     ai_image_tasks = []
     for i, sb_slide in enumerate(slides_data):
         stype = sb_slide.get("type", "content")
-        if sb_slide.get('sourceImageOnly'):
+        if sb_slide.get('guidedActivity') or sb_slide.get('sourceImageOnly'):
             slide_media[i] = {'type':'none'}
             continue
         if stype not in ("content", "title"):
@@ -3801,7 +3837,11 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 })
                 slide_question_ids.append(qid)
 
-        if sb_slide.get('sourceImageOnly'):
+        if sb_slide.get('guidedActivity'):
+            from services.guided_path import activity_element
+            bg='#f4f8fc'
+            slide_elements=[activity_element(sb_slide['guidedActivity'])]
+        elif sb_slide.get('sourceImageOnly'):
             from services.docx_assets import reference_elements
             bg = '#f4f8fc'
             slide_elements = reference_elements(sb_slide, project_id)
@@ -4177,6 +4217,8 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             "sourceRefs": sb_slide.get('sourceRefs', []),
             "sourceImage": sb_slide.get('sourceImage'),
             "sourceImageOnly": bool(sb_slide.get('sourceImageOnly')),
+            "guidedUnitId": sb_slide.get('guidedUnitId'),
+            "guidedStage": sb_slide.get('guidedStage'),
             "isComplement": bool(sb_slide.get('isComplement')),
             "reinforcesSourceRefs": sb_slide.get('reinforcesSourceRefs', []),
             "learningRationale": sb_slide.get('learningRationale', ''),
@@ -4268,6 +4310,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             "playerTemplate": "visual_journey" if config.get("visualCourseMode") == "illustrated_journey" else "traditional",
             "visualStoryBible": storyboard.get("visualStoryBible", {}),
             "sourceCoverage": storyboard.get('sourceCoverage', {}),
+            **({'guidedPath':storyboard['guidedPath']} if storyboard.get('guidedPath') else {}),
         },
     }
 

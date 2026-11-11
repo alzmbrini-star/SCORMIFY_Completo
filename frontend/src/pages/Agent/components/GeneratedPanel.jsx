@@ -257,8 +257,13 @@ export default function GeneratedPanel({ project, navigate, sessionId }) {
       <p className="text-slate-400">{project.projectName}</p>
       <div className="flex justify-center gap-4">
         <Badge className="bg-emerald-600/20 text-emerald-300"><Layers className="w-3 h-3 mr-1" />{project.slidesCount} slides</Badge>
-        <Badge className="bg-amber-600/20 text-amber-300"><BarChart3 className="w-3 h-3 mr-1" />{project.quizCount} perguntas</Badge>
+        <Badge className="bg-amber-600/20 text-amber-300"><BarChart3 className="w-3 h-3 mr-1" />{(project.quizCount||0)+(project.assessmentQuestionCount||0)} perguntas</Badge>
       </div>
+      {project.assessmentImages && <aside role="status" className={`rounded-xl border p-4 text-left text-sm ${project.assessmentImages.failed ? 'border-amber-500/40 bg-amber-950/20 text-amber-100' : 'border-teal-500/40 bg-teal-950/30 text-teal-100'}`}>
+        <strong>Avaliações interativas com imagens</strong>
+        <p>{project.assessmentImages.ready} de {project.assessmentImages.total} imagens de apoio prontas e salvas na biblioteca.</p>
+        {project.assessmentImages.failed>0 && <p>{project.assessmentImages.failed} imagens não ficaram disponíveis. As questões foram preservadas. No Editor, dê duplo clique na avaliação e abra a questão para gerar ou anexar outra imagem. Aplique ao slide e salve o curso antes de exportar.</p>}
+      </aside>}
 
       {/* HeyGen Video Status */}
       <HeygenStatusCard enabled={project.heygenPending > 0} status={heygenStatus} busy={polling} onRefresh={checkHeygenStatus} />

@@ -88,7 +88,7 @@ function ExternalVideoInput({ media, onChange }) {
   </section>;
 }
 
-function QuestionForm({ value, onChange, onUpload, projectId }) {
+export function QuestionForm({ value, onChange, onUpload, projectId, saveHint='Salve a questão no Banco.' }) {
   const [imageTarget,setImageTarget]=useState(null);
   const imageFor=(kind,entry)=>setImageTarget({kind,id:entry?.id,key:`${value.id||'draft'}:${kind}:${entry?.id||'support'}`,
     label:kind==='support'?'Pergunta':`Alternativa: ${entry.text||'sem texto'}`,
@@ -96,7 +96,7 @@ function QuestionForm({ value, onChange, onUpload, projectId }) {
   const applyImage=media=>{
     const target=imageTarget;
     onChange(previous=>target.kind==='support'?{...previous,media}:{...previous,[target.kind]:previous[target.kind].map(entry=>entry.id===target.id?{...entry,media}:entry)});
-    setImageTarget(null);toast.success('Imagem associada. Salve a questão no Banco.');
+    setImageTarget(null);toast.success('Imagem associada. '+saveHint);
   };
   const set = (patch) => onChange({ ...value, ...patch });
   const updateOption = (index, patch) => set({ options: value.options.map((item, i) => i === index ? { ...item, ...patch } : item) });

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import GuidedPathPreview from './GuidedPathPreview';
 import { assessmentFrameDocument, assessmentFrameSandbox, assessmentFrameAllow } from '../assessment/assessmentFrame';
 import axios from 'axios';
 import { Button } from '../ui/button';
@@ -426,6 +427,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
                   )}
                   {element.type === 'html' && (
                     <iframe
+                      data-guided-id={element.guidedActivity?.id}
                       srcDoc={(() => {
                         if (element.assessmentConfig) return wrapInteractiveFullbleed(assessmentFrameDocument(element), element.htmlDisplayMode || 'fit');
                         const raw = processHtmlContent(element.htmlContent, projectId);
@@ -519,6 +521,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
       </div>
 
       {/* Controls */}
+      <GuidedPathPreview course={course} index={currentSlideIndex} onNavigate={onSlideChange}/>
       <div className="shrink-0 border-t border-white/10 bg-black/30">
         {/* Timeline progress */}
         <div data-testid="preview-timeline" className="h-0.5 bg-white/10 cursor-pointer" onClick={(e) => {

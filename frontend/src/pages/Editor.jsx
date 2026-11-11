@@ -136,6 +136,7 @@ import SplitPreview from '../components/editor/SplitPreview';
 import RichTextEditor from '../components/RichTextEditor';
 import QuizGenerator from '../components/quiz/QuizGenerator';
 import AssessmentBuilder from '../components/assessment/AssessmentBuilder';
+import GuidedActivityDialog from './Editor/dialogs/GuidedActivityDialog';
 import ScenarioCreator from '../components/scenario/ScenarioCreator';
 import GamificationPanel from '../components/editor/GamificationPanel';
 import LeonardoPanel from './Agent/components/LeonardoPanel';
@@ -337,6 +338,7 @@ export default function Editor() {
   const [timelineIsPlaying, setTimelineIsPlaying] = useState(false);
   const [showQuizDialog, setShowQuizDialog] = useState(false);
   const [showAssessmentDialog, setShowAssessmentDialog] = useState(false);
+  const [guidedEditTarget,setGuidedEditTarget]=useState(null);
   const [showEducationalGameDialog, setShowEducationalGameDialog] = useState(false);
   const [showScenarioDialog, setShowScenarioDialog] = useState(false);
   const [showGamificationPanel, setShowGamificationPanel] = useState(false);
@@ -1005,6 +1007,7 @@ export default function Editor() {
   // Add HTML element
   const openSimulatorEdit = element => {
     if (aiHtmlLoading) return;
+    if(element?.guidedActivity){setGuidedEditTarget({slideId:currentSlide.id,element});return;}
     if (!isSlideSimulator(element?.htmlContent)) { handleEditHtmlElement(element); return; }
     try {
       const html=refreshSimulatorPresentation(element.htmlContent);
@@ -2775,6 +2778,7 @@ export default function Editor() {
           onQuizCreated={handleQuizCreated}
         />
 
+        <GuidedActivityDialog target={guidedEditTarget} projectId={currentProject?.id} uploadMedia={uploadMedia} onClose={()=>setGuidedEditTarget(null)} onApply={async patch=>{await updateElement(guidedEditTarget.slideId,guidedEditTarget.element.id,patch);toast.success('Recurso atualizado no slide. Salve o curso para manter as alterações.');}}/>
         <AssessmentBuilder
           open={showAssessmentDialog}
           onOpenChange={setShowAssessmentDialog}

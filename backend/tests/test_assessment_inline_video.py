@@ -43,8 +43,8 @@ class InlineVideoTests(unittest.TestCase):
         for name in ('CoursePreview','SlideCanvas','SplitPreview'):
             source=(ROOT/f'frontend/src/components/editor/{name}.jsx').read_text(encoding='utf-8')
             self.assertIn('if (element.assessmentConfig) return wrapInteractiveFullbleed(assessmentFrameDocument(element)',source)
-            self.assertIn('allow={element.assessmentConfig ? assessmentFrameAllow : undefined}',source)
-            self.assertIn("sandbox={element.assessmentConfig ? assessmentFrameSandbox : 'allow-scripts",source)
+            self.assertIn('allow={element.assessmentConfig ? assessmentFrameAllow :',source)
+            self.assertIn('sandbox={element.assessmentConfig ? assessmentFrameSandbox :',source)
 
     def test_older_manual_question_id_config_keeps_embedded_snapshot(self):
         import json

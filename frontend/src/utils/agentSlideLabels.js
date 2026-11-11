@@ -4,6 +4,7 @@ const labels = {
   avatar_scene: 'Cena com avatar', infographic: 'Infográfico',
   flashcard: 'Cartões de revisão', timeline: 'Linha do tempo',
   case_study: 'Estudo de caso',
+  guided_activity: 'Recurso do percurso',
 };
 
 // Labels only: the API and generation engine retain their original type IDs.

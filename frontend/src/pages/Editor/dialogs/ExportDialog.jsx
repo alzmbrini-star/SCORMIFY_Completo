@@ -93,12 +93,13 @@ export function ExportDialog({
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   <div>
                     <span className="text-sm font-medium">Página Única (scroll vertical)</span>
-                    <p className="text-[10px] text-muted-foreground">Conteúdo em rolagem com seta gated por interações. Aplica a SCORM e HTML.</p>
+                    <p className="text-[10px] text-muted-foreground">{currentProject?.course?.metadata?.guidedPath ? 'Percurso guiado usa slides para preservar etapas e regras de conclusão; página única não se aplica.' : 'Conteúdo em rolagem com seta gated por interações. Aplica a SCORM e HTML.'}</p>
                   </div>
                 </div>
                 <Switch
                   data-testid="single-page-toggle"
-                  checked={!!currentProject?.singlePageMode}
+                  checked={!currentProject?.course?.metadata?.guidedPath && !!currentProject?.singlePageMode}
+                  disabled={!!currentProject?.course?.metadata?.guidedPath}
                   onCheckedChange={(newVal) => {
                     axios.put(`${getApiUrl()}/api/projects/${currentProject.id}`, { singlePageMode: newVal })
                       .then(() => fetchProject(currentProject.id))

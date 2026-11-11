@@ -348,6 +348,8 @@ async def _generate_standalone_html(
     """
     course = project.get('course', {})
     metadata = course.get('metadata', {})
+    from services.guided_path import course_plan
+    guided_plan = course_plan(course)
     slides = course.get('slides', [])
     global_audio = course.get('globalAudio')
     
@@ -654,7 +656,8 @@ async def _generate_standalone_html(
     course_data = {
         "metadata": metadata,
         "slides": processed_slides,
-        "globalAudio": processed_global_audio
+        "globalAudio": processed_global_audio,
+        "_guidedPlan": guided_plan,
     }
     
     # Resolve the branded loading overlay (title + accent color) from
@@ -770,6 +773,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     sanitized_data.pop("_loader", None)
     player_theme = course_data.get("_playerTheme") or {}
     sanitized_data.pop("_playerTheme", None)
+    guided_plan = sanitized_data.pop('_guidedPlan', None)
     
     for slide in ([] if output_path else sanitized_data.get('slides', [])):
         for element in slide.get('elements', []):
@@ -2448,7 +2452,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 }}
                                 // Full documents are page viewports by default. Fixed
                                 // 960x540 simulations may explicitly request fit mode.
-                                if (wrappedHtml.indexOf('__stage') === -1 && wrappedHtml.indexOf('video-quiz-data') === -1 && wrappedHtml.indexOf('data-sim-engine="didactic-visualization-v1"') === -1) {{
+                                if (!elem.guidedActivity && wrappedHtml.indexOf('__stage') === -1 && wrappedHtml.indexOf('video-quiz-data') === -1 && wrappedHtml.indexOf('data-sim-engine="didactic-visualization-v1"') === -1) {{
                                     var documentSnippet;
                                     var insertTag;
                                     if ((elem.htmlDisplayMode || 'page') === 'fit' && wrappedHtml.indexOf('data-sim-engine="finite-rules-v1"') === -1 && wrappedHtml.indexOf('data-sim-engine="entity-planning-v1"') === -1) {{
@@ -2516,7 +2520,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                     'body,body *{{text-shadow:' + elem.style.textShadow + '!important;}}' : '') +
                                 '</style></head><body>' + htmlContent + '</body></html>';
                             }}
-                            html += '<iframe srcdoc="' + wrappedHtml.replace(/"/g, '&quot;') + '" style="width:100%;height:100%;border:0;overflow:' + (isFullscreen ? 'hidden' : 'auto') + ';"></iframe>';
+                            html += '<iframe ' + (elem.guidedActivity ? 'data-guided-id="'+String(elem.guidedActivity.id).replace(/[^a-zA-Z0-9_-]/g,'')+'" ' : '') + 'srcdoc="' + wrappedHtml.replace(/"/g, '&quot;') + '" style="width:100%;height:100%;border:0;overflow:' + (isFullscreen ? 'hidden' : 'auto') + ';"></iframe>';
                         }}
                         else if (elem.type === 'flipbook' && elem.flipbookUrl) {{
                             var fbUrl = elem.flipbookUrl;
@@ -2983,6 +2987,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 }});
                 
                 // Update UI
+                if(window.ScormifyGuided)window.ScormifyGuided.slide(currentSlide);
                 document.getElementById('current-slide').textContent = currentSlide + 1;
                 updateProgress();
                 renderSidebar();
@@ -3822,6 +3827,8 @@ html,body{{background:{canvas}}}
     html = html.replace("</head>", branded_player_css + "</head>", 1)
     from services.export_navigation import install_navigation_window
     html = install_navigation_window(html)
+    from services.guided_path import install_guided_host
+    html = install_guided_host(html, sanitized_data, guided_plan)
     if output_path:
         return write_html_file(output_path, html, sanitized_data)
     return html

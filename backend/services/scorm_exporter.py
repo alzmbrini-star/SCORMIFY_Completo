@@ -1084,6 +1084,8 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         export_token=export_token,
     )
     
+    from services.guided_path import install_guided_host
+    html_content = install_guided_host(html_content, course_data)
     with open(package_dir / "index.html", 'w', encoding='utf-8') as f:
         f.write(html_content)
     
@@ -1103,6 +1105,9 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
         launch_href=f"index.html?v={export_token}",
         resource_files='\n            '.join(resource_files)
     )
+    if (course_data.get('metadata') or {}).get('guidedPath'):
+        threshold=int(course_data['metadata']['guidedPath'].get('passingScore',80))
+        manifest_content=manifest_content.replace('<adlcp:masteryscore>80</adlcp:masteryscore>',f'<adlcp:masteryscore>{threshold}</adlcp:masteryscore>')
     
     with open(package_dir / "imsmanifest.xml", 'w', encoding='utf-8') as f:
         f.write(manifest_content)

@@ -449,7 +449,7 @@ var CoursePlayer = (function() {
     }
     
     function gradedVideo(el) { var config=window.VideoQuizHost&&window.VideoQuizHost.configFor(el); return config&&config.graded===true?config:null; }
-    function isAssessment(el) { return (el.type||'').toLowerCase()==='quiz'||Boolean(el.assessmentConfig)||Boolean(gradedVideo(el)); }
+    function isAssessment(el) { if(course && course.metadata && course.metadata.guidedPath)return !!(el.guidedActivity&&el.guidedActivity.kind==='final');return (el.type||'').toLowerCase()==='quiz'||Boolean(el.assessmentConfig)||Boolean(gradedVideo(el)); }
     function loadCourse(courseData) {
         course = courseData;
         totalSlides = course.slides.length;
@@ -1114,6 +1114,7 @@ var CoursePlayer = (function() {
         updateSlideScale();
         
         // Update navigation
+        if(window.ScormifyGuided)window.ScormifyGuided.slide(index);
         updateNavigation();
         
         // Save position to SCORM
@@ -1160,6 +1161,12 @@ var CoursePlayer = (function() {
     
     // Central function to check if all interactive elements are done and set completion
     function checkAndSetCompletion() {
+        if(course.metadata && course.metadata.guidedPath){
+            if(!visitedLastSlide || !completionRequested || !window.ScormifyGuided || !window.ScormifyGuided.canComplete())return;
+            if(!window.ScormifyGuided.persist())return;
+            if(ScormAPI.setComplete())courseCompleted=!ScormAPI.getCompletionResult||ScormAPI.getCompletionResult().status!=='failed';
+            updateSidebar();updateNavigation();return;
+        }
         var quizzesComplete = Object.keys(completedQuizzes).length >= totalQuizzes;
         var scenariosComplete = Object.keys(completedScenarios).length >= totalScenarios;
         
@@ -1507,7 +1514,7 @@ var CoursePlayer = (function() {
                     // Full HTML added through the Editor is a real page viewport,
                     // not a tall screenshot squeezed into the element. Fixed-stage
                     // simulations may explicitly opt into "fit".
-                    if (wrappedHtml.indexOf('__stage') === -1 &&
+                    if (!element.guidedActivity && wrappedHtml.indexOf('__stage') === -1 &&
                         wrappedHtml.indexOf('video-quiz-data') === -1 &&
                         wrappedHtml.indexOf('__scormify_page_mode') === -1 &&
                         (element.htmlDisplayMode || 'page') !== 'fit') {
@@ -1525,7 +1532,7 @@ var CoursePlayer = (function() {
                         } else {
                             wrappedHtml += pageViewportStyle;
                         }
-                    } else if (wrappedHtml.indexOf('__stage') === -1 &&
+                    } else if (!element.guidedActivity && wrappedHtml.indexOf('__stage') === -1 &&
                                wrappedHtml.indexOf('video-quiz-data') === -1 &&
                                wrappedHtml.indexOf('data-sim-engine="finite-rules-v1"') === -1 &&
                                wrappedHtml.indexOf('data-sim-engine="entity-planning-v1"') === -1 &&
@@ -1589,16 +1596,17 @@ var CoursePlayer = (function() {
                         'body,body *{text-shadow:' + element.style.textShadow + '!important;}' : '') +
                     '</style></head><body>' + htmlContent + '</body></html>';
                 }
+                if(element.guidedActivity)htmlIframe.dataset.guidedId=element.guidedActivity.id;
                 htmlIframe.srcdoc = wrappedHtml;
                 htmlIframe.style.cssText = 'width:100%!important;height:100%!important;border:none!important;background:transparent!important;overflow:' + (isHtmlFullscreen ? 'hidden' : 'auto') + '!important;display:block!important;';
-                htmlIframe.sandbox = element.assessmentConfig
+                htmlIframe.sandbox = element.assessmentConfig || element.guidedActivity
                     ? 'allow-scripts allow-same-origin allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals'
                     : 'allow-scripts allow-same-origin';
                 if (element.assessmentConfig) {
                     htmlIframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
                     htmlIframe.allowFullscreen = true;
                     window.addEventListener('message',function(event){
-                        if(event.source!==htmlIframe.contentWindow || !event.data)return;
+                        if(event.source!==htmlIframe.contentWindow || !event.data || element.assessmentConfig.guidedPath)return;
                         if(event.data.type==='scormify-assessment-result' && typeof event.data.score==='number' && isFinite(event.data.score) && event.data.score>=0 && event.data.score<=100)onQuizComplete(element.id,event.data.score);
                         if(event.data.type==='scormify-assessment-retry')onQuizRetry(element.id);
                     });
@@ -2084,6 +2092,9 @@ var CoursePlayer = (function() {
             updateProgress();
             if (typeof AiTutor !== 'undefined') AiTutor.onSlideChange(currentSlide);
         } else if (currentSlide === totalSlides - 1 && !courseCompleted) {
+            if(course.metadata && course.metadata.guidedPath && (!window.ScormifyGuided || !window.ScormifyGuided.canComplete())){
+                if(window.ScormifyGuided)window.ScormifyGuided.showPending();return;
+            }
             var previousResult=ScormAPI.getCompletionResult && ScormAPI.getCompletionResult();
             if(previousResult && previousResult.status==='failed' && ScormAPI.getResults){
                 var scores=ScormAPI.getResults();
@@ -2159,7 +2170,12 @@ var CoursePlayer = (function() {
     
     // Use the same assessment IDs that gate course completion, never position
     // alone: visiting or skipping a quiz is not completing it.
+    document.addEventListener('scormify-guided-change',function(){if(course && course.metadata && course.metadata.guidedPath){updateProgress();updateSidebar();updateNavigation();}});
     function slideCompletionState(index) {
+        if(course.metadata && course.metadata.guidedPath && window.ScormifyGuided){
+            var guided=window.ScormifyGuided.slideState(course.slides[index].id);
+            if(guided&&guided.stage!=='reinforcement')return {kind:guided.done?'completed':'quiz-pending',label:guided.done?'✓ Etapa concluída':'○ Etapa pendente'};
+        }
         var assessments = (course.slides[index].elements || []).filter(isAssessment);
         var pending = assessments.filter(function(el) { return !completedQuizzes[el.id]; }).length;
         if (pending) return {kind: 'quiz-pending', label: '⚠ Quiz pendente (' + pending + '/' + assessments.length + ')'};
@@ -2450,6 +2466,7 @@ var CoursePlayer = (function() {
         onScenarioComplete: onScenarioComplete,
         // Final check before page unload - ensures completion is set if all activities are done
         finalCompletionCheck: function() {
+            if(course && course.metadata && course.metadata.guidedPath){checkAndSetCompletion();return;}
             var quizzesComplete = Object.keys(completedQuizzes).length >= totalQuizzes;
             
             console.log('[Player] Final completion check before unload:', {

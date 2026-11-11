@@ -114,6 +114,9 @@ export default function Agent() {
     title: '', depth: 'intermediario', duration: 30, modules: 3,
     interactivity: 'media', visualStyle: 'moderno e profissional',
     visualCourseMode: 'standard',
+    guidedQuestionsPerUnit: 3, guidedFinalQuestionCount: 12,
+    guidedUnitPassingScore: 100, guidedPassingScore: 80,
+    guidedAssessmentImages: true, guidedProjectRequired: true, guidedConfirmReading: true,
     simulatorComplexity: 'guided', simulatorVisualStyle: 'illustrated',
     format: 'curso_completo', description: '',
     narrationEnabled: false, narrationVoiceId: '',
@@ -917,11 +920,13 @@ export default function Agent() {
     const klingCount = Object.values(mediaConfig).filter(m => m.type === 'kling').length;
     const vidCount = Object.values(mediaConfig).filter(m => m.type === 'youtube' || m.type === 'vimeo').length;
     const slideCount = storyboard?.slides?.length || 0;
+    const assessmentImageCount = storyboard?.guidedPath?.assessmentImages !== false ? (storyboard?.slides||[]).reduce((n,s)=>n+(s.guidedActivity?.questions?.length||0),0) : 0;
 
     setGenerationPhases([
       { id: 'init', label: 'Iniciando geração do curso', status: 'active', icon: 'rocket' },
       { id: 'slides', label: `Gerando ${slideCount} slides com IA`, status: 'pending', icon: 'layers' },
       ...(aiCount > 0 ? [{ id: 'images', label: `Criando ${aiCount} imagens com IA`, status: 'pending', icon: 'image', total: aiCount, completed: 0 }] : []),
+      ...(assessmentImageCount > 0 ? [{id:'assessment-images',label:`Criando ${assessmentImageCount} imagens das avaliações interativas`,status:'pending',icon:'image',total:assessmentImageCount,completed:0}] : []),
       { id: 'save', label: 'Salvando e finalizando projeto', status: 'pending', icon: 'save' },
     ]);
 
@@ -945,7 +950,7 @@ export default function Agent() {
       // Poll for completion
       const pollStatus = async () => {
         let lastProgressMsg = '';
-        for (let i = 0; i < 360; i++) {
+        for (let i = 0; i < (assessmentImageCount > 0 ? 17280 : 360); i++) {
           await new Promise(r => setTimeout(r, 5000));
           try {
             const statusRes = await fetchRetry(`${API}/api/agent/sessions/${sessionId}/course-status`, { headers: authHeaders() }, 2);
@@ -962,6 +967,10 @@ export default function Agent() {
                   next.forEach(p => { if (p.id === 'init') p.status = 'done'; });
                   const sp = next.find(p => p.id === 'slides');
                   if (sp) sp.status = 'active';
+                } else if (msg.includes('imagens das avaliações interativas')) {
+                  next.forEach(p=>{if(['init','slides','images'].includes(p.id))p.status='done';});
+                  const phase=next.find(p=>p.id==='assessment-images');
+                  if(phase){phase.status='active';const match=statusData.message.match(/(\d+)\/(\d+)/);if(match){phase.completed=Number(match[1]);phase.total=Number(match[2]);}}
                 } else if (msg.includes('imagens ia') || msg.includes('gerando imagens')) {
                   next.forEach(p => { if (p.id === 'init' || p.id === 'slides') p.status = 'done'; });
                   const ip = next.find(p => p.id === 'images');
@@ -986,7 +995,7 @@ export default function Agent() {
               const heygenMsg = statusData.heygenPending > 0 ? ` ${statusData.heygenPending} vídeos HeyGen em processamento.` : '';
               const klingMsg = statusData.klingPending > 0 ? ` ${statusData.klingPending} cenas Kling em processamento.` : '';
               const narrationMsg = statusData.narrationPending > 0 ? ` ${statusData.narrationPending} narrações em geração.` : '';
-              addChatMsg('agent', `Curso "${statusData.projectName}" criado! ${statusData.slidesCount} slides e ${statusData.quizCount} perguntas.${heygenMsg}${klingMsg}${narrationMsg}`);
+              addChatMsg('agent', `Curso "${statusData.projectName}" criado! ${statusData.slidesCount} slides e ${(statusData.quizCount||0)+(statusData.assessmentQuestionCount||0)} perguntas.${heygenMsg}${klingMsg}${narrationMsg}${statusData.assessmentImages?.failed ? ` Atenção: ${statusData.assessmentImages.failed} imagens de questões não foram geradas; as questões foram preservadas.` : ''}`);
               setTimeout(() => { setCurrentStep(6); setGenerationPhases([]); }, 1500);
               toast.success('Curso gerado com sucesso!');
               return;

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import GuidedPathPreview from './GuidedPathPreview';
 import { assessmentFrameDocument, assessmentFrameSandbox, assessmentFrameAllow } from '../assessment/assessmentFrame';
 import axios from 'axios';
 import { Button } from '../ui/button';
@@ -895,6 +896,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                 {/* HTML */}
                 {element.type === 'html' && (
                   <iframe
+                    data-guided-id={element.guidedActivity?.id}
                     srcDoc={(() => {
                       if (element.assessmentConfig) return wrapInteractiveFullbleed(assessmentFrameDocument(element), element.htmlDisplayMode || 'fit');
                       const raw = processHtmlContent(element.htmlContent, projectId);
@@ -1117,6 +1119,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
       </div>
       
       {/* Controls Bar */}
+      <GuidedPathPreview course={course} index={currentSlideIndex} onNavigate={goToSlide}/>
       <div className="h-20 bg-black/50 backdrop-blur-sm border-t border-white/10 flex flex-col">
         {/* Progress Bar */}
         <div data-testid="preview-timeline" className="h-1 bg-white/10 relative cursor-pointer" onClick={(e) => {

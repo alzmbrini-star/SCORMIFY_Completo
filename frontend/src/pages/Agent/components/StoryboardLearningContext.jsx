@@ -1,6 +1,12 @@
 import React from 'react';
 
 export default function StoryboardLearningContext({slide}) {
+  if(slide.guidedActivity) return <aside className="rounded-lg border border-teal-500/40 bg-teal-950/40 p-3 text-sm text-teal-100" data-testid="guided-storyboard-resource">
+    <strong>{{practice:'Prática orientada com cartões de revisão',assessment:'Avaliação interativa da unidade',final:'Avaliação interativa final',project:'Projeto integrador com autoverificação'}[slide.guidedActivity.kind]}</strong>
+    <p>{slide.guidedActivity.instructions}</p>
+    {slide.guidedActivity.questions && <p>{slide.guidedActivity.questions.length} questões no mesmo player de Avaliações interativas do Editor. Imagens de apoio serão geradas na etapa Gerar curso, se habilitadas, consumindo créditos e ficando disponíveis na biblioteca.</p>}
+    {slide.guidedActivity.deliverables && <p>{slide.guidedActivity.deliverables.length} entregas com critérios de revisão. Os textos não são avaliados automaticamente nem enviados ao instrutor pelo LMS.</p>}
+  </aside>;
   if (slide.sourceImageOnly) return (
     <aside className="rounded-lg border border-sky-500/40 bg-sky-950/50 p-3 text-sm text-sky-100" data-testid="storyboard-original-image">
       <strong>Imagem original preservada</strong>
