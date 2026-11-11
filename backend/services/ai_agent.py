@@ -49,6 +49,7 @@ async def _get_motor_db():
 
 from services.llm_config import openai_api_key, simulator_generation_config
 from services.generation_errors import StoryboardActivityError
+from services.source_coverage import complete_source, source_contract, source_sections, ensure_coverage, batch_source
 
 OPENAI_KEY = openai_api_key()
 
@@ -81,7 +82,7 @@ def _new_chat(session_id: str, provider: str = None, model: str = None) -> LlmCh
         api_key=OPENAI_KEY,
         session_id=session_id,
         system_message=SYSTEM_PROMPT,
-    ).with_model(p, m)
+    ).with_model(p, m).with_params(max_tokens=16000)
 
 
 SIMULATOR_DESIGN_PROMPT = """
@@ -472,7 +473,9 @@ async def analyze_content(session_id: str, content_text: str, file_info: str = "
 {f'Informação do arquivo: {file_info}' if file_info else ''}
 
 CONTEÚDO:
-{content_text[:12000]}
+{complete_source(content_text)}
+
+{source_contract(content_text)}
 
 Retorne APENAS o JSON dentro de ```json```."""
 
@@ -483,6 +486,13 @@ Retorne APENAS o JSON dentro de ```json```."""
             response = await chat.send_message(UserMessage(text=prompt))
             data = _extract_json(response)
             if data:
+                sections = source_sections(content_text)
+                if sections:
+                    data['mainTopics'] = [s['title'] for s in sections]
+                    data['suggestedModules'] = max(int(data.get('suggestedModules') or 1), len(sections))
+                    data['sourceCoverage'] = {'sections': len(sections), 'items': sum(len(s['items']) for s in sections)}
+                hours = re.search(r'carga\s+hor[aá]ria\s*(?:\||:)\s*(\d+)\s*(?:horas|h)\b', content_text, re.I)
+                if hours: data['estimatedDuration'] = int(hours.group(1)) * 60
                 return data
         except Exception as e:
             logger.warning(f"Analyze with {provider}/{model} failed: {str(e)[:80]}")
@@ -493,11 +503,11 @@ Retorne APENAS o JSON dentro de ```json```."""
     return {
         "title": fallback_title,
         "summary": (fallback_parts[0] if fallback_parts else f"Curso introdutório sobre {fallback_title}."),
-        "mainTopics": fallback_parts[:6],
+        "mainTopics": [s['title'] for s in source_sections(content_text)] or fallback_parts,
         "targetAudience": "Público geral",
         "difficulty": "intermediario",
         "estimatedDuration": 30,
-        "suggestedModules": 3,
+        "suggestedModules": len(source_sections(content_text)) or 3,
         "gaps": [],
         "strengths": [],
         "keywords": [word.lower() for word in re.findall(r"[A-Za-zÀ-ÿ]{5,}", fallback_title)[:6]],
@@ -708,6 +718,8 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
                 break
             if slide.get("type") != "content":
                 continue
+            if slide.get('sourceRequired'):
+                continue  # Teaching a required item cannot be replaced by a game quota.
             previous_type = candidates[index - 1].get("type") if index else ""
             next_type = enabled_types[global_cursor % len(enabled_types)]
             global_cursor += 1
@@ -724,12 +736,14 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
         # A checked "Jogos Educativos" must be visible in the Structure step,
         # not silently represented as a simulator. For balanced+ courses place
         # one real game in every module that has enough instructional slides.
-        if enabled.get("game") and balance != "baixa" and len(candidates) >= 2:
+        if enabled.get("game") and balance != "baixa" and len(candidates) >= 2 and any(not s.get('sourceRequired') and s.get('type') not in ('quiz', 'scenario') for s in candidates):
             if not any(slide.get("type") == "game" for slide in candidates):
                 game_slide = next(
-                    (slide for slide in reversed(candidates) if slide.get("type") not in ("quiz", "scenario")),
-                    candidates[-1],
+                    (slide for slide in reversed(candidates) if not slide.get('sourceRequired') and slide.get("type") not in ("quiz", "scenario")),
+                    None,
                 )
+                if game_slide is None:
+                    continue
                 game_slide["type"] = "game"
                 game_slide["gameMechanic"] = _required_game_mechanic(game_slide)
                 game_slide["purpose"] = (
@@ -895,7 +909,9 @@ CONFIGURAÇÃO:
 - Estilo da experiência: {config.get('visualCourseMode', 'standard')}
 
 CONTEÚDO BASE:
-{content_text[:10000]}
+{complete_source(content_text)}
+
+{source_contract(content_text)}
 
 Retorne um JSON com a estrutura:
 ```json
@@ -916,6 +932,7 @@ Retorne um JSON com a estrutura:
           "title": "Título do Slide",
           "type": "{available_types}",
           "purpose": "Breve descrição do objetivo deste slide",
+          "sourceRefs": ["SRC001.I001"],
           "estimatedDuration": 30
         }}
       ]
@@ -949,19 +966,23 @@ REGRAS GERAIS:
             response = await chat.send_message(UserMessage(text=prompt))
             data = _extract_json(response)
             if data:
-                return _premiumize_course_structure(data, config)
+                return _premiumize_course_structure(ensure_coverage(data, content_text), config)
         except Exception as e:
             last_error = str(e)
             logger.warning(f"Structure with {provider}/{model} failed: {str(e)[:80]}")
             continue
     logger.warning("Using deterministic structure fallback for session %s", session_id)
-    return _premiumize_course_structure(_build_fallback_structure(content_text, config, last_error), config)
+    return _premiumize_course_structure(ensure_coverage(_build_fallback_structure(content_text, config, last_error), content_text), config)
 
 
 async def generate_storyboard(session_id: str, content_text: str, structure: dict, config: dict, progress_callback=None, checkpoint_store=None) -> dict:
     """Step 3: Generate detailed storyboard - processes slides in batches to avoid timeouts."""
     from services.agent_language import normalize_structure_language
     structure = normalize_structure_language(structure, config)
+    planned = ensure_coverage(structure, content_text)
+    original_count = sum(len(m.get('slides', [])) for m in structure.get('modules', []))
+    if planned.get('totalSlides', original_count) > original_count:
+        raise StoryboardActivityError('conteúdo', 'Cobertura da ementa', ValueError('A estrutura aprovada não distribui todos os itens do material. Gere novamente a Estrutura para revisar o escopo completo antes do Storyboard.'))
     if config.get('simulatorsAllowed') is False:
         from services.simulator_permissions import restrict_structure
         structure=restrict_structure(structure,{'permissions':{'createSimulators':False}})
@@ -1008,6 +1029,7 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
             "type": s.get("type", "content"),
             "purpose": s.get("purpose", ""),
             "moduleName": s.get("moduleName", ""),
+            "sourceRefs": s.get('sourceRefs', []),
             "experienceIntent": s.get("experienceIntent", ""),
             "contentBudgetWords": s.get("contentBudgetWords", 70),
             "narrativeBeat": s.get("narrativeBeat", ""),
@@ -1034,7 +1056,7 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
                 chat = _new_chat(f'{session_id}_game_plan_{batch_start}_{attempt}', provider=provider, model=model)
                 return _extract_json(await chat.send_message(UserMessage(text=game_prompt)))
             source = dict(batch[0], gameMechanic=_required_game_mechanic(batch[0]))
-            all_slides.append(await plan_game(source, content_text, config, ask_game_plan))
+            all_slides.append(await plan_game(source, batch_source(content_text, batch), config, ask_game_plan))
             await save_batch(batch_num, batch, saved_start)
             continue
 
@@ -1043,7 +1065,7 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
             from services.simulator_diagnostics import simulator_request
             source = batch[0]
             try:
-                simulator_prompt, simulator_context = simulator_request(source, content_text, config)
+                simulator_prompt, simulator_context = simulator_request(source, batch_source(content_text, batch), config)
                 generated = await generate_visual_simulator(
                     simulator_prompt, simulator_context,
                     f"{session_id}_visual_simulator_{batch_start}",
@@ -1067,7 +1089,7 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
                 generated = await generate_case_study(
                     json.dumps({"slide": source, "courseTitle": config.get("title"),
                                 "audience": config.get("audience"), "depth": config.get("depth")}, ensure_ascii=False),
-                    content_text, _resilient_send, f"{session_id}-case-{batch_start}")
+                    batch_source(content_text, batch), _resilient_send, f"{session_id}-case-{batch_start}")
             except Exception as exc:
                 raise StoryboardActivityError('estudo de caso', source.get('title'), exc) from exc
             spec = generated["spec"]
@@ -1083,7 +1105,13 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
 Nível do curso: {config.get('depth', 'intermediario')}
 
 CONTEÚDO-BASE COMPLETO para referência:
-{content_text[:6000]}
+{batch_source(content_text, batch)}
+
+DESENVOLVIMENTO OBRIGATÓRIO:
+Explique o funcionamento, decisões, campos e cuidados dos itens de sourceRefs; citar o título não basta.
+Não invente telas ou regras ausentes da fonte. Diferencie regras do produto de propostas didáticas.
+Use 70–140 palavras visíveis por slide de conteúdo, com exemplo concreto e orientação prática.
+O restante pode ir às notas, mas não substitua o conteúdo principal por instruções ao professor.
 
 INTERATIVIDADE CONFIGURADA: {config.get('resourceBalance', config.get('interactivity', 'media'))}
 MODO VISUAL: {config.get('visualCourseMode', 'standard')}
@@ -1132,7 +1160,7 @@ Retorne JSON:
 REGRAS CRÍTICAS DE QUALIDADE:
 
 SLIDES DE CONTEÚDO (type="content"):
-- LIMITE de 45 a 70 palavras visíveis por slide; a profundidade adicional pertence à narração
+- Busque 70 a 140 palavras visíveis por slide, preservando os itens atribuídos. Não transforme uma explicação em frases genéricas para atender à diagramação; distribua os conceitos em mais telas na estrutura.
 - Uma única mensagem central por slide, expressa por título curto + no máximo 3 pontos ou cards
 - Transforme listas longas em composição visual: comparação, processo, diagrama, métrica, citação ou exemplo anotado
 - Inclua pelo menos um artefato visual útil: número em destaque, ícone contextual, fluxo, escala, matriz, antes/depois ou imagem com legenda
@@ -1401,6 +1429,13 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                             slide_data["moduleName"] = batch[j].get("moduleName", "")
                         if j < len(batch):
                             source_slide = batch[j]
+                            for key in ('sourceRefs', 'sourceExcerpt', 'sourceRequired'):
+                                if key in source_slide: slide_data[key] = source_slide[key]
+                            if source_slide.get('sourceRequired') and source_slide.get('type') == 'content':
+                                slide_data['type'] = 'content'
+                                visible = ' '.join(str(e.get('content') or e.get('htmlContent') or '') for e in slide_data.get('elements', []) if isinstance(e, dict))
+                                if len(_visible_words(visible)) < 30 or any(marker in visible for marker in ('Compreenda a ideia central de', 'Conecte o conceito a uma situação real')):
+                                    raise ValueError('Desenvolva os itens da fonte com explicação e exemplo, não apenas títulos ou orientações genéricas.')
                             if source_slide.get('id'):
                                 slide_data['id'] = source_slide['id']
                             if illustrated_journey:
@@ -1467,6 +1502,8 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
 
         # If batch failed, use fallback content
         if not batch_success:
+            if any(sl.get('sourceRequired') for sl in batch):
+                raise StoryboardActivityError('conteúdo', batch[0].get('title'), ValueError('A IA não desenvolveu os itens obrigatórios deste lote. Os lotes anteriores foram preservados; tente retomar. Não foi inserido conteúdo genérico no lugar da ementa.'))
             if quality_type == "simulator":
                 raise RuntimeError(f"SIMULATOR_FAILED: {provider} nao conseguiu gerar um simulador valido. Tente novamente e verifique a chave, a cota e o faturamento do provedor configurado.")
             for sl in batch:
@@ -1568,6 +1605,7 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
         _normalize_visual_content_slide(slide)
     return {
         "slides": all_slides,
+        **({'sourceCoverage': dict(structure['sourceCoverage'], status='generated')} if structure.get('sourceCoverage') else {}),
         "qualityProfile": "illustrated_journey" if illustrated_journey else "premium",
         **({"visualStoryBible": story_bible} if illustrated_journey else {}),
     }
@@ -2873,14 +2911,14 @@ def _build_simulator_fallback_html(sb_slide: dict) -> str:
 def _game_question_reference(slide: dict, slides: list, config: dict) -> str:
     original = str(config.get('_courseSourceText') or '').strip()
     if len(original) >= 80:
-        return original[:10000]
+        return batch_source(original, [slide])
     """Use teaching content, never another game's HTML or the global bank."""
     module = slide.get("moduleName")
     candidates = [item for item in slides if item.get("type") not in {"game", "quiz", "simulator", "case_study"}]
     local = [item for item in candidates if module and item.get("moduleName") == module]
     selected = local or candidates
     parts = [_slide_plain_text(item) for item in selected]
-    reference = "\n".join(part for part in parts if part).strip()[:10000]
+    reference = complete_source("\n".join(part for part in parts if part))
     if len(reference) < 80:
         raise ValueError("O game precisa de conteúdo didático do curso para gerar perguntas contextualizadas. Revise o storyboard antes de gerar.")
     return reference
@@ -3321,7 +3359,7 @@ def _normalize_visual_content_slide(slide: dict) -> dict:
         len(_visible_words(element.get("content") or element.get("htmlContent") or ""))
         for element in text_elements
     )
-    if not text_elements or visible_count < 12 or visible_count > 85:
+    if not text_elements or visible_count < 12:
         slide["elements"] = [{
             "type": "text",
             "content": _build_visual_content_fallback_html(slide),
@@ -3330,6 +3368,9 @@ def _normalize_visual_content_slide(slide: dict) -> dict:
             "height": 620,
         }]
         slide["qualityAdjusted"] = "visual-density"
+    elif visible_count > 85:
+        # Density is a layout concern, not permission to erase the lesson.
+        slide['layoutReview'] = 'Conteúdo preservado; revise divisão em telas e legibilidade.'
     slide["contentBudgetWords"] = 70
     return slide
 
@@ -4104,6 +4145,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             "librasScript": sb_slide.get("librasScript", ""),
             "moduleName": sb_slide.get("moduleName", ""),
             "contentType": stype,
+            "sourceRefs": sb_slide.get('sourceRefs', []),
             "gameQuestionIds": sb_slide.get("gameQuestionIds", []) if stype == "game" else [],
             "gameMechanic": (
                 sb_slide.get("gameMechanic")
@@ -4191,6 +4233,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             "visualCourseMode": config.get("visualCourseMode", "standard"),
             "playerTemplate": "visual_journey" if config.get("visualCourseMode") == "illustrated_journey" else "traditional",
             "visualStoryBible": storyboard.get("visualStoryBible", {}),
+            "sourceCoverage": storyboard.get('sourceCoverage', {}),
         },
     }
 
@@ -4816,7 +4859,9 @@ CONFIGURAÇÃO:
 - Formato: {config.get('format', template['defaultConfig']['format'])}
 
 CONTEÚDO BASE:
-{content_text[:6000]}
+{complete_source(content_text)}
+
+{source_contract(content_text)}
 
 Retorne JSON com a estrutura completa:
 ```json
@@ -4848,7 +4893,7 @@ Quando Simuladores estiver habilitado, inclua pelo menos 1 slide type="simulator
     from services.agent_language import language_instruction
     prompt += '\n\n' + language_instruction(config)
     response = await chat.send_message(UserMessage(text=prompt))
-    return _premiumize_course_structure(_extract_json(response) or {}, config)
+    return _premiumize_course_structure(ensure_coverage(_extract_json(response) or {}, content_text), config)
 
 
 # ========== IMAGE SUGGESTIONS ==========

@@ -1805,6 +1805,10 @@ function StructurePanel({ structure, loading, onApprove, progressMsg }) {
   return (
     <div className="space-y-4" data-testid="structure-panel">
       <h2 className="text-lg font-semibold flex items-center gap-2"><Layers className="w-5 h-5 text-emerald-400" /> Estrutura do Curso</h2>
+      {structure.sourceCoverage && <div className="rounded-lg border border-cyan-800 bg-cyan-950/40 p-3 text-sm text-cyan-100" data-testid="source-coverage-summary">
+        <strong>Escopo do material: {structure.sourceCoverage.sections} seções · {structure.sourceCoverage.items} itens distribuídos.</strong>
+        <p>Revise as telas antes de aprovar. A quantidade de módulos e a duração são metas, não permissão para omitir assuntos. Este indicador verifica o planejamento, não certifica a profundidade do conteúdo.</p>
+      </div>}
       <Card className="bg-slate-900/50 border-slate-800">
         <CardContent className="p-4 space-y-2">
           <h3 className="font-semibold text-emerald-400">{structure.courseTitle}</h3>

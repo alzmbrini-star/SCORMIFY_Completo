@@ -9,7 +9,6 @@ import { Badge } from '../../../components/ui/badge';
 import { ScrollArea } from '../../../components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
 import { AnimPreviewButton } from '../../../components/AnimPreviewButton';
-import { Slider } from '../../../components/ui/slider';
 import { Checkbox } from '../../../components/ui/checkbox';
 import { toast } from 'sonner';
 import SimulatorExperienceOptions from '../../../components/SimulatorExperienceOptions';
@@ -240,12 +239,14 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
               )}
             </div>
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">Duração alvo: {config.duration} minutos</label>
-              <Slider value={[config.duration]} onValueChange={([v]) => update('duration', v)} min={5} max={120} step={5} className="mt-2" />
+              <label className="text-xs text-slate-400 mb-1 block" htmlFor="agent-duration">Duração alvo em minutos</label>
+              <Input id="agent-duration" type="number" min={5} max={10080} step={5} value={config.duration} onChange={e=>update('duration',Number(e.target.value))} />
+              <p className="text-xs text-slate-400 mt-1">Inclua oficinas e atividades práticas na estimativa. A duração não autoriza omitir assuntos nem corresponde ao tempo automático do player.</p>
             </div>
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">Módulos: {config.modules}</label>
-              <Slider value={[config.modules]} onValueChange={([v]) => update('modules', v)} min={1} max={12} step={1} className="mt-2" />
+              <label className="text-xs text-slate-400 mb-1 block" htmlFor="agent-modules">Quantidade sugerida de módulos</label>
+              <Input id="agent-modules" type="number" min={1} max={100} step={1} value={config.modules} onChange={e=>update('modules',Number(e.target.value))} />
+              <p className="text-xs text-slate-400 mt-1">A estrutura pode precisar de mais telas para desenvolver todo o material.</p>
             </div>
           </CardContent>
         </Card>

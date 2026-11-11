@@ -83,7 +83,7 @@ def test_premium_content_receives_a_contextual_image_brief():
     assert "no written text" in prompt
 
 
-def test_text_heavy_slide_is_converted_to_visual_cards():
+def test_text_heavy_slide_preserves_instruction_instead_of_generic_visual_cards():
     verbose = " ".join(["explicação detalhada do conceito e sua aplicação prática"] * 25)
     slide = {
         "type": "content",
@@ -94,8 +94,9 @@ def test_text_heavy_slide_is_converted_to_visual_cards():
 
     result = _normalize_visual_content_slide(slide)
 
-    assert result["qualityAdjusted"] == "visual-density"
-    assert 'data-visual-pattern="insight-cards"' in result["elements"][0]["content"]
+    assert result['layoutReview']
+    assert verbose in result['elements'][0]['content']
+    assert 'data-visual-pattern="insight-cards"' not in result["elements"][0]["content"]
     assert result["contentBudgetWords"] == 70
 
 

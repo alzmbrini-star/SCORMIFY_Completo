@@ -566,6 +566,9 @@ async def get_owned_agent_draft(session_id: str, user: dict = Depends(require_ag
 async def agent_upload_content(session_id: str, request: Request, file: UploadFile = File(None), text: str = Form(None), url: str = Form(None), user: dict = Depends(require_agent_access)):
     """Upload content to agent session (file, text, or URL).
 
+    Extraction preserves document order. Source-first analysis and structure
+    planning do not silently discard the ending of the submitted material.
+
     For PDFs: the raw bytes are saved to GridFS and the heavy extraction
     (image extraction + OCR + gallery preparation) is processed in a
     background task to avoid 504/520 gateway timeouts. The client polls
@@ -622,7 +625,8 @@ async def _agent_upload_content_impl(session_id: str, request, file, text, url, 
                     # Clean up excessive whitespace
                     import re as _re
                     content_text = _re.sub(r'\n{3,}', '\n\n', content_text).strip()
-                    content_text = content_text[:50000]  # Limit
+                    # Preserve the source; analysis enforces an explicit size
+                    # limit instead of silently losing the document's ending.
                 else:
                     content_text = f"[Erro ao acessar URL: HTTP {resp.status_code}]"
         except Exception as e:
@@ -653,7 +657,7 @@ async def _agent_upload_content_impl(session_id: str, request, file, text, url, 
                     t = page.extract_text()
                     if t:
                         pages.append(t)
-                content_text = "\n\n".join(pages)[:20000]
+                content_text = "\n\n".join(pages)
             except Exception as e:
                 logger.warning(f"PyPDF2 fast extraction failed: {e}")
                 content_text = ""
@@ -661,17 +665,8 @@ async def _agent_upload_content_impl(session_id: str, request, file, text, url, 
         elif ext in ("docx",):
             # Native DOCX extraction
             try:
-                from docx import Document
-                import io as _io
-                doc = Document(_io.BytesIO(file_bytes))
-                paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
-                # Also extract from tables
-                for table in doc.tables:
-                    for row in table.rows:
-                        cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
-                        if cells:
-                            paragraphs.append(" | ".join(cells))
-                content_text = "\n\n".join(paragraphs)
+                from services.source_coverage import docx_text
+                content_text = docx_text(file_bytes)
             except Exception as e:
                 logger.warning(f"python-docx extraction failed: {e}")
                 content_text = await _convert_api_extract(file_name, file_bytes, ext)

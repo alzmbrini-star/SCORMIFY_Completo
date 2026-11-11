@@ -2,6 +2,7 @@
 import asyncio
 import html
 import json
+from services.source_coverage import complete_source
 
 
 async def plan_game(source, content, config, ask):
@@ -12,7 +13,7 @@ async def plan_game(source, content, config, ask):
               'Não invente fatos. O jogo final será montado pelo motor existente com questões '
               'contextualizadas na etapa Gerar Curso.\n' + json.dumps({
                   'course': config.get('title'), 'slide': source,
-                  'reference': content[:10000]}, ensure_ascii=False))
+                  'reference': complete_source(content)}, ensure_ascii=False))
     plan = None
     for attempt in range(2):
         try:
