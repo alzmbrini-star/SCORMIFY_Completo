@@ -64,7 +64,7 @@ class FaithfulLargePdfTests(unittest.IsolatedAsyncioTestCase):
             persisted=[]; progress=[]
             async def persist(page):
                 self.assertEqual(page['page_num'],len(persisted)+1)
-                self.assertEqual(len(list(images.glob('*.jpg'))),len(persisted)+1)
+                self.assertEqual(len(list(images.glob('*.png'))),len(persisted)+1)
                 persisted.append(page['page_num'])
             with patch.object(pdf_extractor.asyncio,'sleep',new=AsyncMock()):
                 result=await pdf_extractor.extract_pdf_faithful(source,images,page_cb=persist,progress_cb=lambda pct,msg:progress.append(pct))

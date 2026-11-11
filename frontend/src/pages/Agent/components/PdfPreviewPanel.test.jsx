@@ -13,6 +13,7 @@ afterEach(async()=>{await act(async()=>root.unmount());container.remove();global
 test('permanent worker error exits polling promptly instead of retrying thirty minutes',async()=>{
   global.fetch=jest.fn(async(url,options)=>({ok:true,json:async()=> options?.method==='POST'?{projectId:'new'}:url.includes('faithful-status')?{status:'error',message:'Falha ao salvar a página 2'}:{pdfExtractionStatus:{status:'pdf_ready'},fileName:'Grande.pdf'}}));
   await act(async()=>root.render(<PdfPreviewPanel sessionId="session" apiBase="https://backend.test"/>));
+  expect(container.textContent).toContain('PNG sem perdas');
   await act(async()=>container.querySelector('[data-testid="pdf-faithful-mode-btn"]').click());
   expect(container.querySelector('[data-testid="pdf-preview-processing"]')).not.toBeNull();
   await act(async()=>jest.advanceTimersByTime(2000));

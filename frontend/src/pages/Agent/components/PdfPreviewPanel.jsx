@@ -299,6 +299,7 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
             </p>
             <ul className="text-xs text-indigo-200/70 mt-2 space-y-1 list-disc list-inside">
               <li>1 pagina do PDF = 1 slide identico</li>
+              <li>PNG sem perdas, até 2.560 pixels no lado maior, com limite de 3 milhões de pixels por página</li>
               <li>Até 300 MB; PDFs grandes são processados página por página e podem levar mais tempo</li>
               <li>Ideal para manuais, apresentacoes e materiais ja formatados</li>
             </ul>
