@@ -126,7 +126,11 @@ def ensure_coverage(structure, text):
         missing = [i for i in section['items'] if i['id'] not in assigned]
         if not missing: continue
         name = normalized(re.sub(r'^(?:unidade|m[oó]dulo|cap[ií]tulo|unit|module|chapter)\s+(?:\d+|[IVXLCDM]+)\s*[:.\-]?\s*', '', section['title'], flags=re.I))
-        target = next((m for m in modules if name and name in normalized(m.get('title', ''))), None)
+        target = next((m for m in modules if any(
+            r.startswith(section['id']+'.') for s in m.get('slides', [])
+            for r in s.get('sourceRefs', []))), None)
+        if target is None:
+            target = next((m for m in modules if name and name in normalized(m.get('title', ''))), None)
         if target is None:
             target = {'id': 'source_' + section['id'], 'title': section['title'], 'description': 'Desenvolver todos os itens da ementa.', 'slides': []}
             if section['id'] == 'SRC000':
@@ -178,6 +182,8 @@ def ensure_coverage(structure, text):
 
 
 def batch_source(text, slides):
+    if any(s.get('type') in ('title', 'summary') for s in slides):
+        return complete_source(text)
     excerpts = [s.get('sourceExcerpt') for s in slides if s.get('sourceExcerpt')]
     if excerpts: return '\n\n'.join(excerpts)
     sections = source_sections(text)

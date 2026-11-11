@@ -199,7 +199,8 @@ async def get_project(project_id: str, user: dict = Depends(require_auth)):
     project = await load_authorized_project(project_id, user)
 
     # Sanitize any non-string htmlContent (from previous AI bugs)
-    needs_fix = False
+    from services.docx_assets import repair_reference_html
+    needs_fix = repair_reference_html(project.get('course', {}))
     for slide in project.get("course", {}).get("slides", []):
         for el in slide.get("elements", []):
             hc = el.get("htmlContent")

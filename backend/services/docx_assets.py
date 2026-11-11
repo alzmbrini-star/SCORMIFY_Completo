@@ -58,7 +58,7 @@ def reference_elements(slide, project_id):
         raise ValueError('Referência de captura DOCX inválida.')
     url = f'/api/projects/{project_id}/assets/{filename}'
     def ident(): return str(uuid.uuid4())
-    return [
+    elements = [
         {'id':ident(),'type':'html','x':60,'y':28,'width':1800,'height':65,
          'content':'<h2 style="margin:0;font:600 30px system-ui;color:#18354b">'+html.escape(slide['title'])+'</h2>', 'startTime':0},
         {'id':ident(),'type':'image','x':60,'y':105,'width':1800,'height':620,'src':url,'content':url,
@@ -66,3 +66,21 @@ def reference_elements(slide, project_id):
         {'id':ident(),'type':'html','x':60,'y':747,'width':1800,'height':45,
          'content':'<p style="margin:0;font:22px system-ui;color:#31556e">Captura original do material de referência. Rótulos e permissões podem variar conforme o ambiente.</p>', 'startTime':0}
     ]
+    for element in elements:
+        if element['type'] == 'html':
+            element['htmlContent'] = element['content']
+    return elements
+
+
+def repair_reference_html(course):
+    """Recover only missing HTML fields on native DOCX reference slides."""
+    changed = False
+    for slide in course.get('slides', []):
+        if not slide.get('sourceImageOnly'):
+            continue
+        for element in slide.get('elements', []):
+            if (element.get('type') == 'html' and not element.get('htmlContent')
+                    and isinstance(element.get('content'), str) and element['content']):
+                element['htmlContent'] = element['content']
+                changed = True
+    return changed

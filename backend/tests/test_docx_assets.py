@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 import pytest
 from PIL import Image
 from docx import Document
-from services.docx_assets import extract_docx_source, save_source_images, copy_source_images, reference_elements
+from services.docx_assets import extract_docx_source, save_source_images, copy_source_images, reference_elements, repair_reference_html
 from services.source_coverage import ensure_coverage, source_sections
 from services import ai_agent
 
@@ -57,6 +57,19 @@ def test_reference_layout_uses_contain_and_fits_slide_without_cropping():
     assert '/new-course/assets/docx_' in image['src']
     assert all(e['x']+e['width']<=1920 and e['y']+e['height']<=820 for e in elements)
     assert '&lt;segura&gt;' in elements[0]['content']
+    assert all(e['htmlContent'] == e['content'] for e in elements if e['type'] == 'html')
+
+
+def test_legacy_reference_html_repair_is_scoped_and_idempotent():
+    original={'type':'html','content':'<h2>Original</h2>'}
+    edited={'type':'html','content':'old','htmlContent':'edited'}
+    ordinary={'elements':[dict(original)]}
+    course={'slides':[ordinary,{'sourceImageOnly':True,'elements':[dict(original),edited]}]}
+    assert repair_reference_html(course)
+    assert 'htmlContent' not in ordinary['elements'][0]
+    assert course['slides'][1]['elements'][0]['htmlContent']=='<h2>Original</h2>'
+    assert edited['htmlContent']=='edited'
+    assert not repair_reference_html(course)
 
 
 @pytest.mark.asyncio

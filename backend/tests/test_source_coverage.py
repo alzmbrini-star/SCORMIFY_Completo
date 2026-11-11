@@ -112,3 +112,8 @@ def test_tutor_explains_scope_counter_and_old_course_limit():
     text=' '.join(next(t for t in topics_for({'role':'super_admin'}) if t['id']=='agent')['steps'])
     for phrase in ['120 mil','Escopo do material','sem descarte','85 palavras','cursos já criados']:
         assert phrase in text
+def test_summary_batch_keeps_whole_source_despite_local_excerpt():
+    from services.source_coverage import batch_source
+    source='Unidade 1 Preparação\nPreparar o trabalho.\nUnidade 2 Conclusão\nConcluir o trabalho.'
+    assert batch_source(source,[{'type':'content','sourceExcerpt':'Somente conclusão'}, {'type':'summary'}])==source
+
