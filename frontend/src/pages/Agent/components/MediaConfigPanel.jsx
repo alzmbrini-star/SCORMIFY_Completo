@@ -674,7 +674,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
 
   const contentSlides = (storyboard?.slides || [])
     .map((s, i) => ({ ...s, index: i }))
-    .filter(s => s.type === 'content');
+    .filter(s => s.type === 'content' && !s.sourceImageOnly);
 
   const updateSlideMedia = (idx, type, url, extra = {}) => {
     setMediaConfig(prev => ({
@@ -1447,7 +1447,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
       {/* Per-slide config - ALL slides for background, content slides for media */}
       <div className="space-y-3">
         {(storyboard?.slides || []).map((slide, idx) => {
-          const isContent = slide.type === 'content';
+          const isContent = slide.type === 'content' && !slide.sourceImageOnly;
           const mc = mediaConfig[String(idx)] || { type: 'ai_image' };
           const borderColor = !isContent ? 'border-slate-700/50'
             : mc.type === 'ai_image' ? 'border-emerald-600/40' : mc.type === 'gallery_image' ? 'border-amber-600/40' : mc.type === 'youtube' ? 'border-red-600/40' : mc.type === 'vimeo' ? 'border-blue-600/40' : mc.type === 'heygen' ? 'border-purple-600/40' : mc.type === 'kling' ? 'border-sky-600/40' : 'border-slate-700';
@@ -1465,14 +1465,15 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
                   {slide.moduleName && <span className="text-[10px] text-slate-500 ml-auto shrink-0">{slide.moduleName}</span>}
                 </div>
 
-                {/* Background picker - ALL slides */}
-                <SlideBackgroundPicker
+                {slide.sourceImageOnly && <p className="rounded-lg border border-cyan-700/50 bg-cyan-950/30 p-3 text-sm text-cyan-100">Captura original preservada — será incorporada inteira ao slide, sem recriação nem créditos de imagem IA.</p>}
+                {/* Original screenshots use a fixed readable reference layout. */}
+                {!slide.sourceImageOnly && <SlideBackgroundPicker
                   slideIndex={idx}
                   bgConfig={bgConfig}
                   setBgConfig={setBgConfig}
                   allSlides={storyboard?.slides || []}
                   brandLibraryCompanyId={brandLibraryCompanyId}
-                />
+                />}
 
                 {/* Media type selector - only content slides */}
                 {isContent && (

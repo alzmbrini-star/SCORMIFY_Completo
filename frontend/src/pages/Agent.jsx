@@ -706,7 +706,7 @@ export default function Agent() {
         setStoryboard(checkSession.storyboard);
         const mc = {};
         checkSession.storyboard.slides?.forEach((s, i) => {
-          if (s.type === 'content') mc[String(i)] = { type: 'ai_image' };
+          if (s.type === 'content' && !s.sourceImageOnly) mc[String(i)] = { type: 'ai_image' };
         });
         setMediaConfig(mc);
         addChatMsg('agent', `Storyboard já estava pronto com ${checkSession.storyboard.slides?.length || 0} slides! Configure a mídia.`);
@@ -728,7 +728,7 @@ export default function Agent() {
         return response.json();
       },{signal:controller.signal,onProgress:setStoryboardProgressMsg,onLongWait:message=>addChatMsg('agent',message)});
       setStoryboard(session.storyboard);setStoryboardProgressMsg(null);
-      const mc={};session.storyboard.slides?.forEach((s,i)=>{if(s.type==='content')mc[String(i)]={type:'ai_image'};});
+      const mc={};session.storyboard.slides?.forEach((s,i)=>{if(s.type==='content'&&!s.sourceImageOnly)mc[String(i)]={type:'ai_image'};});
       setMediaConfig(mc);setCurrentStep(4);
       addChatMsg('agent',`Storyboard completo com ${session.storyboard.slides?.length||0} slides! Configure a mídia de cada slide.`);
     } catch(error) {if(error.name!=='AbortError'){toast.error(error.message||'Erro no storyboard');addChatMsg('agent',error.message||'Erro no storyboard');}setStoryboardProgressMsg(null);}
