@@ -464,12 +464,21 @@ def validate_rules(raw, budget=SEARCH_BUDGET):
         if key in action_ids: raise ValueError('ID de ação repetido')
         action_ids.add(key); effects=row.get('effects')
         if not isinstance(effects,dict) or any(k not in ids for k in effects): raise RuleEffectsError(key,effects,ids)
+        action_texts=dict(row)
+        if demo:
+            # A missing presentation string must not force regeneration of a
+            # sound qualitative process. Reuse authored context, never invent
+            # state changes, scientific outcomes or success conditions.
+            feedback=action_texts.get('feedback')
+            if feedback is None or isinstance(feedback,str) and not feedback.strip():
+                authored=row.get('description')
+                action_texts['feedback']=(authored[:500] if isinstance(authored,str) and authored.strip()
+                    else 'Observe no cenário e no histórico as mudanças desta ação: '+_text(row.get('label'),100,f'actions.{key}.label')+'.')
         if demo and not effects:
-            observations.append(_text(row.get('label'),100,f'actions.{key}.label')+': '+_text(row.get('feedback'),500,f'actions.{key}.feedback'))
+            observations.append(_text(row.get('label'),100,f'actions.{key}.label')+': '+_text(action_texts.get('feedback'),500,f'actions.{key}.feedback'))
             continue
         if not effects:empty_effects.append(key)
         changed.update(effects)
-        action_texts=dict(row)
         if demo:
             for field,value in {'description':row.get('label'),'unavailable':'Esta ação não está disponível nesta etapa.'}.items():
                 if action_texts.get(field) is None or isinstance(action_texts.get(field),str) and not action_texts[field].strip():action_texts[field]=value

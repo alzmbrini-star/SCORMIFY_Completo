@@ -17,6 +17,25 @@ def process_demo():
 
 
 class ProcessDemo(unittest.TestCase):
+    def test_missing_demo_feedback_reuses_authored_description_without_changing_rules(self):
+        raw=process_demo();before=copy.deepcopy(raw)
+        raw['actions'][0].pop('feedback')
+        data=validate_rules(raw)
+        self.assertEqual(data['actions'][0]['feedback'],raw['actions'][0]['description'])
+        self.assertEqual(data['actions'][0]['effects'],before['actions'][0]['effects'])
+        self.assertEqual(data['actions'][0]['requires'],before['actions'][0]['requires'])
+        self.assertEqual(data['goal'],before['goal'])
+        self.assertEqual(validate_rules(data),data)
+        raw['actions'][0].pop('description')
+        self.assertIn('Avançar etapa',validate_rules(raw)['actions'][0]['feedback'])
+
+    def test_missing_readonly_demo_feedback_still_keeps_original_orientation(self):
+        raw=process_demo();note=action('consultar','Consultar regras',True,{})
+        note.pop('feedback');raw['actions'].append(note)
+        data=validate_rules(raw)
+        self.assertIn(note['description'],data['observationNotes'][0])
+        self.assertEqual(len(data['actions']),1)
+
     def test_one_state_one_control_and_no_failure_are_a_valid_process_not_an_exam(self):
         raw=process_demo();before=copy.deepcopy(raw);data=validate_rules(raw)
         self.assertEqual(raw,before);self.assertEqual(data['failure']['when'],False)
