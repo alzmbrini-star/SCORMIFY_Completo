@@ -95,6 +95,24 @@ def test_generation_repairs_once_without_executing_generated_code():
     assert 'Correção necessária' in ask.await_args.args[1]
 
 
+def test_project_repair_names_missing_units_and_preserves_previous_deliveries():
+    path=plan_guided_path(structure(),{})['guidedPath']
+    path['units'].append({'id':'second_unit','title':'Rastreabilidade e evidências'})
+    request={'id':'project','title':'Projeto','guidedRequest':'project'}
+    first={'instructions':'Aplique o conteúdo.','deliverables':[{'title':'Preparação','prompt':'Prepare o processo.',
+        'criterion':'Preparação registrada.','unitIds':[path['units'][0]['id']]}]}
+    repaired=copy.deepcopy(first)
+    repaired['deliverables'][0].update(prompt='Prepare o processo e registre suas evidências rastreáveis.',
+        criterion='Preparação e evidências rastreáveis registradas.',unitIds=[u['id'] for u in path['units']])
+    ask=AsyncMock(side_effect=[first,repaired])
+    result=asyncio.run(generate_activity(request,path,'Conferência e evidências.',ask))
+    prompt=ask.await_args.args[1]
+    assert 'Faltam vínculos explícitos' in prompt and 'second_unit' in prompt
+    assert 'Rastreabilidade e evidências' in prompt and 'Resposta anterior a corrigir' in prompt
+    assert 'Preparação registrada.' in prompt
+    assert result['deliverables'][0]['unitIds']==[u['id'] for u in path['units']]
+
+
 def test_images_are_associated_to_bank_and_snapshot_retry_reuses_durable_asset(monkeypatch,tmp_path):
     course=sample_course();records={};calls=[]
     async def find(query,*args):return copy.deepcopy(records.get(query['id']))

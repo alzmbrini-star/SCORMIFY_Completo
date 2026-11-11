@@ -140,7 +140,10 @@ def validate_activity(raw, request, path):
             if not isinstance(refs,list) or not refs or any(u not in unit_ids for u in refs): raise ValueError('Relacione cada entrega às unidades estudadas.')
             covered.update(refs)
             out['deliverables'].append({'title':text(d.get('title'),240),'prompt':text(d.get('prompt')),'criterion':text(d.get('criterion'),800),'unitIds':refs})
-        if covered!=unit_ids: raise ValueError('O projeto precisa contemplar todas as unidades.')
+        if covered!=unit_ids:
+            missing=[{'id':u['id'],'title':u['title']} for u in path['units'] if u['id'] not in covered]
+            raise ValueError('O projeto precisa contemplar todas as unidades. Faltam vínculos explícitos em unitIds para: '
+                +json.dumps(missing,ensure_ascii=False)+'. Desenvolva essas unidades nas entregas e nos critérios; é permitido agrupar unidades relacionadas na mesma entrega, sem criar vínculos apenas decorativos.')
         out['minChars']=60
     elif kind=='practice':
         activity=raw.get('activity') or {}; typ=activity.get('type')
@@ -186,7 +189,7 @@ async def generate_activity(request, path, context, ask):
       'practice': 'cards:[{front,back}], activity: {type:classification|ordering|decision|calculator|matrix, feedback}. classification/matrix: targets:[nomes],rows:[{text,correct:indice}]; ordering:items:[etapas em ordem correta]; decision:steps:[{prompt,options:[textos],correct:indice,feedback}]; calculator:unit,rows:[{text,value:numero,accepted:boolean,status}]. Escolha só um tipo pertinente ao objetivo, sem modelos de assunto.',
       'assessment':'questions:[{title,prompt,options:[textos],correct:indice,explanation}].',
       'final':'questions:[{unitId,title,prompt,options:[textos],correct:indice,explanation}]. Ao menos uma questão por unidade.',
-      'project':'deliverables:[{title,prompt,criterion,unitIds:[ids]}]. Entregas contextualizadas que juntas contemplem todas as unidades; propor autoverificação, sem prometer correção automática.'}
+      'project':'deliverables:1..12 objetos [{title,prompt,criterion,unitIds:[ids exatos das unidades]}]. Entregas contextualizadas que juntas contemplem TODAS as unidades listadas, inclusive introdução e síntese quando constarem na lista. Pode agrupar várias unidades relacionadas por entrega; se houver mais de doze unidades, o agrupamento é necessário. O texto e o critério devem realmente abordar as unidades associadas. Propor autoverificação, sem prometer correção automática.'}
     count=path['finalQuestionCount'] if request['guidedRequest']=='final' else path['questionsPerUnit']
     prompt=f'''Crie um recurso para o percurso guiado de um curso em Português do Brasil.
 Retorne SOMENTE JSON: {{title,instructions,{schema[request['guidedRequest']]}}}
@@ -199,10 +202,15 @@ Use exemplos e casos fictícios ligados à fonte. Não invente regras do produto
 Não retorne HTML, JavaScript, fórmulas executáveis ou URLs. As imagens das avaliações serão produzidas separadamente.
 As avaliações usarão o player de Avaliações interativas, não Quiz tradicional. O mesmo caso aplicado deve conectar o módulo ao projeto.
 '''
-    error=''
+    error='';previous=None
     for attempt in range(2):
-        try:return validate_activity(await ask(attempt,prompt+'\nCorreção necessária: '+error),request,path)
-        except Exception as exc:error=str(exc)[:700]
+        try:
+            correction='\nCorreção necessária: '+error
+            if previous is not None:
+                correction+='\nResposta anterior a corrigir, preservando partes válidas: '+json.dumps(previous,ensure_ascii=False)[:50000]
+            previous=await ask(attempt,prompt+correction)
+            return validate_activity(previous,request,path)
+        except Exception as exc:error=str(exc)[:12000]
     raise ValueError('Não foi possível preparar o recurso do percurso. '+error)
 
 
