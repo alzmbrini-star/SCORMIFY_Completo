@@ -241,9 +241,12 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
             return;
           }
           if (s.status === 'error') {
-            throw new Error(s.message || 'Falha ao gerar em Modo Fiel');
+            const terminal = new Error(s.message || 'Falha ao gerar em Modo Fiel');
+            terminal.faithfulTerminal = true;
+            throw terminal;
           }
         } catch (pollErr) {
+          if (pollErr.faithfulTerminal) throw pollErr;
           // Network error / Cloudflare blip — keep polling, don't abort
           console.warn('faithful poll retry:', pollErr);
         }
@@ -292,7 +295,7 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
             </p>
             <ul className="text-xs text-indigo-200/70 mt-2 space-y-1 list-disc list-inside">
               <li>1 pagina do PDF = 1 slide identico</li>
-              <li>Pula a IA e gera rapidamente</li>
+              <li>Até 300 MB; PDFs grandes são processados página por página e podem levar mais tempo</li>
               <li>Ideal para manuais, apresentacoes e materiais ja formatados</li>
             </ul>
           </div>

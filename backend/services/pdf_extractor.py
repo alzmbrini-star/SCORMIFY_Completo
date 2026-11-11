@@ -886,8 +886,8 @@ def _pick_render_params(pdf_bytes_len: int) -> tuple:
     return SLIDE_WIDTH, SLIDE_HEIGHT, FAITHFUL_JPEG_QUALITY
 
 
-async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
-                               progress_cb=None) -> dict:
+async def extract_pdf_faithful(pdf_bytes: bytes | Path, assets_dir: Path,
+                               progress_cb=None, page_cb=None) -> dict:
     """Render each PDF page as a single 1920x820 background image so the
     course slide preserves the page's original layout, images, colors, logos
     and fonts verbatim.
@@ -903,15 +903,20 @@ async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
     """
     assets_dir = Path(assets_dir)
     assets_dir.mkdir(parents=True, exist_ok=True)
-    pdf = fitz.open(stream=pdf_bytes, filetype="pdf")
+    # Path-backed input keeps the full uploaded PDF out of Python RAM.
+    source_size = len(pdf_bytes) if isinstance(pdf_bytes, bytes) else Path(pdf_bytes).stat().st_size
+    pdf = fitz.open(stream=pdf_bytes, filetype="pdf") if isinstance(pdf_bytes, bytes) else fitz.open(str(pdf_bytes))
     total_pages = pdf.page_count
+    if pdf.needs_pass or not total_pages:
+        pdf.close()
+        raise ValueError('PDF vazio ou protegido por senha. Envie uma cópia desbloqueada.')
     # Adaptive sizing: shrink the render target for large PDFs to avoid
     # OOM on small production pods (~512Mi). Each MuPDF pixmap is
     # width*height*3 bytes; halving both axes cuts peak RAM by ~4x.
-    eff_w, eff_h, eff_q = _pick_render_params(len(pdf_bytes))
+    eff_w, eff_h, eff_q = _pick_render_params(source_size)
     logger.info(
         f"[pdf_extractor/faithful] rendering {total_pages} pages at "
-        f"{eff_w}x{eff_h} q={eff_q} (PDF {len(pdf_bytes) / (1024*1024):.1f} MB)"
+        f"{eff_w}x{eff_h} q={eff_q} (PDF {source_size / (1024*1024):.1f} MB)"
     )
 
     pages_out: list = []
@@ -948,15 +953,12 @@ async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
                     except Exception:
                         pass
             # Extract text AFTER pixmap is released to reduce peak memory.
-            return _extract_text_with_layout(page)
+            try:
+                return _extract_text_with_layout(page)[:10000]
+            except Exception:
+                return ''  # Notes are optional; the full visual page remains.
 
         text = await _run_blocking(_do_render)
-
-        if progress_cb:
-            try:
-                progress_cb((i + 1) / total_pages, f"pagina {page_num}/{total_pages}")
-            except Exception:
-                pass
 
         return {"page_num": page_num, "filename": filename, "text": text.strip()}
 
@@ -965,26 +967,28 @@ async def extract_pdf_faithful(pdf_bytes: bytes, assets_dir: Path,
     # on low-memory production pods (~512Mi RAM).
     import gc as _gc
     BATCH_SIZE = 3
-    for i in range(total_pages):
-        try:
-            result = await asyncio.wait_for(_render_page(i), timeout=30.0)
-            pages_out.append(result)
-        except asyncio.TimeoutError:
-            logger.warning(f"[faithful] page {i+1} render timed out; skipping")
-            pages_out.append({"page_num": i + 1, "filename": f"pdf_page_{i+1}.jpg", "text": ""})
-        except Exception as r:
-            logger.error(f"[faithful] page error: {r}")
-            pages_out.append({"page_num": i + 1, "filename": f"pdf_page_{i+1}.jpg", "text": ""})
-
-        # After each batch: give CPU back to uvicorn event loop AND free memory
-        if (i + 1) % BATCH_SIZE == 0:
-            _gc.collect()
-            await asyncio.sleep(1.0)
-        else:
-            await asyncio.sleep(FAITHFUL_PAGE_COOLDOWN)
-
-    pages_out.sort(key=lambda p: p["page_num"])
-    pdf.close()
+    try:
+        for i in range(total_pages):
+            try:
+                # Never cancel a native renderer and start a second operation
+                # on the same document while that thread is still running.
+                result = await _render_page(i)
+                if not (assets_dir / result['filename']).is_file():
+                    raise ValueError('Imagem da página não foi criada.')
+                if page_cb:
+                    await page_cb(result)
+                pages_out.append(result)
+            except Exception as exc:
+                raise ValueError(f'Não foi possível concluir a página {i+1}: {str(exc)[:180]}. Nenhuma página foi ignorada silenciosamente.') from exc
+            if progress_cb:
+                progress_cb((i + 1) / total_pages, f"página {i+1}/{total_pages} salva")
+            if (i + 1) % BATCH_SIZE == 0:
+                _gc.collect()
+                await asyncio.sleep(1.0)
+            else:
+                await asyncio.sleep(FAITHFUL_PAGE_COOLDOWN)
+    finally:
+        pdf.close()
     logger.info(f"[pdf_extractor/faithful] rendered {len(pages_out)} pages")
     return {"pages": pages_out, "total_pages": total_pages}
 

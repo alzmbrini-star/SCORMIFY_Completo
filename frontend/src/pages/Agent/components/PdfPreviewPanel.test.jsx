@@ -1,0 +1,23 @@
+import React,{act} from 'react';
+import {createRoot} from 'react-dom/client';
+import PdfPreviewPanel from './PdfPreviewPanel';
+const mockNavigate=jest.fn(),mockError=jest.fn();
+jest.mock('react-router-dom',()=>({useNavigate:()=>mockNavigate}));
+jest.mock('sonner',()=>({toast:{error:(...args)=>mockError(...args),success:jest.fn()}}));
+jest.mock('../../../components/ui/button',()=>({Button:({children,variant,size,...props})=><button {...props}>{children}</button>}));
+jest.mock('../../../components/ui/input',()=>({Input:props=><input {...props}/>}));
+jest.mock('../../../components/ui/badge',()=>({Badge:({children})=><span>{children}</span>}));
+let root,container,oldFetch;
+beforeEach(()=>{global.IS_REACT_ACT_ENVIRONMENT=true;jest.useFakeTimers();mockError.mockClear();oldFetch=global.fetch;container=document.createElement('div');document.body.append(container);root=createRoot(container);});
+afterEach(async()=>{await act(async()=>root.unmount());container.remove();global.fetch=oldFetch;jest.useRealTimers();});
+test('permanent worker error exits polling promptly instead of retrying thirty minutes',async()=>{
+  global.fetch=jest.fn(async(url,options)=>({ok:true,json:async()=> options?.method==='POST'?{projectId:'new'}:url.includes('faithful-status')?{status:'error',message:'Falha ao salvar a página 2'}:{pdfExtractionStatus:{status:'pdf_ready'},fileName:'Grande.pdf'}}));
+  await act(async()=>root.render(<PdfPreviewPanel sessionId="session" apiBase="https://backend.test"/>));
+  await act(async()=>container.querySelector('[data-testid="pdf-faithful-mode-btn"]').click());
+  await act(async()=>jest.advanceTimersByTime(2000));
+  expect(mockError).toHaveBeenCalledWith('Falha ao salvar a página 2');
+  const requests=global.fetch.mock.calls.filter(([url])=>url.includes('faithful-status')).length;
+  await act(async()=>jest.advanceTimersByTime(120000));
+  expect(global.fetch.mock.calls.filter(([url])=>url.includes('faithful-status'))).toHaveLength(requests);
+  expect(mockNavigate).not.toHaveBeenCalled();
+});

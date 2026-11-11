@@ -10,6 +10,7 @@ import os
 import asyncio
 import logging
 import re
+import threading
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -23,6 +24,8 @@ router = APIRouter(tags=["PDF Import"])
 # Track background PDF extraction tasks per session so Modo Fiel can cancel
 # them and free the thread pool when the user decides to skip the slow path.
 _PDF_EXTRACTION_TASKS: dict = {}
+# One native PDF renderer per process: simultaneous large PDFs multiply peak RAM.
+_FAITHFUL_RENDER_SLOT = threading.Semaphore(1)
 
 # In-memory cache for `faithfulStatus` keyed by project_id. The worker thread
 # updates this on EVERY progress callback so the polling endpoint can answer
@@ -621,25 +624,16 @@ async def agent_generate_faithful_course(
         from bson import ObjectId
         pdf_bucket = AsyncIOMotorGridFSBucket(db, bucket_name="pdf_imports")
         stream = await pdf_bucket.open_download_stream(ObjectId(gridfs_id))
-        pdf_bytes = await stream.read()
+        from services.faithful_source import validate_source_size, close_source
+        try:
+            validate_source_size(stream.length)
+        finally:
+            await close_source(stream)
+    except ValueError as e:
+        raise HTTPException(413, str(e)) from None
     except Exception as e:
         logger.error(f"[faithful] Failed to read PDF from GridFS: {e}")
         raise HTTPException(500, f"Nao foi possivel ler o PDF salvo: {e}")
-
-    # 2026-05-25: size guard against OOM on small production pods (~512Mi).
-    # PyMuPDF expands PDF bytes 3-5x in memory + pixmaps (1280x546 RGB ≈
-    # 2.1MB each, peak 3 simultaneous). A 30MB PDF can push peak RAM to
-    # ~250MB before GC. We hard-cap at 40MB to leave room for the rest of
-    # the FastAPI app + motor connection pool. Authors with bigger PDFs
-    # are told to split them.
-    FAITHFUL_MAX_BYTES = 40 * 1024 * 1024
-    pdf_size_mb = len(pdf_bytes) / (1024 * 1024)
-    if len(pdf_bytes) > FAITHFUL_MAX_BYTES:
-        raise HTTPException(
-            413,
-            f"PDF muito grande ({pdf_size_mb:.1f} MB). O Modo Fiel suporta ate {FAITHFUL_MAX_BYTES // (1024*1024)} MB. "
-            f"Por favor, divida o PDF em partes menores e processe-as separadamente."
-        )
 
     title = (body.get("title") or s.get("fileName", "Curso").rsplit(".", 1)[0]).strip()[:160]
 
@@ -665,7 +659,7 @@ async def agent_generate_faithful_course(
     project_dict["importMode"] = "faithful"
     project_dict["faithfulStatus"] = {
         "status": "processing",
-        "message": "Renderizando paginas...",
+        "message": "Preparando PDF; aguardando a vez de processamento...",
         "progress": 0,
         "startedAt": datetime.now(timezone.utc).isoformat(),
     }
@@ -701,9 +695,10 @@ async def agent_generate_faithful_course(
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            loop.run_until_complete(
-                _background_faithful_render(session_id, project.id, pdf_bytes)
-            )
+            with _FAITHFUL_RENDER_SLOT:
+                loop.run_until_complete(
+                    _background_faithful_render(session_id, project.id, gridfs_id)
+                )
         except Exception as e:
             logger.error(f"[bg-faithful-thread] {e}", exc_info=True)
         finally:
@@ -718,7 +713,7 @@ async def agent_generate_faithful_course(
     }
 
 
-async def _background_faithful_render(session_id: str, project_id: str, pdf_bytes: bytes):
+async def _background_faithful_render(session_id: str, project_id: str, gridfs_id: str):
     """Render the PDF into faithful slides in the background.
 
     IMPORTANT: this function is expected to run in its OWN asyncio event loop
@@ -729,14 +724,20 @@ async def _background_faithful_render(session_id: str, project_id: str, pdf_byte
     from motor.motor_asyncio import AsyncIOMotorClient
     local_client = AsyncIOMotorClient(os.environ['MONGO_URL'])
     local_db = local_client[os.environ['DB_NAME']]
+    source_path = None
     try:
         from services.pdf_extractor import (
             extract_pdf_faithful, build_faithful_slides,
         )
         from services.asset_store import store_asset_async
+        from services.faithful_source import download_source
+        from motor.motor_asyncio import AsyncIOMotorGridFSBucket
+        from bson import ObjectId
 
         project_dir = PROJECTS_DIR / project_id
         (project_dir / "assets").mkdir(parents=True, exist_ok=True)
+        source_stream = await AsyncIOMotorGridFSBucket(local_db, bucket_name='pdf_imports').open_download_stream(ObjectId(gridfs_id))
+        source_path = await download_source(source_stream)
 
         import time as _time
         last_update = {"t": 0.0}
@@ -769,39 +770,14 @@ async def _background_faithful_render(session_id: str, project_id: str, pdf_byte
             except Exception:
                 pass
 
-        extraction = await extract_pdf_faithful(
-            pdf_bytes, project_dir / "assets", progress_cb=_progress
-        )
-
-        # Persist pages to MongoDB INCREMENTALLY so a crash mid-way doesn't
-        # lose all progress (the pod can be restarted and re-render missing
-        # pages). (90-99% range)
-        total = len(extraction["pages"])
-        for i, p in enumerate(extraction["pages"]):
+        async def _persist_page(p):
             fpath = project_dir / "assets" / p["filename"]
-            if fpath.exists():
-                try:
-                    await store_asset_async(local_db, project_id, p["filename"], str(fpath))
-                except Exception as e:
-                    logger.warning(f"[bg-faithful] persist {p['filename']} failed: {e}")
-            if total > 0 and (i + 1) % 5 == 0:
-                save_progress = 90 + int(9 * (i + 1) / total)
-                save_msg = f"Salvando imagens ({i+1}/{total})..."
-                _faithful_set_cache(project_id, {
-                    "status": "processing",
-                    "progress": save_progress,
-                    "message": save_msg,
-                })
-                try:
-                    await local_db.projects.update_one(
-                        {"id": project_id},
-                        {"$set": {
-                            "faithfulStatus.progress": save_progress,
-                            "faithfulStatus.message": save_msg,
-                        }}
-                    )
-                except Exception:
-                    pass
+            if not fpath.exists() or not await store_asset_async(local_db, project_id, p["filename"], str(fpath)):
+                raise ValueError(f'Não foi possível salvar a imagem da página {p["page_num"]}. A conversão não foi marcada como concluída.')
+
+        extraction = await extract_pdf_faithful(
+            source_path, project_dir / "assets", progress_cb=_progress, page_cb=_persist_page
+        )
 
         slides = build_faithful_slides(extraction["pages"], project_id)
 
@@ -811,7 +787,6 @@ async def _background_faithful_render(session_id: str, project_id: str, pdf_byte
             "progress": 100,
             "finishedAt": datetime.now(timezone.utc).isoformat(),
         }
-        _faithful_set_cache(project_id, done_status)
         await local_db.projects.update_one(
             {"id": project_id},
             {"$set": {
@@ -821,6 +796,7 @@ async def _background_faithful_render(session_id: str, project_id: str, pdf_byte
                 "updatedAt": datetime.now(timezone.utc).isoformat(),
             }}
         )
+        _faithful_set_cache(project_id, done_status)
 
         await local_db.agent_sessions.update_one(
             {"id": session_id},
@@ -852,6 +828,8 @@ async def _background_faithful_render(session_id: str, project_id: str, pdf_byte
         except Exception:
             pass
     finally:
+        if source_path is not None:
+            source_path.unlink(missing_ok=True)
         try:
             local_client.close()
         except Exception:
