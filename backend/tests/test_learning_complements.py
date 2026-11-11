@@ -99,9 +99,10 @@ async def test_storyboard_preserves_links_without_replacing_lessons_or_calling_i
 
 def test_metadata_is_carried_for_specialized_and_cached_paths():
     generated=[{'type':'simulator'}]
-    source=[{'isComplement':True,'complementOf':['lesson'],'reinforcesSourceRefs':['SRC001.I001'],'learningRationale':'Explorar mecanismo'}]
+    source=[{'type':'flashcard','isComplement':True,'complementOf':['lesson'],'reinforcesSourceRefs':['SRC001.I001'],'learningRationale':'Explorar mecanismo'}]
     preserve_complement_metadata(generated,source)
     assert generated[0]['complementOf']==['lesson']
+    assert generated[0]['type']=='flashcard'
 
 
 def test_tutor_explains_additive_resources_and_image_approval():

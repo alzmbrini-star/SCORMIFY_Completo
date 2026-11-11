@@ -72,6 +72,8 @@ def plan_complements(structure, config, enabled):
 def preserve_complement_metadata(completed, sources):
     """All generation paths (including specialized engines/checkpoints) keep links."""
     for item, source in zip(completed, sources):
+        if source.get('isComplement') and source.get('type') in KINDS:
+            item['type'] = source['type']
         for key in ('isComplement', 'complementOf', 'reinforcesSourceRefs', 'learningRationale', 'imageSuggestion'):
             if key in source:
                 item[key] = source[key]
