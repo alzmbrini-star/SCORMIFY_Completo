@@ -32,7 +32,7 @@ def test_unnumbered_large_document_includes_middle_and_final_paragraphs():
     all_text=' '.join(i['text'] for section in sections for i in section['items'])
     assert ' '.join(text.split())==all_text
     assert 'PROCEDIMENTO_FINAL_OBRIGATORIO' in json.dumps(plan)
-    assert all(len(s['sourceRefs'])<=2 for m in plan['modules'] for s in m['slides'])
+    assert all(len(s.get('sourceRefs',[]))<=2 for m in plan['modules'] for s in m['slides'])
     assert len(complete_source(text))>12000
     with pytest.raises(ValueError,match='nenhum trecho'): complete_source('x'*120001)
 
@@ -86,7 +86,7 @@ async def test_storyboard_uses_assigned_context_and_preserves_full_explanation(m
     result=await ai_agent.generate_storyboard('qa',text,plan,{'enabledResources':{}})
     assert 'PROCEDIMENTO_FINAL_OBRIGATORIO' in '\n'.join(prompts)
     assert all(s['elements'][0]['content']==body for s in result['slides'])
-    assert all(s['sourceRefs'] for s in result['slides'])
+    assert all(s['sourceRefs'] for s in result['slides'] if s.get('sourceRequired'))
     assert result['sourceCoverage']['status']=='generated'
 
 
@@ -95,6 +95,16 @@ def test_game_quota_never_replaces_required_explanation():
     plan=ensure_coverage({'modules':[]},text)
     result=ai_agent._premiumize_course_structure(plan,{'resourceBalance':'maxima','enabledResources':{'game':True,'simulator':True,'quiz':True}})
     assert all(s['type']=='content' for m in result['modules'] for s in m['slides'] if s.get('sourceRequired'))
+
+
+def test_missing_scope_gets_meaningful_titles_intro_before_units_and_final_summary():
+    text='Ambientação necessária ao assunto.\n\nUnidade 1 Operação\n\nVerificar as condições iniciais e explicar o procedimento com um exemplo.'
+    original={'modules':[{'title':'Capa','slides':[{'type':'title'}]}, {'title':'Operação','slides':[]}]}
+    plan=ensure_coverage(original,text)
+    assert plan['modules'][1]['id']=='source_SRC000'
+    assert plan['modules'][-1]['slides'][-1]['type']=='summary'
+    assert 'Verificar as condições' in plan['modules'][-1]['slides'][0]['title']
+    assert plan==ensure_coverage(plan,text)
 
 
 def test_tutor_explains_scope_counter_and_old_course_limit():

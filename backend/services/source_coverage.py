@@ -102,7 +102,7 @@ def ensure_coverage(structure, text):
     assigned = set()
     for module in modules:
         for slide in module.get('slides', []):
-            refs = list(dict.fromkeys(r for r in (slide.get('sourceRefs') or []) if r in all_items))[:2]
+            refs = list(dict.fromkeys(r for r in (slide.get('sourceRefs') or []) if isinstance(r, str) and r in all_items))[:2]
             if sum(len(all_items[r]) for r in refs) > 650: refs = refs[:1]
             if slide.get('type') in ('content', 'infographic', 'avatar_scene') and refs:
                 slide.update(sourceRefs=refs, sourceRequired=True, sourceExcerpt='\n'.join(all_items[r] for r in refs))
@@ -115,7 +115,10 @@ def ensure_coverage(structure, text):
         target = next((m for m in modules if name and name in normalized(m.get('title', ''))), None)
         if target is None:
             target = {'id': 'source_' + section['id'], 'title': section['title'], 'description': 'Desenvolver todos os itens da ementa.', 'slides': []}
-            modules.append(target)
+            if section['id'] == 'SRC000':
+                modules.insert(1 if modules and any(s.get('type') == 'title' for s in modules[0].get('slides', [])) else 0, target)
+            else:
+                modules.append(target)
         groups, group = [], []
         for item in missing:
             if group and (len(group) >= 2 or sum(len(i['text']) for i in group) + len(item['text']) > 650):
@@ -123,20 +126,26 @@ def ensure_coverage(structure, text):
             group.append(item)
         if group: groups.append(group)
         for start, items in enumerate(groups):
-            target['slides'].append({'id': 'source_' + items[0]['id'].replace('.', '_'), 'title': section['title'] + f' · {start+1}',
+            topic = next((i['text'] for i in items if len(i['text']) >= 35), items[0]['text'])
+            topic = re.sub(r'^[•\-\s]+', '', topic)
+            topic = topic if len(topic) <= 85 else topic[:85].rsplit(' ', 1)[0] + '…'
+            target['slides'].append({'id': 'source_' + items[0]['id'].replace('.', '_'), 'title': topic,
                 'type': 'content', 'purpose': 'Explicar e exemplificar, sem apenas anunciar o assunto: ' + ' '.join(i['text'] for i in items),
                 'sourceRefs': [i['id'] for i in items], 'sourceExcerpt': '\n'.join(i['text'] for i in items),
                 'sourceRequired': True, 'estimatedDuration': 120})
     result['sourceCoverage'] = {'version': 1, 'sections': len(sections), 'items': len(all_items),
         'plannedItems': len(all_items), 'status': 'planned', 'note': 'Itens distribuídos para desenvolvimento; planejamento não certifica profundidade ou correção do conteúdo.'}
-    result['totalSlides'] = sum(len(m.get('slides', [])) for m in modules)
     # A conclusion originally at the end must not precede appended teaching units.
     conclusions = [s for m in modules for s in m.get('slides', []) if s.get('type') == 'summary']
+    if not conclusions and modules:
+        conclusions = [{'id': 'source_course_summary', 'type': 'summary', 'title': 'Síntese e próximos passos',
+            'purpose': 'Retomar as aprendizagens de todas as unidades e orientar a aplicação prática.', 'estimatedDuration': 120}]
     if conclusions and modules:
         final = conclusions[-1]
         for m in modules:
             m['slides'] = [s for s in m.get('slides', []) if s is not final]
         modules[-1]['slides'].append(final)
+    result['totalSlides'] = sum(len(m.get('slides', [])) for m in modules)
     return result
 
 
