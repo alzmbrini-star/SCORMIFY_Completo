@@ -29,6 +29,7 @@ import { SlideTypeSwitcher, AvatarSceneMockup } from './AvatarSceneControls';
 import DensityBadge from '../../../components/DensityBadge';
 import DensitySuggestionsDialog from '../../../components/DensitySuggestionsDialog';
 import ComponentSceneReview from '../../../components/ComponentSceneReview';
+import StoryboardLearningContext from './StoryboardLearningContext';
 
 const API = getApiUrl();
 
@@ -407,6 +408,7 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            <StoryboardLearningContext slide={slide} />
             {/* Preview/Edit toggle */}
             <div className="flex items-center gap-2 justify-end">
               <ComponentSceneReview html={interactiveHtml} sessionId={sessionId} slideIndex={activeSlide}

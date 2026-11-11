@@ -686,8 +686,10 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
         enabled["game"] = True
     if illustrated_journey:
         for required_type in ("game", "simulator", "scenario", "infographic", "quiz"):
-            enabled[required_type] = True
+            enabled.setdefault(required_type, True)
     if config.get('simulatorsAllowed') is False:enabled['simulator']=False
+    from services.learning_complements import plan_complements
+    structure = plan_complements(structure, config, enabled)
     enabled_types = [kind for kind in _PREMIUM_EXPERIENCE_SEQUENCE if enabled.get(kind, False)]
     if not enabled_types or balance == "baixa":
         enabled_types = [kind for kind in ("infographic", "quiz") if enabled.get(kind, False)]
@@ -736,10 +738,10 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
         # A checked "Jogos Educativos" must be visible in the Structure step,
         # not silently represented as a simulator. For balanced+ courses place
         # one real game in every module that has enough instructional slides.
-        if enabled.get("game") and balance != "baixa" and len(candidates) >= 2 and any(not s.get('sourceRequired') and s.get('type') not in ('quiz', 'scenario') for s in candidates):
+        if enabled.get("game") and balance != "baixa" and len(candidates) >= 2 and any(not s.get('sourceRequired') and not s.get('isComplement') and s.get('type') not in ('quiz', 'scenario') for s in candidates):
             if not any(slide.get("type") == "game" for slide in candidates):
                 game_slide = next(
-                    (slide for slide in reversed(candidates) if not slide.get('sourceRequired') and slide.get("type") not in ("quiz", "scenario")),
+                    (slide for slide in reversed(candidates) if not slide.get('sourceRequired') and not slide.get('isComplement') and slide.get("type") not in ("quiz", "scenario")),
                     None,
                 )
                 if game_slide is None:
@@ -767,6 +769,9 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
                 slide["requiredImagePrompt"] = _illustrated_image_prompt(slide, config, story_bible)
 
         for slide in slides:
+            if slide.get('sourceImageOnly'):
+                slide.pop('requiredImagePrompt', None)
+                continue  # Exact source artwork is never an AI-image suggestion.
             stype = str(slide.get("type") or "content")
             slide["contentBudgetWords"] = 70 if stype == "content" else 45
             slide["experienceIntent"] = {
@@ -782,6 +787,11 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
             }.get(stype, "sintetizar e orientar a próxima ação")
             if stype == "content" and not illustrated_journey:
                 slide["requiredImagePrompt"] = _premium_image_prompt(slide, config)
+            if stype == 'content' and slide.get('requiredImagePrompt'):
+                slide['imageSuggestion'] = {
+                    'purpose': 'Ilustrar o conceito ou procedimento explicado nesta tela, sem substituir a explicação nem as capturas originais.',
+                    'prompt': slide['requiredImagePrompt'], 'approvalStage': 'media',
+                }
             if stype in _RICH_INTERACTIVE_TYPES:
                 slide["visualDirection"] = _INTERACTIVE_VISUAL_DIRECTIONS[
                     visual_cursor % len(_INTERACTIVE_VISUAL_DIRECTIONS)
@@ -819,7 +829,7 @@ async def generate_structure(session_id: str, content_text: str, config: dict) -
         enabled_resources['game'] = True
     if config.get('visualCourseMode') == 'illustrated_journey':
         for required_type in ('game', 'simulator', 'scenario', 'infographic', 'quiz'):
-            enabled_resources[required_type] = True
+            enabled_resources.setdefault(required_type, True)
     if config.get('simulatorsAllowed') is False:enabled_resources['simulator']=False
 
     # Build the list of allowed types
@@ -954,6 +964,7 @@ REGRAS GERAIS:
 - Aplique progressão de complexidade
 - Use microlearning: máximo 3 conceitos por slide
 - CUMPRA a distribuição acima com precisão. Conte os slides de cada tipo antes de finalizar.
+- A cobertura integral tem prioridade sobre percentuais e duração. Recursos habilitados são COMPLEMENTOS: mantenha os slides de ensino e capturas originais, acrescente atividades ligadas aos itens ensinados e explique sua finalidade pedagógica. Não use quiz, flashcard ou simulador como substituto de conteúdo obrigatório. Para imagens novas, proponha uma ilustração contextual somente em telas sem captura original; a produção será escolhida em Mídia.
 - Distribua os recursos de forma INTERCALADA - não agrupe todos os quizzes no final, etc."""
 
     from services.agent_language import language_instruction
@@ -1005,6 +1016,8 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
     processed_slides = 0
     async def save_batch(index, source_batch, start):
         completed = all_slides[start:]
+        from services.learning_complements import preserve_complement_metadata
+        preserve_complement_metadata(completed, source_batch)
         for item in completed:
             _normalize_interactive_storyboard_slide(item)
             _normalize_visual_content_slide(item)
@@ -1034,6 +1047,9 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
             "purpose": s.get("purpose", ""),
             "moduleName": s.get("moduleName", ""),
             "sourceRefs": s.get('sourceRefs', []),
+            "isComplement": bool(s.get('isComplement')),
+            "reinforcesSourceRefs": s.get('reinforcesSourceRefs', []),
+            "learningRationale": s.get('learningRationale', ''),
             "experienceIntent": s.get("experienceIntent", ""),
             "contentBudgetWords": s.get("contentBudgetWords", 70),
             "narrativeBeat": s.get("narrativeBeat", ""),
@@ -1114,6 +1130,7 @@ CONTEÚDO-BASE COMPLETO para referência:
 DESENVOLVIMENTO OBRIGATÓRIO:
 Explique o funcionamento, decisões, campos e cuidados dos itens de sourceRefs; citar o título não basta.
 Não invente telas ou regras ausentes da fonte. Diferencie regras do produto de propostas didáticas.
+Slides isComplement são atividades ADICIONAIS: desenvolva a proposta no contexto dos trechos fornecidos, com exemplos e feedback explicativo. Não substituem o ensino dos sourceRefs. Preserve a finalidade learningRationale e a ligação aos reinforcesSourceRefs.
 Use 70–140 palavras visíveis por slide de conteúdo, com exemplo concreto e orientação prática.
 O restante pode ir às notas, mas não substitua o conteúdo principal por instruções ao professor.
 
@@ -1610,6 +1627,7 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
     return {
         "slides": all_slides,
         **({'sourceCoverage': dict(structure['sourceCoverage'], status='generated')} if structure.get('sourceCoverage') else {}),
+        **({'learningComplements': structure['learningComplements']} if structure.get('learningComplements') else {}),
         "qualityProfile": "illustrated_journey" if illustrated_journey else "premium",
         **({"visualStoryBible": story_bible} if illustrated_journey else {}),
     }
@@ -4159,6 +4177,9 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             "sourceRefs": sb_slide.get('sourceRefs', []),
             "sourceImage": sb_slide.get('sourceImage'),
             "sourceImageOnly": bool(sb_slide.get('sourceImageOnly')),
+            "isComplement": bool(sb_slide.get('isComplement')),
+            "reinforcesSourceRefs": sb_slide.get('reinforcesSourceRefs', []),
+            "learningRationale": sb_slide.get('learningRationale', ''),
             "gameQuestionIds": sb_slide.get("gameQuestionIds", []) if stype == "game" else [],
             "gameMechanic": (
                 sb_slide.get("gameMechanic")

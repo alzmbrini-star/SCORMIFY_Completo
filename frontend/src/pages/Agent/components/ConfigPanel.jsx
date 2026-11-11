@@ -356,6 +356,9 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
             </div>
 
             {/* Distribution Preview */}
+            <p className="rounded-lg border border-teal-600/30 bg-teal-950/30 p-3 text-xs text-teal-200">
+              A ementa vem primeiro: atividades habilitadas são complementos ao ensino, sem remover assuntos ou capturas originais. Revise as propostas na Estrutura e no Storyboard; imagens novas são escolhidas em Mídia. Mais recursos podem aumentar o número de slides, o tempo e os créditos de geração.
+            </p>
             {(() => {
               const res = config.enabledResources || {};
               const enabledCount = Object.values(res).filter(Boolean).length;
