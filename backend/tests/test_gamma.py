@@ -8,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from fastapi import HTTPException, Query
+from fastapi import HTTPException, Query, File, UploadFile
 from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from services import gamma_api
@@ -22,7 +22,7 @@ def routes(**values):
         if hasattr(node, 'decorator_list'): node.decorator_list = []
     from datetime import datetime, timezone, timedelta
     scope = dict(Depends=lambda _: None, require_auth=None, HTTPException=HTTPException, BaseModel=BaseModel,
-        ConfigDict=ConfigDict, Field=Field, model_validator=model_validator, Query=Query, uuid=uuid, gamma_api=gamma_api, Project=Project,
+        ConfigDict=ConfigDict, Field=Field, model_validator=model_validator, Query=Query, File=File, UploadFile=UploadFile, uuid=uuid, gamma_api=gamma_api, Project=Project,
         datetime=datetime, timezone=timezone, timedelta=timedelta, asyncio=asyncio, Path=Path,
         has_any_role=lambda u, *roles: bool(set(u.get('roles', [])) & (set(roles) | {'super_admin'})))
     scope.update(values)

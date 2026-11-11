@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -49,7 +49,7 @@ class Generate(BaseModel):
     model_config = ConfigDict(extra='forbid')
     requestId: uuid.UUID
     title: str = Field(min_length=3, max_length=160)
-    prompt: str = Field(min_length=20, max_length=10000)
+    prompt: str = Field(min_length=20, max_length=100000)
     companyId: str | None = None
     numCards: int = Field(default=5, ge=1, le=100, strict=True)
     themeId: str | None = Field(default=None, min_length=1, max_length=128, pattern=r'^[A-Za-z0-9_-]+$')
@@ -66,6 +66,19 @@ class Generate(BaseModel):
 async def configuration(user=Depends(require_auth)):
     creator(user)
     return {'configured': gamma_api.configured(), 'defaultSlides': 5, 'minSlides': 1, 'maxSlides': gamma_api.MAX_SLIDES, 'language': 'pt-BR'}
+
+
+@router.post('/gamma/extract-document')
+async def extract_document(file: UploadFile = File(...), user=Depends(require_auth)):
+    creator(user)
+    from services.gamma_documents import MAX_FILE, DocumentError, extract_document as extract
+    try:
+        raw = await file.read(MAX_FILE + 1)
+        return await asyncio.to_thread(extract, file.filename or '', raw)
+    except DocumentError as exc:
+        raise HTTPException(422, str(exc)) from None
+    finally:
+        await file.close()
 
 
 @router.get('/gamma/jobs')

@@ -7,6 +7,7 @@ import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import CompanySelector from './CompanySelector';
 import GammaDesignPicker from './GammaDesignPicker';
+import GammaDocumentInput from './GammaDocumentInput';
 import './gammaDialog.css';
 
 const API = getApiUrl();
@@ -33,6 +34,7 @@ export default function GammaCreateDialog({ onCreated }) {
   const [jobs, setJobs] = useState([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [documentBusy, setDocumentBusy] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   const [design, setDesign] = useState(null);
   const [designRequired, setDesignRequired] = useState(false);
@@ -60,7 +62,7 @@ export default function GammaCreateDialog({ onCreated }) {
 
   if (!allowed) return null;
   const generate = async () => {
-    if (submitting.current || busy || uncertain || !validCount) return;
+    if (submitting.current || busy || documentBusy || uncertain || !validCount || prompt.length > 100000) return;
     submitting.current = true;
     setBusy(true); setError('');
     requestId.current = requestId.current || crypto.randomUUID();
@@ -101,7 +103,9 @@ export default function GammaCreateDialog({ onCreated }) {
       <label>Título do curso<Input aria-label="Título Gamma" maxLength={160} value={title} disabled={busy} onChange={e => setTitle(e.target.value)} /></label>
       <label>Quantidade de slides<Input aria-label="Quantidade de slides Gamma" type="number" inputMode="numeric" min="1" max="100" step="1" value={slideCount} disabled={busy} onChange={e=>setSlideCount(e.target.value)} aria-invalid={!validCount} aria-describedby="gamma-count-help"/></label>
       <p id="gamma-count-help" className={validCount?'gamma-help':'gamma-error'}>Digite de 1 a 100. O Gamma limita o plano gratuito a 10 slides e os pagos a até 100. Quantidades maiores podem consumir mais créditos. O limite da sua conta será validado pelo Gamma.</p>
-      <label>Conteúdo da apresentação<textarea aria-label="Conteúdo Gamma" className="w-full min-h-28 p-3" maxLength={10000} value={prompt} disabled={busy} onChange={e => setPrompt(e.target.value)} placeholder="Tema, público, objetivos e tópicos. Inclua o conteúdo que deseja ensinar." /></label>
+      <label>Conteúdo da apresentação<textarea aria-label="Conteúdo Gamma" className="w-full min-h-28 p-3" maxLength={100000} value={prompt} disabled={busy || documentBusy} onChange={e => setPrompt(e.target.value)} placeholder="Tema, público, objetivos e tópicos. Inclua o conteúdo que deseja ensinar." /></label>
+      <p className="gamma-help">{prompt.length.toLocaleString('pt-BR')} / 100.000 caracteres. Revise o conteúdo e escolha slides suficientes para cobrir seus tópicos.</p>
+      <GammaDocumentInput value={prompt} onChange={setPrompt} disabled={busy || uncertain} onBusy={setDocumentBusy}/>
       <CompanySelector value={companyId} onChange={setCompanyId} testIdPrefix="gamma-company" native disabled={busy}/>
       </div><aside className="gamma-side"><strong>Seu curso, um novo começo</strong><p>{validCount?`${count} ${count===1?'slide':'slides'} em PT-BR`:'Defina a quantidade de slides'}, sem alterar seus projetos existentes.</p><p>Você poderá acrescentar textos, perguntas e interações no Editor.</p><details className="gamma-help mt-4"><summary>Créditos e edição dos slides</summary><p>Usa créditos da conta Gamma configurada no servidor. A quantidade é uma meta: o Gamma pode entregar um número diferente, que será informado no histórico, sem gerar novamente. Preserva o visual como imagem-base por slide; o texto da imagem não será editável separadamente. Arquivos muito grandes podem atingir os limites de importação de 80 MB no ZIP e 160 MB nas imagens descompactadas. Confira o resultado antes de publicar.</p></details></aside></div>
       </section>
@@ -129,7 +133,7 @@ export default function GammaCreateDialog({ onCreated }) {
       {uncertain && <p role="status" className="gamma-error">Solicitação sem confirmação. Não repetiremos automaticamente. Reabra esta janela para consultar o histórico e confira também sua conta Gamma.</p>}
       <div className="gamma-footer-main"><div className="gamma-footer-summary"><strong>{design?.name || (designRequired?'Escolha um visual':'Visual automático')}</strong><div>{title.trim().length<3||prompt.trim().length<20?'Preencha o título e pelo menos 20 caracteres de conteúdo.':'Conteúdo pronto · gera um novo projeto · usa créditos Gamma'}</div></div>
       <div className="gamma-footer-actions">{step==='content'?<Button variant="outline" onClick={()=>setStep('design')}>Escolher aparência →</Button>:<Button variant="outline" onClick={()=>setStep('content')}>← Conteúdo</Button>}
-      <Button onClick={generate} disabled={busy || uncertain || !validCount || configured !== true || (designRequired && !design) || title.trim().length < 3 || prompt.trim().length < 20} data-testid="gamma-generate">{busy ? 'Enviando…' : validCount ? `Gerar ${count} ${count===1?'slide':'slides'}` : 'Informe a quantidade'}</Button></div></div>
+      <Button onClick={generate} disabled={busy || documentBusy || uncertain || prompt.length > 100000 || !validCount || configured !== true || (designRequired && !design) || title.trim().length < 3 || prompt.trim().length < 20} data-testid="gamma-generate">{busy ? 'Enviando…' : documentBusy ? 'Lendo arquivo…' : validCount ? `Gerar ${count} ${count===1?'slide':'slides'}` : 'Informe a quantidade'}</Button></div></div>
       </footer>
     </DialogContent></Dialog>
   </>;
