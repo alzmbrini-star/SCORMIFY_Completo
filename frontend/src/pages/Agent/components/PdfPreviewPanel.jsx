@@ -198,6 +198,8 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
         ...(prev || {}),
         hasPdf: true,
         processing: true,
+        extractionFailed: false,
+        pdfReady: false,
         faithfulMode: true,
         fileName: prev?.fileName || '',
         statusMessage: 'Renderizando paginas do PDF...',
@@ -254,6 +256,8 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
       throw new Error('Tempo esgotado aguardando geracao do curso fiel');
     } catch (e) {
       toast.error(e.message || 'Falha ao gerar em Modo Fiel');
+      setPreview(prev => ({...(prev || {}), hasPdf:true, processing:false, extractionFailed:true, faithfulMode:true,
+        statusMessage:e.message || 'Falha ao gerar em Modo Fiel'}));
       setFaithfulLoading(false);
       if (onStatusChange) onStatusChange(false);
     }
@@ -330,7 +334,7 @@ export default function PdfPreviewPanel({ sessionId, apiBase, onSaved, onStatusC
           <FileText className="w-6 h-6 text-amber-300 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <h4 className="text-sm font-semibold text-white">
-              Extracao automatica nao produziu imagens {preview.fileName && <span className="text-amber-200/80 font-normal">({preview.fileName})</span>}
+              {preview.faithfulMode ? 'Conversão em Modo Fiel interrompida' : 'Extracao automatica nao produziu imagens'} {preview.fileName && <span className="text-amber-200/80 font-normal">({preview.fileName})</span>}
             </h4>
             <p className="text-xs text-amber-100/80 mt-1">
               {preview.statusMessage}

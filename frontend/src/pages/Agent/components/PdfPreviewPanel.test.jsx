@@ -14,10 +14,20 @@ test('permanent worker error exits polling promptly instead of retrying thirty m
   global.fetch=jest.fn(async(url,options)=>({ok:true,json:async()=> options?.method==='POST'?{projectId:'new'}:url.includes('faithful-status')?{status:'error',message:'Falha ao salvar a página 2'}:{pdfExtractionStatus:{status:'pdf_ready'},fileName:'Grande.pdf'}}));
   await act(async()=>root.render(<PdfPreviewPanel sessionId="session" apiBase="https://backend.test"/>));
   await act(async()=>container.querySelector('[data-testid="pdf-faithful-mode-btn"]').click());
+  expect(container.querySelector('[data-testid="pdf-preview-processing"]')).not.toBeNull();
   await act(async()=>jest.advanceTimersByTime(2000));
   expect(mockError).toHaveBeenCalledWith('Falha ao salvar a página 2');
+  expect(container.textContent).toContain('Conversão em Modo Fiel interrompida');
   const requests=global.fetch.mock.calls.filter(([url])=>url.includes('faithful-status')).length;
   await act(async()=>jest.advanceTimersByTime(120000));
   expect(global.fetch.mock.calls.filter(([url])=>url.includes('faithful-status'))).toHaveLength(requests);
   expect(mockNavigate).not.toHaveBeenCalled();
+});
+test('starting faithful conversion clears a previous extraction failure banner',async()=>{
+  global.fetch=jest.fn(async(url,options)=>({ok:true,json:async()=> options?.method==='POST'?{projectId:'new'}:url.includes('pdf-preview')?{hasPdf:true,extractionFailed:true,statusMessage:'Extração cancelada',fileName:'Grande.pdf'}:{pdfExtractionStatus:{status:'cancelled'}}}));
+  await act(async()=>root.render(<PdfPreviewPanel sessionId="session" apiBase="https://backend.test"/>));
+  expect(container.textContent).toContain('Extracao automatica nao produziu imagens');
+  await act(async()=>container.querySelector('[data-testid="pdf-faithful-mode-btn-failed"]').click());
+  expect(container.querySelector('[data-testid="pdf-preview-processing"]')).not.toBeNull();
+  expect(container.textContent).not.toContain('Extracao automatica nao produziu imagens');
 });
