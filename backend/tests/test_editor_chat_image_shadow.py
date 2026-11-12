@@ -62,6 +62,8 @@ def test_scope_uses_current_slide_and_selected_image_identifiers():
     'Aplicar sombra media no slide 99','Não aplique sombra média em todas as imagens',
     'Aplicar sombra media em todas as imagens exceto a capa',
     'Aplicar sombra media na segunda imagem do slide 1',
+    'Aplicar sombra media em todas as imagens de fundo',
+    'Aplicar sombra media em todas as imagens dentro do HTML',
     'Como aplicar sombra média em todas as imagens?'])
 def test_ambiguous_missing_context_invalid_slide_and_help_never_mutate(command):
     slides=sample();before=copy.deepcopy(slides)

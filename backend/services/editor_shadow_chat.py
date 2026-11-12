@@ -69,6 +69,7 @@ def plan_image_shadow(message, slides, current_slide_id=None, selected_element_i
     if 'sombra' not in text or (not re.search(r'imagem|imagens',text) and re.search(r'texto|letras|titulo',text)):return None
     def clarify(reply):return {'reply':reply,'ops':[],'imageShadowCommand':True,'targetCount':0}
     if re.match(r'^(como|onde|quais|consigo|posso|e possivel)\b',text):return clarify(GUIDE)
+    if re.search(r'imagens? de fundo|background|(?:dentro.{0,25}|\b(?:no|nos|do|dos)\s+)(?:html|simulador)',text):return clarify('Este comando só ajusta imagens selecionáveis no slide. Não altera imagens de fundo nem imagens internas de HTML ou simuladores. Nenhuma alteração feita.')
     if re.search(r'\bnao\b.{0,40}\b(?:apli\w*|colo\w*|adicion\w*|remov\w*|retir\w*|desativ\w*|ativ\w*|ajust\w*|alter\w*)\b.{0,25}\bsombra',text):return clarify('Nenhuma alteração feita. Informe apenas a sombra e o escopo desejados. '+GUIDE)
     if re.search(r'exceto|com excecao|menos (?:o|os|a|as)\b|primeira imagem|segunda imagem|terceira imagem|ultima imagem|penultima imagem|imagem\s+\d',text):return clarify('Para ajustar uma imagem específica ou excluir peças, selecione a imagem no Editor e peça a alteração na imagem selecionada; não apliquei mudanças em lote.')
     if not re.search(r'apli|colo|adicion|remov|retir|desativ|ativ|ajust|alter|mud|use\b|usar\b|quero|gostaria|deixe',text):return clarify(GUIDE)
