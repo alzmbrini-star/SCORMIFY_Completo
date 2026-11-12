@@ -6,6 +6,21 @@ _MARKER = re.compile(r'\[IMG:([^\]]*)\]', re.I | re.S)
 _ASSET = re.compile(r'[A-Za-z0-9_.-]+\.(?:png|jpe?g|gif|webp|svg)', re.I)
 
 
+def visible_teaching_text(value):
+    """Read visible prose for fallback/media use, never implementation comments.
+
+    This does not rewrite authored HTML or code examples in the original slide.
+    Code blocks are not suitable source copy for replacement concept cards.
+    """
+    value=clean_image_instructions(value)
+    value=re.sub(r'<!--.*?-->', ' ', value, flags=re.S)
+    value=re.sub(r'<(script|style|template|noscript|pre|code)\b[^>]*>[\s\S]*?</\1\s*>', ' ', value, flags=re.I)
+    value=html.unescape(re.sub(r'<[^>]+>', ' ', value))
+    value=re.sub(r'/\*[\s\S]*?\*/', ' ', value)
+    value=re.sub(r'<!--.*?-->', ' ', value, flags=re.S)
+    return re.sub(r'\s+', ' ', value).strip()
+
+
 def clean_image_instructions(value):
     if not isinstance(value,str): return ''
     # File markers from source documents remain intact for the asset migrator.

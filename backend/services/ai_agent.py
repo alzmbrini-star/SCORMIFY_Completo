@@ -1823,8 +1823,8 @@ def _slide_plain_text(slide_context: Optional[dict]) -> str:
         combined,
         flags=re.IGNORECASE,
     )
-    clean = re.sub(r"<[^>]+>", " ", combined)
-    clean = html.unescape(re.sub(r"\s+", " ", clean)).strip()
+    from services.teaching_copy import visible_teaching_text
+    clean = visible_teaching_text(combined)
     return clean[:1800]
 
 
@@ -3251,7 +3251,9 @@ function reviewMissed(){cards=cards.filter((_,i)=>missed.has(i));restart(false)}
 
 def _fallback_content_parts(sb_slide: dict, minimum: int = 5) -> list[str]:
     """Extract useful visible content even when the model returned bad HTML."""
-    source = re.sub(r"\s+", " ", _slide_plain_text(sb_slide)).strip()
+    # Instructor notes are production guidance, not learner-facing concepts.
+    teaching_source=dict(sb_slide,notes='',body=sb_slide.get('body') or sb_slide.get('text') or sb_slide.get('sourceExcerpt') or '')
+    source = re.sub(r"\s+", " ", _slide_plain_text(teaching_source)).strip()
     parts = []
     for candidate in re.split(r"(?<=[.!?;:])\s+|\s+[\u2022\-]\s+", source):
         candidate = candidate.strip(" -\u2022")
@@ -3290,7 +3292,20 @@ def _build_infographic_fallback_html(sb_slide: dict) -> str:
     # pedagogical copy (legacy buttons such as "Explore o Ciclo" otherwise
     # become a visible concept card). Keep the meaningful slide metadata.
     content_source = sb_slide
-    if any(
+    # Read only the known fallback's inert JSON, never execute its script. This
+    # preserves useful old cards while dropping a leaked production comment.
+    for element in sb_slide.get('elements') or []:
+        compiled=str(element.get('htmlContent') or element.get('content') or '')
+        if 'Síntese visual interativa' not in compiled or 'const items=' not in compiled:continue
+        try:
+            old_items,_=json.JSONDecoder().raw_decode(compiled.split('const items=',1)[1].lstrip())
+            from services.teaching_copy import visible_teaching_text
+            if isinstance(old_items,list) and 1<=len(old_items)<=7:
+                meaningful=[visible_teaching_text(row.get('text','')) for row in old_items if isinstance(row,dict)]
+                meaningful=[text for text in meaningful if text]
+                content_source=dict(sb_slide,elements=[{'type':'text','content':'<p>'+html.escape(text)+'</p>'} for text in meaningful])
+        except (ValueError,TypeError,AttributeError):pass
+    if content_source is sb_slide and any(
         _infographic_html_needs_repair(str(element.get("htmlContent") or element.get("content") or ""))
         for element in (sb_slide.get("elements") or [])
         if str(element.get("type") or "").lower() == "html"
@@ -3322,6 +3337,12 @@ def _infographic_html_needs_repair(html_content: str) -> bool:
     raw = str(html_content or "")
     if not raw.strip():
         return True
+    if 'Síntese visual interativa' in raw and 'const items=' in raw:
+        try:
+            items,_=json.JSONDecoder().raw_decode(raw.split('const items=',1)[1].lstrip())
+            if isinstance(items,list) and any(isinstance(row,dict) and re.search(r'/\*|<!--|\[IMG:', str(row.get('text',''))+' '+str(row.get('title','')), re.I) for row in items):
+                return True
+        except (ValueError,TypeError):pass
     lowered = raw.lower()
     legacy_signatures = (
         "explore o ciclo",

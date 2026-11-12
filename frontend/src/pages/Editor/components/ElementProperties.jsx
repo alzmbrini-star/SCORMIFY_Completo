@@ -11,6 +11,7 @@ import VideoQuizDialog from '../../../components/editor/VideoQuizDialog';
 import { videoQuizSnapshot } from '../../../utils/videoQuizDraft';
 import ScenarioImagePicker from '../../../components/scenario/ScenarioImagePicker';
 import AssessmentImageDialog from '../../../components/assessment/AssessmentImageDialog';
+import HtmlSourceEditor from '../../../components/editor/HtmlSourceEditor';
 
 export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 540, projectId }) {
   const style = element.style || {};
@@ -169,6 +170,7 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
           available for them too. Renders `text-shadow` inside the iframe. */}
       {element.type === 'html' && (
         <>
+          <HtmlSourceEditor key={element.id} element={element} onUpdate={onUpdate} />
           <InteractiveTextColorControls element={element} onUpdate={onUpdate} />
           <EditorialTextColorControls element={element} onUpdate={onUpdate} />
           <div className="panel-section" data-testid="html-display-mode-section">
