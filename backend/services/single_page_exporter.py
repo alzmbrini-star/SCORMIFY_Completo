@@ -26,6 +26,7 @@ import json
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from services.image_shadow import image_shadow_css
 
 
 # --------------------------------------------------------------------------- helpers
@@ -463,6 +464,7 @@ def _render_image_element_inner(el: dict, project_id: str, assets_dir: str, base
     alt = _esc(el.get("alt", ""))
     style = el.get("style") or {}
     radius = style.get("borderRadius", "8px")
+    shadow_css = image_shadow_css(el.get("imageShadow"))
     if el.get("journeyInteractive"):
         evidence = el.get("visualEvidence") or []
         if not isinstance(evidence, list):
@@ -484,14 +486,14 @@ def _render_image_element_inner(el: dict, project_id: str, assets_dir: str, base
         return (
             f'<figure class="sp-image sp-evidence-scene" style="margin:0">'
             f'<div class="sp-evidence-prompt">🔎 {prompt}</div>'
-            f'<div class="sp-evidence-media"><img src="{_esc(src)}" alt="{alt}" loading="lazy" />{pins}</div>'
+            f'<div class="sp-evidence-media" style="{shadow_css}"><img src="{_esc(src)}" alt="{alt}" loading="lazy" />{pins}</div>'
             f'<figcaption class="sp-evidence-cards">{cards}</figcaption>'
             f'</figure>'
         )
     return (
         f'<figure class="sp-image" style="margin:0;display:flex;justify-content:center">'
         f'<img src="{_esc(src)}" alt="{alt}" loading="lazy" '
-        f'style="max-width:100%;height:auto;border-radius:{_esc(radius)};box-shadow:0 6px 20px rgba(0,0,0,.18)" />'
+        f'style="max-width:100%;height:auto;border-radius:{_esc(radius)};box-shadow:0 6px 20px rgba(0,0,0,.18);{shadow_css}" />'
         f'</figure>'
     )
 

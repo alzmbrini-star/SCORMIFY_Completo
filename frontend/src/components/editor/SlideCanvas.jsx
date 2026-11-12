@@ -10,6 +10,7 @@ import { getAnimationInitialStyle, getAnimationFinalStyle, getAnimationTransitio
 import { getApiUrl } from '../../utils/apiUrl';
 import { resolveHtmlAssetUrls } from '../../utils/htmlAssetUrls';
 import { hostedVideoQuizConfig } from '../../utils/videoQuizHostedDocument';
+import { imageShadowStyle } from '../../utils/imageShadow';
 const API_URL = getApiUrl();
 
 // Helper to get full asset URL
@@ -844,7 +845,7 @@ const SlideCanvas = ({
             )}
             
             {/* Element Content */}
-            <div className="w-full h-full overflow-hidden">
+            <div className={`w-full h-full ${element.type === 'image' ? 'overflow-visible' : 'overflow-hidden'}`}>
               {/* Text Element */}
               {element.type === 'text' && (
                 isEditing ? (
@@ -905,6 +906,7 @@ const SlideCanvas = ({
                   className="w-full h-full pointer-events-none select-none"
                   style={{
                     objectFit: element.objectFit || 'contain',
+                    ...imageShadowStyle(element.imageShadow),
                   }}
                   draggable={false}
                 />

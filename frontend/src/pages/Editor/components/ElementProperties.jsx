@@ -12,6 +12,7 @@ import { videoQuizSnapshot } from '../../../utils/videoQuizDraft';
 import ScenarioImagePicker from '../../../components/scenario/ScenarioImagePicker';
 import AssessmentImageDialog from '../../../components/assessment/AssessmentImageDialog';
 import HtmlSourceEditor from '../../../components/editor/HtmlSourceEditor';
+import ImageShadowControls from '../../../components/editor/ImageShadowControls';
 
 export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHeight = 540, projectId }) {
   const style = element.style || {};
@@ -142,6 +143,7 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
 
       {element.type === 'image' && (
         <div className="panel-section">
+          <ImageShadowControls element={element} onUpdate={onUpdate} />
           <label>Imagem</label>
           <Button
             variant="outline"

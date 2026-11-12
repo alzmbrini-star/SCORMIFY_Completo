@@ -795,6 +795,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     video_viewport_js = (Path(__file__).parent / 'export_assets' / 'video-quiz-viewport.js').read_text(encoding='utf-8')
     video_host_js = (Path(__file__).parent / 'export_assets' / 'video-quiz-host.js').read_text(encoding='utf-8')
     scenario_presentation_js = (Path(__file__).parent / 'export_assets' / 'scenario-presentation.js').read_text(encoding='utf-8')
+    image_shadow_js = (Path(__file__).parent / 'export_assets' / 'image-shadow.js').read_text(encoding='utf-8')
     html = f'''<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -804,6 +805,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     <script>{video_viewport_js}</script>
     <script>{video_host_js}</script>
     <script>{scenario_presentation_js}</script>
+    <script>{image_shadow_js}</script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lato:wght@300;400;700&family=Merriweather:wght@300;400;700&family=Montserrat:wght@300;400;500;600;700&family=Nunito:wght@300;400;600;700&family=Open+Sans:wght@300;400;600;700&family=Oswald:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=PT+Sans:wght@400;700&family=Raleway:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&family=Source+Sans+3:wght@300;400;600;700&family=Ubuntu:wght@300;400;500;700&family=Manrope:wght@400;600;700;800&family=Sora:wght@400;600;700&family=Fraunces:wght@400;600;700&family=Source+Serif+4:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Archivo:wght@400;600;700&display=swap" rel="stylesheet">
@@ -2286,6 +2288,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             style += 'opacity:' + elem.style.opacity + ';';
                         }}
                         
+                        if (elem.type === 'image' && elem.imageShadow) style += 'overflow:visible;';
                         html += '<div class="slide-element ' + elem.type + '-element" id="element-' + elemIndex + '" data-start-time="' + startTime + '" data-end-time="' + endTime + '" style="' + style + '">';
                         
                         if (elem.type === 'text') {{
@@ -2316,7 +2319,9 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             html += '<div style="' + textStyle + '">' + (elem.content || '') + '</div>';
                         }}
                         else if (elem.type === 'image' && elem.src) {{
-                            html += '<img src="' + elem.src + '" alt="" style="width:100%;height:100%;object-fit:' + (elem.objectFit || 'contain') + ';">';
+                            var imageShadow = imageShadowStyle(elem.imageShadow);
+                            var imageShadowCss = Object.keys(imageShadow).map(function(key) {{ return (key === 'boxShadow' ? 'box-shadow' : key) + ':' + imageShadow[key] + ';'; }}).join('');
+                            html += '<img src="' + elem.src + '" alt="" style="width:100%;height:100%;object-fit:' + (elem.objectFit || 'contain') + ';' + imageShadowCss + '">';
                         }}
                         else if (elem.type === 'smartart' && elem.src) {{
                             // SmartArt rendered as image with fallback content for accessibility

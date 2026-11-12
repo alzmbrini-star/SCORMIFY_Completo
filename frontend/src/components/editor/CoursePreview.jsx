@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import GuidedPathPreview from './GuidedPathPreview';
+import { imageShadowStyle } from '../../utils/imageShadow';
 import { assessmentFrameDocument, assessmentFrameSandbox, assessmentFrameAllow } from '../assessment/assessmentFrame';
 import axios from 'axios';
 import { Button } from '../ui/button';
@@ -804,7 +805,8 @@ const CoursePreview = ({ course, projectId, onClose }) => {
                       width: '100%', 
                       height: '100%', 
                       objectFit: element.objectFit || 'contain',
-                      display: 'block'
+                      display: 'block',
+                      ...imageShadowStyle(element.imageShadow),
                     }}
                   />
                 )}

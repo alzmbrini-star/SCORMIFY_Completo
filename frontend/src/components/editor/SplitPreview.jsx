@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import GuidedPathPreview from './GuidedPathPreview';
+import { imageShadowStyle } from '../../utils/imageShadow';
 import { assessmentFrameDocument, assessmentFrameSandbox, assessmentFrameAllow } from '../assessment/assessmentFrame';
 import axios from 'axios';
 import { Button } from '../ui/button';
@@ -390,7 +391,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
                     </div>
                   )}
                   {element.type === 'image' && (
-                    <img src={getAssetUrl(element.src || element.imageUrl, projectId)} alt="" style={{ width: '100%', height: '100%', objectFit: element.objectFit || 'contain', display: 'block' }} />
+                    <img src={getAssetUrl(element.src || element.imageUrl, projectId)} alt="" style={{ width: '100%', height: '100%', objectFit: element.objectFit || 'contain', display: 'block', ...imageShadowStyle(element.imageShadow) }} />
                   )}
                   {element.type === 'shape' && (
                     <div className="w-full h-full flex items-center justify-center" style={{

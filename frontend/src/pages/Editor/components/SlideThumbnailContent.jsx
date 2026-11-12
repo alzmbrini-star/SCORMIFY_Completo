@@ -3,6 +3,7 @@ import { getThumbAssetUrl } from '../utils';
 import { sanitizeHtmlForDisplay, wrapInteractiveFullbleed } from '../../../utils/htmlUtils';
 import { resolveHtmlAssetUrls } from '../../../utils/htmlAssetUrls';
 import { hostedVideoQuizConfig } from '../../../utils/videoQuizHostedDocument';
+import { imageShadowStyle } from '../../../utils/imageShadow';
 
 const resolveThumbHtmlUrls = (htmlContent) => {
   return resolveHtmlAssetUrls(htmlContent);
@@ -33,7 +34,7 @@ const SlideThumbnailContent = ({ slide }) => {
           height: elH,
           transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
           zIndex: el.zIndex || 0,
-          overflow: 'hidden',
+          overflow: el.type === 'image' ? 'visible' : 'hidden',
           opacity: el.style?.opacity > 0 ? el.style.opacity : (el.style?.opacity === 0 ? 0 : 1),
         };
 
@@ -64,7 +65,7 @@ const SlideThumbnailContent = ({ slide }) => {
               <img
                 src={getThumbAssetUrl(el.src)}
                 alt=""
-                style={{ width: '100%', height: '100%', objectFit: el.objectFit || 'contain', display: 'block' }}
+                style={{ width: '100%', height: '100%', objectFit: el.objectFit || 'contain', display: 'block', ...imageShadowStyle(el.imageShadow) }}
                 loading="lazy"
                 draggable={false}
               />

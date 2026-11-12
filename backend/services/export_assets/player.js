@@ -1267,6 +1267,7 @@ var CoursePlayer = (function() {
                 img.style.width = '100%';
                 img.style.height = '100%';
                 img.style.objectFit = element.objectFit || 'contain';
+                Object.assign(img.style, imageShadowStyle(element.imageShadow));
                 el.appendChild(img);
                 break;
                 
@@ -1797,7 +1798,8 @@ var CoursePlayer = (function() {
         el.style.width = (useGameViewport ? viewportWidth - gameMarginX * 2 : (element.width || 100)) + 'px';
         el.style.height = (useGameViewport ? viewportHeight - gameMarginY * 2 : (element.height || 100)) + 'px';
         el.style.zIndex = (element.zIndex || 0) + 1;
-        el.style.overflow = 'hidden';  // Ensure content stays within bounds
+        el.style.overflow = 'hidden';
+        if (element.type === 'image' && element.imageShadow) el.style.setProperty('overflow', 'visible', 'important');
         
         if (element.rotation) {
             el.style.transform = 'rotate(' + element.rotation + 'deg)';
