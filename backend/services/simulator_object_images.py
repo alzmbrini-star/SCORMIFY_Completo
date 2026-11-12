@@ -112,7 +112,7 @@ def candidates(scene, *, legacy_materials=False):
         if any(n.get('bindings') or n.get('states') or 'visibleWhen' in n or n.get('artwork') for n in children):continue
         if any(m.get('node') in {n['id'] for n in children} for m in scene.get('motions',[])):continue
         box = bounds(node)
-        if not box or (not node.get('artwork') and node.get('attrs',{}).get('fill')=='none') or min(box[2:]) < 18 or box[2]*box[3] > 800*450*.45: continue
+        if not box or (not node.get('artwork') and node.get('attrs',{}).get('fill')=='none') or min(box[2:]) < 18 or box[2]*box[3] > 800*450*(.8 if node.get('artwork') else .45): continue
         if semantic and max(box[2:])<72:continue  # Do not charge for another tiny sprite slot.
         if any(b.get('property') not in {'x','y','rotation','opacity'} for b in node.get('bindings', [])): continue
         states=node.get('states', [])

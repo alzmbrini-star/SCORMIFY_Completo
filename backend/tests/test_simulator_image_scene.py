@@ -35,7 +35,10 @@ class ImageSceneTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'sem desenho'):check_image_slots(value,pump_model())
     def test_prepares_subject_specific_typed_scene_without_changing_rules(self):
         model=pump_model();before=copy.deepcopy(model)
-        chat=SimpleNamespace(send_message=AsyncMock(return_value=json.dumps(scene())))
+        raw=scene()
+        raw['nodes'][-1]['attrs']['opacity']=1
+        raw['nodes'][-1]['bindings']=[{'property':'opacity','var':'etapa','input':[0,2],'output':[1,1]}]
+        chat=SimpleNamespace(send_message=AsyncMock(return_value=json.dumps(raw)))
         chat.with_model=lambda *a:chat
         chat.with_params=lambda **kw:chat
         with patch('emergentintegrations.llm.chat.LlmChat',return_value=chat),patch('services.llm_config.simulator_generation_config',return_value=('openai','fake','model')):
