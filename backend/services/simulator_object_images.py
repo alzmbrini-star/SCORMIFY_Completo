@@ -15,6 +15,15 @@ MAX_BYTES = 250000
 DEFAULT_OBJECT_IMAGE_MODEL = 'gpt-image-2.5-sunburst'
 
 
+def storyboard_status(spec, context):
+    """Expose actual visual output, not just the requested resource name."""
+    try: requested = json.loads(context).get('simulatorOptions', {}).get('objectImages') is True
+    except (ValueError, TypeError, AttributeError): requested = False
+    scene = spec if spec.get('mechanic') == 'didactic-visualization-v1' else spec.get('visual')
+    return {'imagesRequested': requested, 'imageCount': len((scene or {}).get('illustrations', [])),
+            'sceneAvailable': bool(scene), 'notice': spec.get('artworkNotice') or spec.get('visualNotice') or ''}
+
+
 class ObjectImageError(ValueError):
     def __init__(self, reason, *, status=None, code='', param='', global_failure=False):
         super().__init__(reason)
@@ -191,7 +200,16 @@ async def enrich(result, prompt, context, session_id, max_images=4):
     data = copy.deepcopy(result.get('spec') or {})
     visualization = data.get('mechanic') == 'didactic-visualization-v1'
     scene = data if visualization else data.get('visual')
-    if not scene or scene.get('illustrations'): return result
+    if scene and scene.get('illustrations'): return result
+    if not visualization and (not scene or not candidates(scene)):
+        from services.simulator_image_scene import prepare_scene
+        scene = await prepare_scene(data, prompt, context, session_id)
+        data['visual'] = scene
+        data.pop('visualProject', None)
+        data.pop('visualNotice', None)
+        result = {'spec': data, 'html': rendered(data, False)}
+    if not scene:
+        raise ValueError('As imagens foram solicitadas, mas a composição visual não está disponível. A atividade anterior foi preservada.')
     eligible = candidates(scene)
     if not eligible:
         return noted(result,'Não foram identificadas peças rígidas separáveis para imagens. O cenário vetorial foi preservado, sem geração paga de imagens.')
@@ -285,8 +303,6 @@ async def illustrate_existing(source,prompt,context,max_images=4):
     raw=json.loads(source)
     if not isinstance(raw,dict):raise ValueError('Modelo inválido')
     data=validate_rules(raw)
-    if not data.get('visual'):
-        raise ValueError('Este simulador ainda não tem peças visuais separadas. Use Refinar cenário antes de gerar imagens das peças.')
     # Keep the compiled scene exactly as displayed. Recompiling a catalog project
     # on render would overwrite the new image layer.
     data.pop('visualProject',None)

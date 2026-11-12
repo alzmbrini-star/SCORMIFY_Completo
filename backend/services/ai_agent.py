@@ -1150,8 +1150,10 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
             except Exception as exc:
                 raise StoryboardActivityError('simulador', source.get('title'), exc) from exc
             spec = generated["spec"]
+            from services.simulator_object_images import storyboard_status
             all_slides.append({
                 **source, "type": "simulator", "title": source.get("title") or spec["title"],
+                "simulatorVisual": storyboard_status(spec, simulator_context),
                 "elements": [{"type": "html", "htmlContent": generated["html"], "width": 960, "height": 540}],
                 "narrationScript": " ".join(spec[k] for k in ("subtitle", "mission", "briefing", "debrief")),
                 "librasScript": spec["briefing"], "notes": spec["mission"], "quizQuestions": [],

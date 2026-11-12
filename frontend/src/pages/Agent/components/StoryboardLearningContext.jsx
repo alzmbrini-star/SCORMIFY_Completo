@@ -1,6 +1,16 @@
 import React from 'react';
 
 export default function StoryboardLearningContext({slide}) {
+  if(slide.simulatorVisual) {
+    const visual=slide.simulatorVisual;
+    const missing=!visual.sceneAvailable || (visual.imagesRequested && visual.imageCount===0);
+    return <aside className={`rounded-lg border p-3 text-sm ${missing ? 'border-amber-500/50 bg-amber-950/40 text-amber-100' : 'border-teal-500/40 bg-teal-950/40 text-teal-100'}`} data-testid="simulator-storyboard-visual">
+      <strong>{missing ? 'Ilustração pendente de revisão' : 'Cena do simulador preparada'}</strong>
+      <p>{visual.imagesRequested ? `${visual.imageCount} imagem(ns) de peças aplicada(s), salvas na biblioteca e incorporadas à atividade.` : 'Imagens IA das peças não foram solicitadas nesta geração. Para usá-las, habilite Ilustrar objetos com imagens IA na configuração do simulador.'}</p>
+      {!visual.sceneAvailable && <p>Apenas o diagrama conceitual está disponível; ele não é a ilustração solicitada.</p>}
+      {visual.notice && <p>{visual.notice}</p>}
+    </aside>;
+  }
   if(slide.assessmentActivity) return <aside className="rounded-lg border border-teal-500/40 bg-teal-950/40 p-3 text-sm text-teal-100" data-testid="assessment-storyboard-resource">
     <strong>Avaliação interativa · {slide.assessmentActivity.questions.length} questões</strong>
     <p>Mesmo player das Avaliações interativas do Editor. As imagens serão geradas com o curso, se habilitadas em Mídia, e salvas no material de apoio e na biblioteca.</p>
