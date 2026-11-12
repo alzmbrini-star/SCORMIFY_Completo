@@ -50,6 +50,7 @@ async def _get_motor_db():
 from services.llm_config import openai_api_key, simulator_generation_config
 from services.generation_errors import StoryboardActivityError
 from services.source_coverage import complete_source, source_contract, source_sections, ensure_coverage, batch_source
+from services.teaching_copy import lesson_html, validate_lesson
 
 OPENAI_KEY = openai_api_key()
 
@@ -1053,9 +1054,14 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
         if checkpoint_store:
             cached_batch = await checkpoint_store.load(batch_num, batch)
             if cached_batch is not None:
-                all_slides.extend(cached_batch)
-                await save_batch(batch_num, batch, saved_start)
-                continue
+                try:
+                    for cached_slide in cached_batch:validate_lesson(cached_slide)
+                except ValueError:
+                    cached_batch=None  # Regenerate only this incomplete batch.
+                if cached_batch is not None:
+                    all_slides.extend(cached_batch)
+                    await save_batch(batch_num, batch, saved_start)
+                    continue
         if len(batch) == 1 and batch[0].get('sourceImageOnly'):
             all_slides.append({**batch[0], 'elements':[], 'notes':'Captura original da fonte; sem recriação por IA.', 'quizQuestions':[]})
             await save_batch(batch_num, batch, saved_start)
@@ -1508,13 +1514,17 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                             source_slide = batch[j]
                             for key in ('sourceRefs', 'sourceExcerpt', 'sourceRequired'):
                                 if key in source_slide: slide_data[key] = source_slide[key]
+                            if source_slide.get('type')=='content':
+                                slide_data['type']='content'
+                                validate_lesson(slide_data)
                             if source_slide.get('sourceRequired') and source_slide.get('type') == 'content':
                                 slide_data['type'] = 'content'
-                                visible = ' '.join(str(e.get('content') or e.get('htmlContent') or '') for e in slide_data.get('elements', []) if isinstance(e, dict))
+                                visible = lesson_html(slide_data)
                                 if len(_visible_words(visible)) < 30 or any(marker in visible for marker in ('Compreenda a ideia central de', 'Conecte o conceito a uma situação real')):
                                     raise ValueError('Desenvolva os itens da fonte com explicação e exemplo, não apenas títulos ou orientações genéricas.')
                             if source_slide.get('id'):
                                 slide_data['id'] = source_slide['id']
+                            validate_lesson(slide_data)
                             if illustrated_journey:
                                 slide_data["narrativeBeat"] = source_slide.get("narrativeBeat", "context")
                                 slide_data["imageRole"] = source_slide.get("imageRole", "action_scene")
@@ -1580,6 +1590,8 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
 
         # If batch failed, use fallback content
         if not batch_success:
+            if 'CONTEUDO_DIDATICO_AUSENTE' in last_batch_error:
+                raise StoryboardActivityError('conteúdo',batch[0].get('title'),ValueError(last_batch_error))
             if any(sl.get('sourceRequired') for sl in batch):
                 raise StoryboardActivityError('conteúdo', batch[0].get('title'), ValueError('O lote obrigatório não pôde ser concluído. '+(last_batch_error or 'A resposta não contém todas as telas solicitadas.')+' Os lotes anteriores foram preservados; tente retomar. Não foi inserido conteúdo genérico no lugar da ementa.'))
             if quality_type == "simulator":
@@ -2096,11 +2108,7 @@ def _build_content_slide(sb_slide: dict, palette: dict, module_name: str, image_
     })
 
     # Extract text content from storyboard elements
-    text_content = ""
-    for el in sb_slide.get("elements", []):
-        c = el.get("content", "")
-        if c:
-            text_content = c
+    text_content = lesson_html(sb_slide)
 
     # In Jornada Visual the image is part of the learning activity, not
     # decoration. Semantic fields below drive Editor and export layouts.
@@ -2239,11 +2247,7 @@ def _build_summary_slide(sb_slide: dict, palette: dict, module_name: str) -> dic
     })
 
     # Summary content
-    text_content = ""
-    for el in sb_slide.get("elements", []):
-        c = el.get("content", "")
-        if c:
-            text_content = c
+    text_content = lesson_html(sb_slide)
 
     styled_text = _style_summary_html(text_content, accent, palette)
     elements.append({
@@ -2317,10 +2321,7 @@ def _build_content_slide_with_video(sb_slide: dict, palette: dict, module_name: 
     })
 
     # Text on the left
-    text_content = ""
-    for el in sb_slide.get("elements", []):
-        if el.get("content"):
-            text_content = el["content"]
+    text_content = lesson_html(sb_slide)
     styled_text = _style_content_html(text_content, palette["text"], palette)
     elements.append({
         "id": generate_id(), "type": "html", "x": 120, "y": 110, "width": 960, "height": 660,
@@ -2366,10 +2367,7 @@ def _build_content_slide_with_heygen(sb_slide: dict, palette: dict, module_name:
     })
 
     # Text on the left
-    text_content = ""
-    for el in sb_slide.get("elements", []):
-        if el.get("content"):
-            text_content = el["content"]
+    text_content = lesson_html(sb_slide)
     styled_text = _style_content_html(text_content, palette["text"], palette)
     elements.append({
         "id": generate_id(), "type": "html", "x": 120, "y": 110, "width": 960, "height": 660,
@@ -2422,10 +2420,7 @@ def _build_content_slide_no_media(sb_slide: dict, palette: dict, module_name: st
     })
 
     # Full-width text
-    text_content = ""
-    for el in sb_slide.get("elements", []):
-        if el.get("content"):
-            text_content = el["content"]
+    text_content = lesson_html(sb_slide)
     styled_text = _style_content_html(text_content, palette["text"], palette)
     elements.append({
         "id": generate_id(), "type": "html", "x": 120, "y": 110, "width": 1280, "height": 660,
@@ -2449,10 +2444,7 @@ def _build_content_slide_with_embed(sb_slide: dict, palette: dict, module_name: 
     })
 
     # Text on the left
-    text_content = ""
-    for el in sb_slide.get("elements", []):
-        if el.get("content"):
-            text_content = el["content"]
+    text_content = lesson_html(sb_slide)
     styled_text = _style_content_html(text_content, palette["text"], palette)
     elements.append({
         "id": generate_id(), "type": "html", "x": 120, "y": 110, "width": 800, "height": 660,
@@ -2499,10 +2491,7 @@ def _build_content_slide_with_button(sb_slide: dict, palette: dict, module_name:
     })
 
     # Full-width text
-    text_content = ""
-    for el in sb_slide.get("elements", []):
-        if el.get("content"):
-            text_content = el["content"]
+    text_content = lesson_html(sb_slide)
     styled_text = _style_content_html(text_content, palette["text"], palette)
     elements.append({
         "id": generate_id(), "type": "html", "x": 120, "y": 110, "width": 1280, "height": 540,
@@ -3435,10 +3424,7 @@ def _normalize_visual_content_slide(slide: dict) -> dict:
         return slide
     elements = slide.get("elements", []) or []
     text_elements = [element for element in elements if element.get("type") in ("text", "html")]
-    visible_count = sum(
-        len(_visible_words(element.get("content") or element.get("htmlContent") or ""))
-        for element in text_elements
-    )
+    visible_count = len(_visible_words(lesson_html(slide)))
     if not text_elements or visible_count < 12:
         slide["elements"] = [{
             "type": "text",
@@ -4079,10 +4065,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 slide_elements = _build_content_slide_with_heygen(sb_slide, palette, module_name, slide_id)
                 # Extract text for narration script
                 import re
-                text_content = ""
-                for el in sb_slide.get("elements", []):
-                    if el.get("content"):
-                        text_content = el["content"]
+                text_content = lesson_html(sb_slide)
                 clean_text = re.sub(r'<[^>]+>', '', text_content)
                 clean_text = re.sub(r'\s+', ' ', clean_text).strip()
                 if media.get('videoQuizEnabled'):

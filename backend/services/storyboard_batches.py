@@ -34,6 +34,9 @@ CONTRATO DE CONTEÚDO:
   HTML completo. Contraste legível. Varie composições sem substituir explicações por rótulos.
 - Para sourceRequired não use conteúdo genérico nem uma instrução ao professor no lugar da lição.
 - Preserve marcadores [IMG:arquivo.png] integralmente, quando atribuídos à tela.
+- [IMG:...] aceita somente o nome de um arquivo real da fonte. Nunca escreva
+  [IMG:descrição da imagem]. requiredImagePrompt/imageKeywords são metadados de
+  produção: não podem entrar no texto visível nem substituir a explicação.
 - imageKeywords: copie requiredImagePrompt se existir; senão proponha uma imagem pertinente
   em inglês, sem texto. Não recrie capturas originais da interface.
 - narrationScript: explique os pontos da tela; notes: cuidados do instrutor. quizQuestions: [].
