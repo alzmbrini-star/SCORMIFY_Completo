@@ -2,7 +2,7 @@
 export async function generateHtmlJob(api, payload, headers, options = {}) {
   const wait = options.wait || (ms => new Promise(resolve => setTimeout(resolve, ms)));
   const pollMs = options.pollMs ?? 3000;
-  const maxWaitMs = options.maxWaitMs ?? 20 * 60 * 1000;
+  const maxWaitMs = options.maxWaitMs ?? (payload.simulatorObjectImages === true ? 35 : 20) * 60 * 1000;
   const key = `scormify-html-job:${payload.projectId || 'editor'}`;
   let storage = options.storage;
   if (storage === undefined) { try { storage = globalThis.sessionStorage; } catch { storage = null; } }

@@ -11,7 +11,7 @@ export function refinementModel(html, preserveImages = false) {
   // pixels as text to the scene planner; refino creates a new explicit layer.
   if (model.visual && !preserveImages) delete model.visual.illustrations;
   const source = JSON.stringify(model);
-  if (source.length > (preserveImages ? 2000000 : 120000)) throw new Error('model too large');
+  if (source.length > (preserveImages ? 4000000 : 120000)) throw new Error('model too large');
   return source;
 }
 

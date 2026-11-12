@@ -117,7 +117,7 @@ export default function Agent() {
     guidedQuestionsPerUnit: 3, guidedFinalQuestionCount: 12,
     guidedUnitPassingScore: 100, guidedPassingScore: 80,
     guidedAssessmentImages: true, guidedProjectRequired: true, guidedConfirmReading: true,
-    simulatorComplexity: 'guided', simulatorVisualStyle: 'illustrated',
+    simulatorComplexity: 'guided', simulatorVisualStyle: 'illustrated', simulatorObjectImages: true,
     format: 'curso_completo', description: '',
     narrationEnabled: false, narrationVoiceId: '',
     resourceBalance: 'media',

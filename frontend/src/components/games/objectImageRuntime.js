@@ -5,7 +5,7 @@ export function objectImageRuntime() {
     try{data=JSON.parse(source.textContent);}catch(_){return;}
     var scene=data.visual||data,rows=scene.illustrations||[],ns='http://www.w3.org/2000/svg';
     if(data.artworkNotice){var warning=document.createElement('p');warning.setAttribute('role','status');warning.textContent=data.artworkNotice;var aside=document.querySelector('aside');if(aside)aside.appendChild(warning);}
-    rows.slice(0,4).forEach(function(row){
+    rows.slice(0,8).forEach(function(row){
       if(!row||!/^[a-z][a-z0-9_]{0,31}$/.test(row.node)||typeof row.src!=='string'||row.src.length>334000||!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(row.src))return;
       var base=scene.nodes.find(function(n){return n.id===row.node;}),a=base&&base.attrs;
       var target=document.querySelector('[data-visual-node="'+row.node+'"]');

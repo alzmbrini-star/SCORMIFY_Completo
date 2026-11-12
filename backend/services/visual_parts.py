@@ -35,6 +35,11 @@ Em cenas do motor de regras, destaque a seta da etapa com states/visibleWhen
 ligados às variáveis existentes, sem inventar avanços ou respostas automáticas.
 Não mova todas as peças aleatoriamente nem substitua o processo por trocar legendas.
 O acabamento deve explicar o mecanismo. Não existe lista fixa de temas ou cenários.
+Quando imagens IA forem solicitadas, declare artwork para TODOS os personagens
+e objetos rígidos importantes, até oito peças. Não deixe pessoas como elipses
+enquanto apenas móveis recebem imagens. Personagem inteiro é uma peça; braços
+ou ferramentas com movimento independente são peças separadas para preservar
+a animação. Não marque cenário inteiro, sombras ou detalhes decorativos.
 '''
 
 

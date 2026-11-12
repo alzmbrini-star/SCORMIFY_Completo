@@ -7,7 +7,7 @@ async def refine_visual(source,prompt,context,complexity='advanced',visual_style
     from services.simulator_experience import normalize_experience,options
     from services.rule_visuals import generate_visual
     from services.llm_config import simulator_generation_config
-    if not isinstance(source,str) or len(source)>2000000:raise ValueError('Modelo de origem inválido ou muito grande')
+    if not isinstance(source,str) or len(source)>4000000:raise ValueError('Modelo de origem inválido ou muito grande')
     raw=json.loads(source)
     if not isinstance(raw,dict):raise ValueError('Refino exige dados de um simulador do motor de regras')
     # Untrusted authored artwork/code is never executed or passed through.

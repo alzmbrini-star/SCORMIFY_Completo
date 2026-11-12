@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import {HtmlDialog} from './MediaDialogs';
 jest.mock('../../../components/RichTextEditor',()=>()=>null);
 jest.mock('./KlingVideoForm',()=>()=>null);
+jest.mock('./RunwayVideoForm',()=>()=>null);
 jest.mock('../../../components/ComponentSceneReview',()=>()=>null);
 jest.mock('../../../components/ui/button',()=>({Button:({variant,...p})=><button {...p}/>}));
 jest.mock('../../../components/ui/input',()=>({Input:p=><input {...p}/>}));
@@ -35,6 +36,6 @@ test('object images require an explicit confirmation and use images-only mode',(
  act(()=>host.querySelector('[data-testid="ai-html-object-images-btn"]').click());
  expect(generate).not.toHaveBeenCalled();expect(host.textContent).toContain('Consome créditos OpenAI');
  act(()=>host.querySelector('[data-testid="ai-html-confirm-object-images"]').click());
- expect(generate).toHaveBeenCalledWith(html,{objectImagesOnly:true,objectImageLimit:4});
+ expect(generate).toHaveBeenCalledWith(html,{objectImagesOnly:true,objectImageLimit:8});
  act(()=>root.unmount());host.remove();
 });

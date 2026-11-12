@@ -13,8 +13,8 @@ def check_image_slots(scene, data):
     from services.rule_visuals import visual_state
     pieces=[p for p in candidates(scene) if next(n for n in scene['nodes'] if n['id']==p['id']).get('artwork')]
     errors=[]
-    if not 1<=len(pieces)<=4:
-        errors.append('Planeje 1 a 4 peças elegíveis, não uma equipe/cena diferente por etapa. Não marque o fundo com artwork.')
+    if not 1<=len(pieces)<=8:
+        errors.append('Planeje 1 a 8 peças elegíveis, não uma equipe/cena diferente por etapa. Não marque o fundo com artwork.')
     def drawable(ident):
         return any(n['type'] not in {'group','text'} or drawable(n['id']) for n in scene['nodes'] if n.get('parent')==ident)
     empty=[p['id'] for p in pieces if next(n for n in scene['nodes'] if n['id']==p['id'])['type']=='group' and not drawable(p['id'])]
@@ -62,7 +62,7 @@ Sem exigência de física exata, fracasso, pontuação ou cota de formas.
 ''' + COMPOSITION_PROMPT + '''
 PREPARAÇÃO PARA IMAGENS INDIVIDUAIS, não revisão da aparência de vetores.
 A cena anterior ficou indisponível. Componha uma cena própria para o assunto,
-em 800x450, com 1..4 objetos inteiros essenciais em grupos com artwork.bounds e
+em 800x450, com 1..8 objetos inteiros essenciais em grupos com artwork.bounds e
 description. Esses espaços receberão imagens recortadas DEPOIS desta preparação.
 Não crie uma cópia da equipe ou cenário para cada etapa. Reutilize os mesmos
 objetos/personagens e altere os elementos que demonstram o processo. Não atribua

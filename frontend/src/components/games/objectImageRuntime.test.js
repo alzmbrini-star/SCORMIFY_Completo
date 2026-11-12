@@ -17,3 +17,14 @@ test('remote images are never loaded by the sprite layer',()=>{
   document.body.innerHTML='<script id="scormify-simulator-plan">'+JSON.stringify({visual:{nodes:[],illustrations:[{node:'piece',src:'https://external/image.png'}]}})+'</script>';
   objectImageRuntime();document.dispatchEvent(new Event('DOMContentLoaded'));expect(document.querySelector('image')).toBeNull();
 });
+
+test('all eight compound sprites keep their targets, labels and independent transforms',()=>{
+  const nodes=Array.from({length:8},(_,i)=>({id:`person${i}`,type:'group',label:`Pessoa ${i}`,attrs:{x:i*90,y:100},artwork:{bounds:[0,0,60,100]}}));
+  const model={nodes,illustrations:nodes.map(n=>({node:n.id,src:'data:image/png;base64,iVBORw0KGgo='}))};
+  document.body.innerHTML='<script id="scormify-simulator-plan">'+JSON.stringify({visual:model})+'</script><svg>'+nodes.map(n=>`<g data-visual-node="${n.id}" aria-label="${n.label}" transform="translate(${n.attrs.x} 100)"><title>${n.label}</title><ellipse /></g>`).join('')+'</svg>';
+  objectImageRuntime();document.dispatchEvent(new Event('DOMContentLoaded'));
+  expect(document.querySelectorAll('image')).toHaveLength(8);
+  const target=document.querySelector('[data-visual-node="person7"]'),image=target.querySelector('image');
+  image.dispatchEvent(new Event('load'));target.setAttribute('transform','translate(640 120) rotate(10)');
+  expect(image.parentElement).toBe(target);expect(target.getAttribute('aria-label')).toBe('Pessoa 7');expect(target.querySelector('title').textContent).toBe('Pessoa 7');
+});

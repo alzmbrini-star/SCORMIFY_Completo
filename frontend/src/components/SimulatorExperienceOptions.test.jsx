@@ -8,7 +8,11 @@ test('author can choose level and visual approach independently, with accessible
   const fields=host.querySelectorAll('select');expect(fields[0].options.length).toBe(2);expect(fields[1].options.length).toBe(3);expect(fields[2].options.length).toBe(2);
   expect(host.querySelector(`label[for="${fields[0].id}"]`).textContent).toContain('Tipo de atividade');
   act(()=>{fields[1].value='advanced';fields[1].dispatchEvent(new Event('change',{bubbles:true}));});
-  expect(change).toHaveBeenLastCalledWith({complexity:'advanced',visualStyle:'technical',activityType:'simulation'});
+  expect(change).toHaveBeenLastCalledWith({complexity:'advanced',visualStyle:'technical',activityType:'simulation',objectImages:true});
+  expect(host.querySelector('input[type="checkbox"]').checked).toBe(true);
+  expect(host.textContent).toContain('até 8');expect(host.textContent).toContain('Consome créditos');
+  act(()=>root.render(<SimulatorExperienceOptions objectImages={false} onChange={change}/>));
+  expect(host.querySelector('input[type="checkbox"]').checked).toBe(false);
   act(()=>root.render(<SimulatorExperienceOptions complexity="advanced" visualStyle="technical" onChange={change} disabled/>));
   expect(host.querySelector('fieldset').disabled).toBe(true);
   expect(fields[1].value).toBe('advanced');expect(host.textContent).toContain('sem exigir cálculos, indicadores ou reprovação');

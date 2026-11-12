@@ -328,7 +328,7 @@ export default function Editor() {
   const [htmlConfig, setHtmlConfig] = useState({ content: '' });
   const [simulatorEditTarget, setSimulatorEditTarget] = useState(null);
   const [aiHtmlPrompt, setAiHtmlPrompt] = useState('');
-  const [simulatorOptions, setSimulatorOptions] = useState({ complexity: 'guided', visualStyle: 'illustrated' });
+  const [simulatorOptions, setSimulatorOptions] = useState({ complexity: 'guided', visualStyle: 'illustrated', objectImages: true });
   const [aiHtmlResult, setAiHtmlResult] = useState('');
   const [aiHtmlLoading, setAiHtmlLoading] = useState(false);
   const [aiHtmlProgress, setAiHtmlProgress] = useState('');
@@ -1087,7 +1087,7 @@ export default function Editor() {
   const handleGenerateHtmlAI = async (visualSource = '', generation = {}) => {
     if (aiHtmlLoading) return;
     const imagesOnly = generation.objectImagesOnly === true;
-    const wantsImages = imagesOnly || simulatorOptions.objectImages === true;
+    const wantsImages = imagesOnly || (simulatorOptions.objectImages === true && isSimulatorRequest(aiHtmlPrompt, simulatorOptions.activityType, typeof visualSource === 'string' ? visualSource : ''));
     if (!canCreateSimulators && isSimulatorRequest(aiHtmlPrompt, simulatorOptions.activityType, typeof visualSource === 'string' ? visualSource : '')) {
       toast.error('A criação de simuladores não está habilitada para seu usuário. Solicite à Administração.');
       return;
@@ -1138,7 +1138,7 @@ export default function Editor() {
         simulatorComplexity: simulatorOptions.complexity, simulatorVisualStyle: simulatorOptions.visualStyle,
         simulatorActivityType: simulatorOptions.activityType || 'simulation',
         simulatorObjectImages: wantsImages,
-        ...(imagesOnly ? { objectImagesOnly: true, objectImageLimit: generation.objectImageLimit || 4 } : {}),
+        ...(imagesOnly ? { objectImagesOnly: true, objectImageLimit: generation.objectImageLimit || 8 } : {}),
         ...(refining ? { sourceSimulator } : {}),
       }, authHeaders({ 'Content-Type': 'application/json' }), { onProgress: setAiHtmlProgress });
       setAiHtmlResult(html);

@@ -1,6 +1,6 @@
 import React, { useId } from 'react';
 
-export default function SimulatorExperienceOptions({ complexity = 'guided', visualStyle = 'illustrated', activityType = 'simulation', objectImages = false, onChange, disabled = false }) {
+export default function SimulatorExperienceOptions({ complexity = 'guided', visualStyle = 'illustrated', activityType = 'simulation', objectImages = true, onChange, disabled = false }) {
   const id = useId();
   const change = patch => onChange({complexity, visualStyle, activityType, ...(objectImages ? {objectImages:true} : {}), ...patch});
   return <fieldset disabled={disabled} className="rounded-lg border border-slate-500/50 p-4 space-y-3" data-testid="simulator-experience-options">
@@ -28,7 +28,7 @@ export default function SimulatorExperienceOptions({ complexity = 'guided', visu
       </label>
     </div>
     <label className="block text-sm"><input type="checkbox" checked={objectImages} onChange={e => change({objectImages:e.target.checked})} className="mr-2" />Ilustrar objetos com imagens IA</label>
-    <p className="text-xs">Opcional: gera até 4 peças completas com fundo transparente, compostas em áreas próprias da cena e vinculadas aos movimentos e etapas planejados. Consome créditos OpenAI e pode demorar mais. Salva as imagens na biblioteca e incorpora no HTML/SCORM. Partes deformáveis e fluxos permanecem vetoriais; se uma imagem falhar, a peça vetorial é mantida. Revise a composição antes de salvar. Atividades já inseridas precisam de refino explícito.</p>
+    <p className="text-xs">Ativada por padrão nas novas criações: ilustra personagens e objetos importantes planejados, até 8 peças com fundo transparente por cena. Consome créditos OpenAI por imagem e pode demorar mais; desmarque para usar apenas vetores. Salva na biblioteca e incorpora no HTML/SCORM. Peças já ilustradas são preservadas; completar imagens gera apenas as restantes. Movimentos e legendas são mantidos; partes com movimento independente, líquidos e fluxos não são achatados numa imagem única. Falhas e peças pendentes são informadas, sem prometer ilustração ilimitada. Revise antes de salvar. Atividades já inseridas exigem uma ação explícita.</p>
     <p className="text-xs leading-relaxed">Guiado prioriza uma cena própria para o assunto, objetos reconhecíveis e movimentos explicativos, com poucos controles e sem exigir cálculos, indicadores ou reprovação. Recursos gráficos podem ser reutilizados, sem repetir um modelo temático. Aplicado e Avançado mantêm desafios mais completos. O acabamento visual é importante em todos os níveis. Aplica-se às novas gerações; atividades existentes exigem refino explícito.</p>
   </fieldset>;
 }
