@@ -272,9 +272,13 @@ async def populate_assessments(course, project, database, projects_dir, progress
     for slide in course.get('slides',[]):
         for element in slide.get('elements',[]):
             spec=element.get('guidedActivity') or {}
-            if spec.get('kind') not in ('assessment','final'): continue
+            agent_cfg=element.get('agentAssessment')
+            if spec.get('kind') not in ('assessment','final') and not isinstance(agent_cfg,dict): continue
             questions=(element.get('assessmentConfig') or {}).get('questions',[])
-            spec['questions']=questions
+            if spec: spec['questions']=questions
+            if isinstance(agent_cfg,dict):
+                for question in questions:
+                    question['_agentImagesEnabled']=agent_cfg.get('imagesEnabled',True)
             entries.extend(questions)
     lock=asyncio.Semaphore(2); done=0; failed=0
     async def prepare(question):
@@ -287,7 +291,7 @@ async def populate_assessments(course, project, database, projects_dir, progress
             previous=await database.assessment_questions.find_one(scope,{'_id':0})
             if previous and (previous.get('media') or {}).get('url'):
                 question.update(media=previous['media'],imageGenerationStatus='ready')
-            elif cfg.get('assessmentImages',True):
+            elif question.get('_agentImagesEnabled',cfg.get('assessmentImages',True)):
                 try:
                     question['media']=await create_support_image(question,project,database,projects_dir)
                     question['imageGenerationStatus']='ready'
@@ -297,6 +301,7 @@ async def populate_assessments(course, project, database, projects_dir, progress
                     question.update(imageGenerationStatus='failed',imageGenerationError='Imagem indisponível. A questão foi preservada; gere a imagem novamente pelo Banco no Editor.')
             else:
                 question['imageGenerationStatus']='disabled'
+            question.pop('_agentImagesEnabled',None)
             now=datetime.now(timezone.utc).isoformat()
             record={**question,'projectId':str(project['id']),'companyId':project.get('companyId'),
                     'createdBy':project.get('userId'),'_creatorId':project.get('userId'),'updatedAt':now}

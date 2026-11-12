@@ -819,7 +819,8 @@ def _premiumize_course_structure(structure: dict, config: dict) -> dict:
         from services.simulator_permissions import restrict_structure
         structure=restrict_structure(structure,{'permissions':{'createSimulators':False}})
     from services.agent_language import normalize_structure_language
-    return normalize_structure_language(structure, config)
+    from services.agent_assessments import plan_assessments
+    return normalize_structure_language(plan_assessments(structure, config), config)
 
 
 async def generate_structure(session_id: str, content_text: str, config: dict) -> dict:
@@ -1013,11 +1014,11 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
         for sl in mod.get("slides", []):
             flat_slides.append({**sl, "moduleName": mod.get("title", "")})
     storyboard_batches = None
-    if structure.get('guidedPath'):
+    if structure.get('guidedPath') or any(s.get('assessmentRequest') for s in flat_slides):
         storyboard_batches = []
         regular = []
         for item in flat_slides:
-            if item.get('guidedRequest'):
+            if item.get('guidedRequest') or item.get('assessmentRequest'):
                 storyboard_batches.extend(_build_storyboard_batches(regular, regular_batch_size=4))
                 regular = []
                 storyboard_batches.append([item])
@@ -1058,6 +1059,21 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
         if len(batch) == 1 and batch[0].get('sourceImageOnly'):
             all_slides.append({**batch[0], 'elements':[], 'notes':'Captura original da fonte; sem recriação por IA.', 'quizQuestions':[]})
             await save_batch(batch_num, batch, saved_start)
+            continue
+        if len(batch)==1 and batch[0].get('assessmentRequest'):
+            from services.agent_assessments import generate_assessment, render_assessment
+            async def ask_assessment(attempt, prompt):
+                provider,model=(PRIMARY_MODEL,FALLBACK_MODEL)[attempt]
+                chat=_new_chat(f'{session_id}_assessment_{batch_start}_{attempt}',provider=provider,model=model)
+                return _extract_json(await asyncio.wait_for(chat.send_message(UserMessage(text=prompt)),timeout=150))
+            source=batch[0]
+            try:
+                spec=await generate_assessment(source,batch_source(content_text,batch),ask_assessment)
+            except Exception as exc:
+                raise StoryboardActivityError('avaliação interativa',source.get('title'),exc) from exc
+            all_slides.append({**source,'assessmentActivity':spec,'elements':[render_assessment(spec,960,540)],
+                               'notes':spec['instructions'],'quizQuestions':[]})
+            await save_batch(batch_num,batch,saved_start)
             continue
         if len(batch)==1 and batch[0].get('guidedRequest'):
             from services.guided_path import generate_activity, activity_element
@@ -3577,7 +3593,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
     ai_image_tasks = []
     for i, sb_slide in enumerate(slides_data):
         stype = sb_slide.get("type", "content")
-        if sb_slide.get('guidedActivity') or sb_slide.get('sourceImageOnly'):
+        if sb_slide.get('guidedActivity') or sb_slide.get('assessmentActivity') or sb_slide.get('sourceImageOnly'):
             slide_media[i] = {'type':'none'}
             continue
         if stype not in ("content", "title"):
@@ -3828,7 +3844,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
 
         # Process quiz questions FIRST (before building slide elements)
         slide_question_ids = []
-        if stype == "quiz":
+        if stype == "quiz" and not (media_config.get(str(i), {}).get('interactiveAssessment') or {}).get('enabled'):
             for q in sb_slide.get("quizQuestions", []):
                 qid = generate_id()
                 alts = [{"id": generate_id(), "text": a["text"], "isCorrect": a.get("isCorrect", False)} for a in q.get("alternatives", [])]
@@ -3843,7 +3859,11 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 })
                 slide_question_ids.append(qid)
 
-        if sb_slide.get('guidedActivity'):
+        if sb_slide.get('assessmentActivity'):
+            from services.agent_assessments import render_assessment
+            bg='#f4f8fc'
+            slide_elements=[render_assessment(sb_slide['assessmentActivity'])]
+        elif sb_slide.get('guidedActivity'):
             from services.guided_path import activity_element
             bg='#f4f8fc'
             slide_elements=[activity_element(sb_slide['guidedActivity'])]
@@ -4260,6 +4280,18 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 "script": narr["selectedScript"],
                 "voiceId": narr["voiceId"],
             })
+
+    # Add assessments after source-indexed media work, without dropping lessons.
+    from services.agent_assessments import apply_media_assessments
+    async def ask_media_assessment(attempt, prompt):
+        provider,model=(PRIMARY_MODEL,FALLBACK_MODEL)[attempt]
+        chat=_new_chat(f'{session_id}_media_assessment_{uuid.uuid4().hex}_{attempt}',provider=provider,model=model)
+        return _extract_json(await asyncio.wait_for(chat.send_message(UserMessage(text=prompt)),timeout=150))
+    project_slides = await apply_media_assessments(project_slides, slides_data, media_config, ask_media_assessment)
+    positions={slide['id']:index for index,slide in enumerate(project_slides)}
+    for queue in (heygen_pending,kling_pending,narration_pending):
+        for item in queue:
+            if item.get('slideId') in positions:item['slideIndex']=positions[item['slideId']]
 
     # Insert only after source-indexed media/narration work, then remap queues.
     import re as _cover_re

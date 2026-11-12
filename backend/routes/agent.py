@@ -114,6 +114,8 @@ class AgentConfigUpdate(BaseModel):
     guidedProjectRequired: bool = True
     guidedAssessmentImages: bool = True
     guidedConfirmReading: bool = True
+    assessmentQuestionCount: int = Field(default=3, ge=1, le=10)
+    assessmentImages: bool = True
     format: Optional[str] = "curso_completo"
     description: Optional[str] = None
 
@@ -1264,6 +1266,13 @@ async def agent_set_media_config(session_id: str, data: dict, user: dict = Depen
     if not has_role(user,'super_admin') and s.get('companyId')!=user.get('companyId'):
         raise HTTPException(404,'Session not found')
     media_config = data.get("mediaConfig", {})
+    from services.agent_assessments import media_options
+    if not isinstance(media_config,dict):raise HTTPException(422,'Configuração de mídia inválida.')
+    for index,media in media_config.items():
+        if not isinstance(media,dict):raise HTTPException(422,'Configuração de mídia inválida.')
+        if 'interactiveAssessment' in media:
+            try:media_options({},media)
+            except ValueError as exc:raise HTTPException(422,str(exc)) from exc
     for media in media_config.values():
         if isinstance(media,dict) and media.get('type')=='heygem':
             record=await db.heygem_videos.find_one({'video_id':media.get('heygemVideoId'),
@@ -2304,7 +2313,7 @@ async def agent_generate_course(session_id: str, request: Request):
                 brand_library_mode=(_s.get("brandLibraryMode") or config.get("brandLibraryMode") or "preferred"),
             ))
 
-            if (course_data.get('metadata') or {}).get('guidedPath'):
+            if (course_data.get('metadata') or {}).get('guidedPath') or any(e.get('agentAssessment') for s in course_data.get('slides',[]) for e in s.get('elements',[])):
                 # Preserve the generated course before requesting paid images.
                 loop.run_until_complete(_db.projects.update_one({'id':project.id}, {'$set':{'course.slides':course_data['slides'], 'course.metadata':course_data['metadata']}}))
                 from services.guided_path import populate_assessments
@@ -2449,8 +2458,8 @@ async def agent_generate_course(session_id: str, request: Request):
                 "projectName": title,
                 "slidesCount": len(course_data["slides"]),
                 "quizCount": len(course_data.get("quizQuestions", [])),
-                "assessmentQuestionCount": sum(len((e.get('assessmentConfig') or {}).get('questions',[])) for slide in course_data['slides'] for e in slide.get('elements',[]) if e.get('guidedActivity')),
-                "assessmentImages": (course_data.get('metadata') or {}).get('guidedAssessmentImages') if ((course_data.get('metadata') or {}).get('guidedPath') or {}).get('assessmentImages') else None,
+                "assessmentQuestionCount": sum(len((e.get('assessmentConfig') or {}).get('questions',[])) for slide in course_data['slides'] for e in slide.get('elements',[])),
+                "assessmentImages": (course_data.get('metadata') or {}).get('guidedAssessmentImages'),
                 "heygenPending": len(heygen_pending),
                 "klingPending": len(kling_pending),
                 "narrationPending": narration_count,

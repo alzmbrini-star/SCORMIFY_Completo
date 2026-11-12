@@ -5,6 +5,7 @@ const labels = {
   flashcard: 'Cartões de revisão', timeline: 'Linha do tempo',
   case_study: 'Estudo de caso',
   guided_activity: 'Recurso do percurso',
+  interactive_assessment: 'Avaliação interativa',
 };
 
 // Labels only: the API and generation engine retain their original type IDs.

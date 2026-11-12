@@ -19,3 +19,11 @@ test('guided mode uses interactive assessments and exposes image-credit notice w
  expect(html).toMatch(/data-testid="guidedQuestionsPerUnit"[^>]*value="3"/);
  expect(html).toMatch(/data-testid="guidedPassingScore"[^>]*value="80"/);
 });
+
+test('standard mode exposes independent interactive assessment options alongside Quiz',()=>{
+ const html=renderToStaticMarkup(<ConfigPanel config={{title:'Curso',visualCourseMode:'standard',enabledResources:{quiz:true,interactive_assessment:true}}} setConfig={()=>{}} loading={false} templates={[]} designTemplates={[]}/>);
+ expect(html).toContain('data-testid="assessment-resource-options"');
+ expect(html).toContain('Uma Avaliação interativa por módulo');
+ expect(html).toContain('Os Quizzes continuam independentes');
+ expect(html).toContain('Questões e imagens usam créditos');
+});

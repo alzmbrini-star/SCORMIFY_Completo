@@ -1,6 +1,11 @@
 import React from 'react';
 
 export default function StoryboardLearningContext({slide}) {
+  if(slide.assessmentActivity) return <aside className="rounded-lg border border-teal-500/40 bg-teal-950/40 p-3 text-sm text-teal-100" data-testid="assessment-storyboard-resource">
+    <strong>Avaliação interativa · {slide.assessmentActivity.questions.length} questões</strong>
+    <p>Mesmo player das Avaliações interativas do Editor. As imagens serão geradas com o curso, se habilitadas em Mídia, e salvas no material de apoio e na biblioteca.</p>
+    <details><summary>Revisar questões, gabarito e feedback</summary>{slide.assessmentActivity.questions.map(q=><div key={q.id} className="mt-3 border-t border-teal-700 pt-2"><p>{q.prompt}</p><ul>{q.options.map(o=><li key={o.id}>{o.text}{o.isCorrect ? ' — correta' : ''}</li>)}</ul><p>{q.explanation}</p></div>)}</details>
+  </aside>;
   if(slide.guidedActivity) return <aside className="rounded-lg border border-teal-500/40 bg-teal-950/40 p-3 text-sm text-teal-100" data-testid="guided-storyboard-resource">
     <strong>{{practice:'Prática orientada com cartões de revisão',assessment:'Avaliação interativa da unidade',final:'Avaliação interativa final',project:'Projeto integrador com autoverificação'}[slide.guidedActivity.kind]}</strong>
     <p>{slide.guidedActivity.instructions}</p>

@@ -309,7 +309,7 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
                           alta: { quiz: true, game: true, simulator: true, scenario: true, avatar_scene: true, infographic: true, flashcard: true, timeline: true, case_study: true },
                           maxima: { quiz: true, game: true, simulator: true, scenario: true, avatar_scene: true, infographic: true, flashcard: true, timeline: true, case_study: true },
                         };
-                        update('enabledResources', {...presets[level.id], simulator: canCreateSimulators && presets[level.id].simulator});
+                        update('enabledResources', {...presets[level.id], interactive_assessment: !!config.enabledResources?.interactive_assessment, simulator: canCreateSimulators && presets[level.id].simulator});
                       }}
                       className={`p-2.5 rounded-lg border text-center transition-all ${
                         selected
@@ -332,6 +332,7 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
               <div className="grid grid-cols-2 gap-2" data-testid="resource-toggles">
                 {[
                   { id: 'quiz', label: 'Quizzes', icon: Target, desc: 'Perguntas de fixacao', color: 'text-emerald-400' },
+                  { id: 'interactive_assessment', label: 'Avaliações interativas', icon: BookOpenCheck, desc: 'Questões com imagens IA de apoio', color: 'text-teal-400' },
                   { id: 'game', label: 'Jogos Educativos', icon: Gamepad2, desc: 'Missoes gamificadas com XP e conquistas', color: 'text-violet-400' },
                   { id: 'simulator', label: 'Simuladores', icon: Wrench, desc: 'Pratica de decisoes e ferramentas HTML', color: 'text-indigo-400' },
                   { id: 'scenario', label: 'Cenarios de Desafio', icon: Swords, desc: 'Arvore de decisoes', color: 'text-amber-400' },
@@ -379,6 +380,12 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
             </div>
 
             {/* Distribution Preview */}
+            {config.enabledResources?.interactive_assessment && config.visualCourseMode !== 'guided_practice_project' && <div className="rounded-lg border border-teal-500/40 bg-teal-950/30 p-3 space-y-3" data-testid="assessment-resource-options">
+              <p className="text-sm text-teal-100">Uma Avaliação interativa por módulo, além do conteúdo e das capturas originais. Os Quizzes continuam independentes.</p>
+              <label className="block text-sm">Questões por avaliação<Input type="number" min={1} max={10} value={config.assessmentQuestionCount ?? 3} onChange={e=>update('assessmentQuestionCount',Number(e.target.value))}/></label>
+              <label className="flex gap-2 items-center text-sm"><input type="checkbox" checked={config.assessmentImages !== false} onChange={e=>update('assessmentImages',e.target.checked)}/>Gerar imagem IA para cada questão e salvar na biblioteca</label>
+              <p className="text-xs text-amber-200">Questões e imagens usam créditos de IA. Revise no Storyboard; ajuste por tela em Mídia. As imagens ficam no material de apoio e na Biblioteca de Imagens; as questões ficam no Banco do projeto.</p>
+            </div>}
             <p className="rounded-lg border border-teal-600/30 bg-teal-950/30 p-3 text-xs text-teal-200">
               A ementa vem primeiro: atividades habilitadas são complementos ao ensino, sem remover assuntos ou capturas originais. Revise as propostas na Estrutura e no Storyboard; imagens novas são escolhidas em Mídia. Mais recursos podem aumentar o número de slides, o tempo e os créditos de geração.
             </p>
