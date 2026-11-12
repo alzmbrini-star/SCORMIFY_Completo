@@ -115,7 +115,16 @@ def candidates(scene, *, legacy_materials=False):
         if not box or (not node.get('artwork') and node.get('attrs',{}).get('fill')=='none') or min(box[2:]) < 18 or box[2]*box[3] > 800*450*.45: continue
         if semantic and max(box[2:])<72:continue  # Do not charge for another tiny sprite slot.
         if any(b.get('property') not in {'x','y','rotation','opacity'} for b in node.get('bindings', [])): continue
-        if any(set(s.get('set', {})) - {'x','y','rotation','opacity'} for s in node.get('states', [])): continue
+        states=node.get('states', [])
+        spatial={'x','y','rotation','opacity'}
+        # Structured-output models repeat all optional group attributes in each
+        # state. Paint on a group does not deform an embedded bitmap; meaningful
+        # opacity/position changes still work. Paint-only changes do not.
+        extra=set().union(*(set(s.get('set', {}))-spatial for s in states)) if states else set()
+        image_group=node['type']=='group' and bool(node.get('artwork'))
+        surviving_change=any(any(k in spatial and v!=node.get('attrs',{}).get(k,1 if k=='opacity' else 0)
+                                 for k,v in s.get('set',{}).items()) for s in states)
+        if extra and not (image_group and extra<={'fill','stroke','strokeWidth'} and surviving_change):continue
         result.append({'id': node['id'], 'label': node.get('label', ''),
                        'explanation': node.get('explanation', ''), 'bounds': box,
                        'description':(node.get('artwork') or {}).get('description','')})

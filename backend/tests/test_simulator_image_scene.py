@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from test_process_visual_refinement import pump_model, pump_scene
 from test_simulator_object_images import png
-from services.simulator_image_scene import prepare_scene
+from services.simulator_image_scene import prepare_scene, check_image_slots
 from services.simulator_object_images import enrich, image_scope, storyboard_status, illustrate_existing
 
 
@@ -17,6 +17,22 @@ def scene():
 
 
 class ImageSceneTests(unittest.TestCase):
+    def test_group_paint_defaults_do_not_block_actual_image_opacity_changes(self):
+        from services.simulator_object_images import candidates
+        node={'id':'team','type':'group','label':'Equipe','attrs':{'x':100,'y':100,'opacity':1,'fill':'none'},
+              'artwork':{'bounds':[0,0,220,180],'description':'Equipe colaborando'},
+              'states':[{'when':True,'set':{'x':100,'y':100,'opacity':0,'fill':'#FFD700','stroke':'none','strokeWidth':0}}]}
+        self.assertEqual([p['id'] for p in candidates({'nodes':[node]})],['team'])
+        node['states'][0]['set']['opacity']=1
+        self.assertEqual(candidates({'nodes':[node]}),[])
+
+    def test_empty_or_initially_hidden_slots_require_repair_before_image_charge(self):
+        from services.rule_visuals import validate_visual
+        value=validate_visual(scene(),pump_model())
+        # A structurally valid empty group must not be confused with a drawing.
+        value['nodes'].append({'id':'team','type':'group','label':'Equipe','attrs':{'x':300,'y':100},'bindings':[],'states':[],
+                              'artwork':{'bounds':[0,0,220,180],'description':'Equipe colaborando'}})
+        with self.assertRaisesRegex(ValueError,'sem desenho'):check_image_slots(value,pump_model())
     def test_prepares_subject_specific_typed_scene_without_changing_rules(self):
         model=pump_model();before=copy.deepcopy(model)
         chat=SimpleNamespace(send_message=AsyncMock(return_value=json.dumps(scene())))

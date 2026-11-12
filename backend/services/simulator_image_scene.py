@@ -8,6 +8,27 @@ import json
 import re
 
 
+def check_image_slots(scene, data):
+    from services.simulator_object_images import candidates
+    from services.rule_visuals import visual_state
+    pieces=[p for p in candidates(scene) if next(n for n in scene['nodes'] if n['id']==p['id']).get('artwork')]
+    errors=[]
+    if not 1<=len(pieces)<=4:
+        errors.append('Planeje 1 a 4 peças elegíveis, não uma equipe/cena diferente por etapa. Não marque o fundo com artwork.')
+    def drawable(ident):
+        return any(n['type'] not in {'group','text'} or drawable(n['id']) for n in scene['nodes'] if n.get('parent')==ident)
+    empty=[p['id'] for p in pieces if next(n for n in scene['nodes'] if n['id']==p['id'])['type']=='group' and not drawable(p['id'])]
+    if empty:errors.append('Grupos sem desenho vetorial de apoio: '+','.join(empty)+'. Adicione formas filhas; peças não ilustradas precisam continuar visíveis.')
+    projected={n['id']:n for n in visual_state(scene,{v['id']:v['initial'] for v in data['variables']})}
+    definitions={n['id']:n for n in scene['nodes']}
+    def visible(key):
+        n=projected[key];parent=definitions[key].get('parent')
+        return n['visible'] and n['attrs'].get('opacity',1)>0 and (not parent or visible(parent))
+    if not any(visible(p['id']) for p in pieces):errors.append('A etapa inicial está vazia: mantenha pelo menos um objeto essencial visível desde o início, incluindo seus pais.')
+    if errors:raise ValueError(' '.join(errors))
+    return pieces
+
+
 async def prepare_scene(data, prompt, context, session_id):
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     from services.llm_config import simulator_generation_config
@@ -28,6 +49,10 @@ PREPARAÇÃO PARA IMAGENS INDIVIDUAIS, não revisão da aparência de vetores.
 A cena anterior ficou indisponível. Componha uma cena própria para o assunto,
 em 800x450, com 1..4 objetos inteiros essenciais em grupos com artwork.bounds e
 description. Esses espaços receberão imagens recortadas DEPOIS desta preparação.
+Não crie uma cópia da equipe ou cenário para cada etapa. Reutilize os mesmos
+objetos/personagens e altere os elementos que demonstram o processo. Não atribua
+artwork ao fundo inteiro. Cada grupo artwork deve ter formas filhas de apoio,
+visíveis se a imagem não for gerada. Pelo menos um objeto deve aparecer na etapa 0.
 Não desenhe uma fotografia dentro de cada peça; defina uma composição coerente,
 objetos grandes, mesma perspectiva e relações espaciais que expliquem o processo.
 Inclua formas vetoriais de apoio reconhecíveis dentro dos grupos, não um painel
@@ -48,9 +73,7 @@ Retorne apenas o contrato JSON da cena, nunca o modelo lógico ou código.'''
             response = await asyncio.wait_for(chat.send_message(UserMessage(text=json.dumps(payload, ensure_ascii=False))), 150)
             raw = omit_null_fields(json.loads(re.sub(r'^```(?:json)?\s*|\s*```$', '', str(response).strip(), flags=re.I)))
             scene = validate_visual(raw, data)
-            pieces = [p for p in candidates(scene) if next(n for n in scene['nodes'] if n['id'] == p['id']).get('artwork')]
-            if not pieces:
-                raise ValueError('A composição precisa de objetos inteiros com espaços artwork válidos para receber imagens.')
+            check_image_slots(scene, data)
             # Eligibility and typed state execution are verified here. Image
             # silhouettes cannot be judged before those images actually exist.
             record_attempt(json.dumps(scene, ensure_ascii=False), {'mechanic': 'image-ready-scene-v1'}, [], review='Composição preparada; imagens ainda não geradas nem certificadas editorialmente.')
