@@ -16,7 +16,7 @@ const API = getApiUrl();
  * Aesthetic Analyzer so the existing "Reverter" button also undoes
  * these changes.
  */
-export default function EditorChat({ projectId, onCourseUpdate, onClose }) {
+export default function EditorChat({ projectId, currentSlideId, selectedElementId, onCourseUpdate, onClose }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -33,7 +33,9 @@ export default function EditorChat({ projectId, onCourseUpdate, onClose }) {
     'Deixe o fundo do slide 3 azul escuro',
     'Aumente a fonte dos textos do slide 2 para 24px',
     'Adicione um texto "Obrigado!" no ultimo slide',
-    'Remova o penultimo slide',
+    'Aplicar sombra média em todas as imagens',
+    'Aplicar sombra suave nas imagens do slide atual',
+    'Remover sombra da imagem selecionada',
   ];
 
   const send = useCallback(async (text) => {
@@ -48,7 +50,7 @@ export default function EditorChat({ projectId, onCourseUpdate, onClose }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         credentials: 'include',
-        body: JSON.stringify({ message: msg, history }),
+        body: JSON.stringify({ message: msg, history, currentSlideId, selectedElementId }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -68,7 +70,7 @@ export default function EditorChat({ projectId, onCourseUpdate, onClose }) {
       }]);
     }
     setSending(false);
-  }, [input, sending, projectId, messages, onCourseUpdate]);
+  }, [input, sending, projectId, messages, onCourseUpdate, currentSlideId, selectedElementId]);
 
   return (
     <div className="flex flex-col h-full" data-testid="editor-chat">
@@ -102,6 +104,9 @@ export default function EditorChat({ projectId, onCourseUpdate, onClose }) {
                   </button>
                 ))}
               </div>
+              <p className="text-[10px] text-slate-500 mt-2 leading-relaxed">
+                Sombras em imagens podem ser aplicadas ou removidas neste chat, sem créditos de IA. Fundos e imagens internas de HTML/simuladores não são alterados.
+              </p>
               <p className="text-[10px] text-slate-500 mt-2 leading-relaxed">
                 As alteracoes sao sempre <strong>revertíveis</strong> pelo botao Reverter do Analisador de Estetica.
               </p>
@@ -169,7 +174,7 @@ export default function EditorChat({ projectId, onCourseUpdate, onClose }) {
           </Button>
         </div>
         <p className="text-[9px] text-slate-500 mt-1.5">
-          Enter envia, Shift+Enter quebra linha. Indices sao 1-based ("slide 3").
+          Salve edições pendentes antes de pedir alterações. Enter envia; Shift+Enter quebra linha. Use "slide 3".
         </p>
       </div>
     </div>

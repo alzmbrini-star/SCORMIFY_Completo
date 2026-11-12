@@ -1,0 +1,32 @@
+import React, { act } from 'react';
+import { createRoot } from 'react-dom/client';
+import EditorChat from './EditorChat';
+globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+jest.mock('../../contexts/AuthContext',()=>({authHeaders:()=>({Authorization:'Bearer test'})}));
+jest.mock('../../utils/apiUrl',()=>({getApiUrl:()=> 'https://api.example'}));
+jest.mock('sonner',()=>({toast:{success:jest.fn()}}));
+jest.mock('../ui/button',()=>({Button:({children,variant,size,...props})=><button {...props}>{children}</button>}));
+jest.mock('../ui/textarea',()=>({Textarea:props=><textarea {...props}/>}));
+jest.mock('../ui/badge',()=>({Badge:({children,...props})=><span {...props}>{children}</span>}));
+jest.mock('../ui/scroll-area',()=>{const React=require('react');return {ScrollArea:React.forwardRef(({children,...props},ref)=><div ref={ref} {...props}>{children}</div>)};});
+let container,root;
+beforeEach(()=>{container=document.createElement('div');document.body.append(container);root=createRoot(container);HTMLElement.prototype.scrollTo=jest.fn();global.fetch=jest.fn();});
+afterEach(async()=>{await act(async()=>root.unmount());container.remove();jest.restoreAllMocks();});
+test('sends actual current slide and selection for the image-shadow command and refreshes only on applied ops',async()=>{
+  const updated=jest.fn(),slides=[{id:'slide-2',elements:[]}];
+  fetch.mockResolvedValue({ok:true,json:async()=>({reply:'Atualizei a sombra de 1 imagem.',ops:[{type:'set_image_shadow'}],slides})});
+  await act(async()=>root.render(<EditorChat projectId="project-1" currentSlideId="slide-2" selectedElementId="image-4" onCourseUpdate={updated}/>));
+  const button=[...container.querySelectorAll('button')].find(b=>b.textContent==='Remover sombra da imagem selecionada');
+  await act(async()=>button.click());
+  expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({message:'Remover sombra da imagem selecionada',currentSlideId:'slide-2',selectedElementId:'image-4'});
+  expect(updated).toHaveBeenCalledWith(slides);
+  expect(container.textContent).toContain('Atualizei a sombra de 1 imagem.');
+});
+test('shows clarification without reloading a course when no operation was applied',async()=>{
+  const updated=jest.fn();
+  fetch.mockResolvedValue({ok:true,json:async()=>({reply:'Selecione uma imagem no Editor.',ops:[],slides:[]})});
+  await act(async()=>root.render(<EditorChat projectId="p" onCourseUpdate={updated}/>));
+  await act(async()=>[...container.querySelectorAll('button')].find(b=>b.textContent==='Aplicar sombra média em todas as imagens').click());
+  expect(updated).not.toHaveBeenCalled();
+  expect(container.textContent).toContain('Selecione uma imagem no Editor.');
+});

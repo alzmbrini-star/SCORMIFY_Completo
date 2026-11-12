@@ -33,6 +33,11 @@ O autor te pede alteracoes em linguagem natural sobre um curso JA PUBLICADO. Sua
 - `edit_slide_title`: {slideIndex: int, title: str}
 - `edit_element_content`: {slideIndex: int, elementIndex: int, content: str}
 - `edit_element_style`: {slideIndex: int, elementIndex: int, style: {fontColor?, fontSize?, fontWeight?, textAlign?, fontFamily?}}
+- `set_image_shadow`: {scope: "course"|"slide"|"selection", slideIndex?: int, elementId?: str, shadow: {preset?: "none"|"soft"|"medium"|"strong", mode?: "contour"|"frame", color?: "#rrggbb", opacity?: number (0-70), blur?: number (0-60), x?: number (-40 a 40), y?: number (-40 a 40)}}
+   - Aplica ou remove sombra APENAS em elementos de imagem. Preserva arquivo original, geometria, texto, notas, quiz e estilos existentes. "Todas as imagens" = course; "slide atual" usa currentSlideId; "imagem selecionada" exige selectedElementId desse slide. Sem escopo claro, peça esclarecimento. Não altera fundos nem imagens internas de HTML/simuladores.
+   - "Aplicar sombra média em todas as imagens" → {"type":"set_image_shadow","scope":"course","shadow":{"preset":"medium"}}.
+   - "Remover sombra das imagens do slide 3" → {"type":"set_image_shadow","scope":"slide","slideIndex":2,"shadow":{"preset":"none"}}.
+   - Não diga que o produto não suporta sombras em imagens. Existe também Properties → Sombra da imagem.
 - `add_text_element`: {slideIndex: int, content: str, x?: number, y?: number, width?: number, height?: number, fontSize?: int, fontColor?: str}
 - `add_slide`: {insertAfter: int, count?: int (default 1, max 20), title?: str, content?: str, background?: "#hex", narrationScript?: str, useBrandBackground?: bool, brandAssetId?: str}
    - Use SEMPRE que o autor pedir "adicionar slide", "inserir slide", "criar slide", "novo slide" etc.
@@ -74,7 +79,7 @@ O autor te pede alteracoes em linguagem natural sobre um curso JA PUBLICADO. Sua
 - Para `add_text_element` sem coordenadas explicitas, use x=100, y=100, width=600, height=60, fontSize=20.
 - NAO regere imagens ou audio (isso e feito em outra interface).
 - NAO altere elementos tipo html/quiz/scenario diretamente (estruturas complexas).
-- **PROIBIDO** propor `backgroundColor`, `textBackgroundColor`, `padding`, `borderRadius`, `boxShadow`, `textShadow` em `style` — o usuario rejeitou plates/overlays atras do texto. Para resolver contraste sobre imagens, mude APENAS `fontColor` (preto `#0f172a` ou branco `#f8fafc`).
+- Em `edit_element_style`, **PROIBIDO** propor `backgroundColor`, `textBackgroundColor`, `padding`, `borderRadius`, `boxShadow`, `textShadow` em `style` — o usuario rejeitou plates/overlays atras do texto. Para resolver contraste sobre imagens, mude APENAS `fontColor` (preto `#0f172a` ou branco `#f8fafc`). Sombras em IMAGENS usam exclusivamente `set_image_shadow`, não placas de texto.
 - Se a BIBLIOTECA DE MARCA estiver vazia e o autor pedir "fundo da marca", responda no `reply` que a empresa ainda nao tem backgrounds cadastrados e nao gere ops.
 
 ## Exemplos de inserir slides
@@ -132,7 +137,10 @@ def _build_course_summary(slides: list) -> list:
                 els_brief.append({"i": ei, "type": t, "summary": "(interactive, not editable via chat)"})
                 continue
             c = (el.get("content") or "")[:200]
-            els_brief.append({"i": ei, "type": t, "content": c})
+            brief={"i": ei, "type": t, "content": c}
+            if t=="image":
+                brief.update(id=el.get("id"),imageShadow=el.get("imageShadow"))
+            els_brief.append(brief)
         summary.append({
             "index": i,
             "title": sl.get("title", ""),
@@ -432,7 +440,10 @@ def _apply_ops(slides: list, ops: list, brand_backgrounds: list = None, brand_ki
     for op in ops:
         try:
             t = (op or {}).get("type") if isinstance(op, dict) else None
-            if t == "edit_slide_title":
+            if t == "set_image_shadow":
+                from services.editor_shadow_chat import apply_image_shadow
+                applied.extend(apply_image_shadow(slides,op))
+            elif t == "edit_slide_title":
                 i = int(op["slideIndex"])
                 if 0 <= i < len(slides):
                     slides[i]["title"] = str(op.get("title", ""))
@@ -1013,15 +1024,17 @@ async def editor_chat(project_id: str, data: dict, user: dict = Depends(require_
     slides = (project.get("course") or {}).get("slides") or []
     if not slides:
         raise HTTPException(400, "Curso sem slides para editar")
+    from services.editor_shadow_chat import plan_image_shadow, shadow_result_reply
+    shadow_plan=plan_image_shadow(message,slides,data.get('currentSlideId'),data.get('selectedElementId'))
 
     # Pre-load brand backgrounds + brand kit from the project's company so
     # the LLM can suggest them by name/category and the apply path can
     # resolve `brandAssetId` / `useBrandBackground:true` / brand palette
     # ops in a single round-trip.
     company_id = project.get("companyId") or ""
-    brand_backgrounds = await _load_brand_backgrounds(company_id)
-    brand_kit = await _load_brand_kit(company_id)
-    brand_logo_url = await _load_brand_logo(company_id, brand_kit)
+    brand_backgrounds = await _load_brand_backgrounds(company_id) if shadow_plan is None else []
+    brand_kit = await _load_brand_kit(company_id) if shadow_plan is None else {}
+    brand_logo_url = await _load_brand_logo(company_id, brand_kit) if shadow_plan is None else ""
 
     summary = _build_course_summary(slides)
     history = (data.get("history") or [])[-6:]
@@ -1074,7 +1087,7 @@ async def editor_chat(project_id: str, data: dict, user: dict = Depends(require_
     # Explicit Brand Kit commands do not need generative interpretation.
     # Resolve them locally so an LLM outage cannot block applying settings
     # already stored for the company.
-    parsed = _deterministic_brand_intent(
+    parsed = shadow_plan if shadow_plan is not None else _deterministic_brand_intent(
         message,
         has_brand_kit=bool(brand_kit and any(brand_kit.get(k) for k in (
             "primaryColor", "accentColor", "secondaryColor", "fontFamily"
@@ -1093,6 +1106,13 @@ async def editor_chat(project_id: str, data: dict, user: dict = Depends(require_
         parsed = _extract_json(raw)
     reply = parsed.get("reply") or "Entendi."
     ops = parsed.get("ops") or []
+    # Image presentation edits require explicit local intent and scope, never
+    # an unrelated LLM proposal inferred from a request about other content.
+    if shadow_plan is None:
+        blocked_shadow=any(isinstance(op,dict) and op.get('type')=='set_image_shadow' for op in ops)
+        ops=[op for op in ops if not isinstance(op,dict) or op.get('type')!='set_image_shadow']
+        if blocked_shadow and not ops:
+            reply="Não apliquei sombras sem um pedido explícito. Informe a intensidade e se deseja a imagem selecionada, um slide ou todas as imagens do curso."
 
     # Guardrail: strip LLM-hallucinated `logoCorner`/`logoSize` from
     # apply_brand_identity ops so the BrandKit config (set in the Super
@@ -1105,6 +1125,8 @@ async def editor_chat(project_id: str, data: dict, user: dict = Depends(require_
     snapshot_slides = _copy.deepcopy(slides) if ops else None
 
     applied = _apply_ops(slides, ops, brand_backgrounds=brand_backgrounds, brand_kit=brand_kit, brand_logo_url=brand_logo_url)
+    if shadow_plan is not None:
+        reply=shadow_result_reply(shadow_plan,applied)
 
     for operation in ops:
         if operation.get('type') != 'create_assessment':
@@ -1125,13 +1147,29 @@ async def editor_chat(project_id: str, data: dict, user: dict = Depends(require_
         applied.append({'type': 'create_assessment', 'slideIndex': position, 'questionCount': len(generated['items'])})
 
     if applied:
-        await db.projects.update_one(
-            {"id": project_id},
-            {"$set": {
-                "course.slides": slides,
-                "updatedAt": datetime.now(timezone.utc).isoformat(),
-            }}
-        )
+        if all(op.get('type')=='set_image_shadow' for op in applied):
+            # Patch only presentation metadata, with a revision guard. Never
+            # replace a whole course while the author may be editing elsewhere.
+            query={"id":project_id,"updatedAt":project["updatedAt"]} if "updatedAt" in project else {"id":project_id,"updatedAt":{"$exists":False}}
+            fields={"updatedAt":datetime.now(timezone.utc).isoformat()}
+            for op in applied:
+                si,ei=op['slideIndex'],op['elementIndex']
+                if not op.get('slideId') or not op.get('elementId'):
+                    raise HTTPException(409,"Atualize o curso no Editor antes de ajustar as sombras.")
+                query[f"course.slides.{si}.id"]=op['slideId']
+                query[f"course.slides.{si}.elements.{ei}.id"]=op['elementId']
+                fields[f"course.slides.{si}.elements.{ei}.imageShadow"]=slides[si]['elements'][ei]['imageShadow']
+            result=await db.projects.update_one(query,{"$set":fields})
+            if result.matched_count!=1:
+                raise HTTPException(409,"O curso mudou durante o ajuste. Salve e atualize o Editor antes de tentar novamente; nenhuma sombra foi aplicada.")
+        else:
+            await db.projects.update_one(
+                {"id": project_id},
+                {"$set": {
+                    "course.slides": slides,
+                    "updatedAt": datetime.now(timezone.utc).isoformat(),
+                }}
+            )
         await db.aesthetic_snapshots.update_one(
             {"projectId": project_id},
             {"$set": {

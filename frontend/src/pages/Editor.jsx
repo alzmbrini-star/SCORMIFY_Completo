@@ -2924,6 +2924,8 @@ export default function Editor() {
             </SheetHeader>
             <EditorChat
               projectId={currentProject?.id}
+              currentSlideId={currentSlide?.id}
+              selectedElementId={selectedElementId}
               onClose={() => setShowEditorChat(false)}
               onCourseUpdate={() => {
                 fetchProject(currentProject?.id);
