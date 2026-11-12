@@ -2172,7 +2172,6 @@ def _build_quiz_slide(sb_slide: dict, palette: dict, module_name: str, question_
     from models import generate_id
     accent = palette["accent"]
     font_heading = palette.get("fontHeading", "'Inter', sans-serif")
-    font_body = palette.get("fontBody", "'Inter', sans-serif")
     elements = []
 
     # Header bar (template-specific)
@@ -2188,10 +2187,9 @@ def _build_quiz_slide(sb_slide: dict, palette: dict, module_name: str, question_
     quiz_html = f'''<div style="text-align:left;padding:4px 0;">
 <span style="display:inline-block;padding:6px 18px;border-radius:999px;background:{palette.get("accentLight", accent + "22")};color:{accent};font-size:13px;font-weight:600;letter-spacing:0.5px;font-family:{font_heading};">Hora de praticar</span>
 <h2 style="font-family:{font_heading};font-size:34px;font-weight:700;letter-spacing:-0.5px;color:{tk["text"]};margin:18px 0 10px 0;">Teste seus conhecimentos</h2>
-<p style="font-family:{font_body};font-size:19px;color:{tk["muted"]};margin:0;max-width:900px;line-height:1.6;">Responda às perguntas para verificar seu aprendizado sobre {module_name}.</p>
 </div>'''
     elements.append({
-        "id": generate_id(), "type": "html", "x": 120, "y": 100, "width": 1500, "height": 190,
+        "id": generate_id(), "type": "html", "x": 120, "y": 100, "width": 1500, "height": 160,
         "htmlContent": quiz_html,
         "style": {"fontFamily": palette.get("fontBody", "'Inter', sans-serif")}, "startTime": 0,
         "animations": [{"id": generate_id(), "type": "entrance", "effect": "fade", "trigger": "withPrevious", "duration": 0.5, "delay": 0.1}],

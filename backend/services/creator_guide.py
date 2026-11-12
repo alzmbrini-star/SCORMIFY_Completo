@@ -127,6 +127,7 @@ GUIDE=[
   'Configure público, objetivos e recursos. Gere e revise a estrutura e, em seguida, aprove a geração do storyboard.',
   'Na Estrutura, os tipos de slide aparecem com rótulos em português, como Conteúdo, Jogo e Questionário. Os textos gerados recebem orientação de pt-BR e correção local de desvios conhecidos do espanhol, sem uma nova chamada de IA. Ao retomar a sessão, essa correção é exibida sem regravar ou regenerar o rascunho. Revise os títulos antes de aprovar; nomes próprios e termos técnicos são preservados.',
   'Revise conteúdo e mídia antes de gerar o curso. As etapas que geram conteúdo podem consumir créditos das APIs configuradas.',
+  'Novos slides de Quiz gerados pelo Agente mantêm Hora de praticar e Teste seus conhecimentos, sem a frase introdutória Responda às perguntas para verificar seu aprendizado. O bloco de título fica separado da janela de perguntas. Perguntas, alternativas, nota, tentativas e feedback não mudam. A alteração não usa créditos extras; cursos já salvos e pacotes distribuídos não são reescritos pelo deploy.',
   'Após a geração, abra o curso no Editor para conferir diagramação, atividades e exportação.'],'agent','', 'agent'),
  entry('storyboard','Revisar o storyboard','storyboard revisar aprovação estrutura etapas erro geração',[
   'No Agente, acompanhe o progresso após aprovar a estrutura. Revise os slides do storyboard e as orientações de mídia.',
