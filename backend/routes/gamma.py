@@ -35,7 +35,8 @@ def owner(user):
 def public(job):
     # Explicit allowlist: no API keys, signed export URLs or raw provider responses.
     return {key: job.get(key) for key in ['id', 'projectId', 'title', 'status', 'createdAt', 'error',
-            'progress', 'actualSlides', 'gammaUrl', 'credits', 'warning', 'requestId', 'themeId', 'templateId', 'numCards']}
+            'progress', 'actualSlides', 'gammaUrl', 'credits', 'warning', 'requestId', 'themeId', 'templateId', 'numCards',
+            'interactiveAssessment', 'assessment', 'totalSlides']}
 
 
 def sharing_warning(response):
@@ -45,6 +46,13 @@ def sharing_warning(response):
     return None
 
 
+class AssessmentOptions(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    enabled: bool = Field(default=False, strict=True)
+    questionCount: int = Field(default=5, ge=1, le=10, strict=True)
+    images: bool = Field(default=True, strict=True)
+
+
 class Generate(BaseModel):
     model_config = ConfigDict(extra='forbid')
     requestId: uuid.UUID
@@ -52,6 +60,7 @@ class Generate(BaseModel):
     prompt: str = Field(min_length=20, max_length=100000)
     companyId: str | None = None
     numCards: int = Field(default=5, ge=1, le=100, strict=True)
+    interactiveAssessment: AssessmentOptions = Field(default_factory=AssessmentOptions)
     themeId: str | None = Field(default=None, min_length=1, max_length=128, pattern=r'^[A-Za-z0-9_-]+$')
     templateId: str | None = Field(default=None, min_length=1, max_length=128, pattern=r'^[A-Za-z0-9_-]+$')
 
@@ -65,7 +74,8 @@ class Generate(BaseModel):
 @router.get('/gamma/status')
 async def configuration(user=Depends(require_auth)):
     creator(user)
-    return {'configured': gamma_api.configured(), 'defaultSlides': 5, 'minSlides': 1, 'maxSlides': gamma_api.MAX_SLIDES, 'language': 'pt-BR'}
+    from services.llm_config import openai_api_key
+    return {'configured': gamma_api.configured(), 'assessmentConfigured': bool(openai_api_key()), 'defaultSlides': 5, 'minSlides': 1, 'maxSlides': gamma_api.MAX_SLIDES, 'language': 'pt-BR'}
 
 
 @router.post('/gamma/extract-document')
@@ -109,6 +119,10 @@ async def generate(data: Generate, user=Depends(require_auth)):
     existing = await db.gamma_generations.find_one({'_id': ident})
     if existing:
         return public(existing)
+    if data.interactiveAssessment.enabled:
+        from services.llm_config import openai_api_key
+        if not openai_api_key():
+            raise HTTPException(503, 'Configure a chave OpenAI do SCORMIFY para gerar a avaliação, ou desmarque a avaliação. Nenhuma geração Gamma foi solicitada.')
     company = await resolve_company_id_for_creation(user, data.companyId)
     project = Project(name=data.title).model_dump(mode='json')
     project.update({'status': 'processing', 'source': 'gamma', 'gammaJobId': ident,
@@ -117,7 +131,11 @@ async def generate(data: Generate, user=Depends(require_auth)):
     project['course']['slides'] = []
     job = {'_id': ident, 'id': ident, 'projectId': project['id'], 'userId': owner(user),
            'companyId': company, 'title': data.title, 'requestId': str(data.requestId),
-           'status': 'submitting', 'createdAt': now(), 'themeId': data.themeId, 'templateId': data.templateId, 'numCards': data.numCards}
+           'status': 'submitting', 'createdAt': now(), 'themeId': data.themeId, 'templateId': data.templateId, 'numCards': data.numCards,
+           'interactiveAssessment': data.interactiveAssessment.model_dump(),
+           'assessment': {'status': 'waiting' if data.interactiveAssessment.enabled else 'disabled'}}
+    if data.interactiveAssessment.enabled:
+        job['assessmentSource'] = data.prompt  # Same reviewed prompt, including extracted document text; never public.
     from pymongo.errors import DuplicateKeyError
     try:
         await db.gamma_generations.insert_one(job)
@@ -187,6 +205,10 @@ async def import_archive(job, raw):
 @router.get('/gamma/jobs/{ident}')
 async def poll(ident: str, user=Depends(require_auth)):
     job = await authorized(ident, user)
+    if job.get('status') == 'assessment':
+        from services.gamma_assessments import start_queued
+        await start_queued(db, PROJECTS_DIR, job)
+        return public(await db.gamma_generations.find_one({'id': ident}))
     if not job.get('generationId') or job['status'] in ['completed', 'failed', 'preserved']:
         return public(job)
     timestamp = now()
@@ -214,12 +236,32 @@ async def poll(ident: str, user=Depends(require_auth)):
                 requested = job.get('numCards') or 5
                 update.update(status='completed', actualSlides=count, progress={'percent': 100},
                               warning=warning if count == requested else ((warning or '') + f' Gamma entregou {count} slides; foram solicitados {requested}. A quantidade é uma meta flexível do provedor. Não houve nova geração automática.').strip())
+                if (job.get('interactiveAssessment') or {}).get('enabled'):
+                    update.update(status='assessment', progress=None, assessment={'status': 'queued', 'total': job['interactiveAssessment']['questionCount'], 'progress': 0})
     except gamma_api.GammaError as exc:
         update.update(error=str(exc))
         if 'já contém slides' in str(exc):
             update['status'] = 'preserved'
     finally:
         await db.gamma_generations.update_one({'id': ident}, {'$set': update, '$unset': {'leaseUntil': ''}})
+    current = await db.gamma_generations.find_one({'id': ident})
+    if current and current.get('status') == 'assessment':
+        from services.gamma_assessments import start_queued
+        await start_queued(db, PROJECTS_DIR, current)
+    return public(current)
+
+
+@router.post('/gamma/jobs/{ident}/retry-assessment')
+async def retry_assessment(ident: str, user=Depends(require_auth)):
+    job = await authorized(ident, user)
+    if not (job.get('interactiveAssessment') or {}).get('enabled') or job.get('status') != 'completed' or (job.get('assessment') or {}).get('status') != 'failed':
+        raise HTTPException(409, 'A avaliação não está disponível para nova tentativa.')
+    changed = await db.gamma_generations.update_one({'id': ident, 'status': 'completed', 'assessment.status': 'failed'},
+        {'$set': {'status': 'assessment', 'assessment.status': 'queued', 'assessment.error': None}, '$unset': {'assessmentLease': ''}})
+    if changed.modified_count:
+        from services.gamma_assessments import start_queued
+        current = await db.gamma_generations.find_one({'id': ident})
+        await start_queued(db, PROJECTS_DIR, current)
     return public(await db.gamma_generations.find_one({'id': ident}))
 
 

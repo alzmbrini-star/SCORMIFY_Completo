@@ -10,3 +10,9 @@
 .gamma-dialog{z-index:90!important}.gamma-footer-summary{overflow-wrap:anywhere}.gamma-design-card-content p{min-height:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.gamma-design-card .gamma-chosen{position:absolute;right:6px;top:5px;margin:0}.gamma-design-card-content{padding:10px}.gamma-design-selected{margin-bottom:8px}
 @media(max-width:430px){.gamma-tabs button span{display:none}.gamma-tabs button{justify-content:center;font-size:12px;white-space:nowrap}.gamma-head p{font-size:12px}.gamma-design-mode p{font-size:11px}}
 .gamma-document{min-width:0;border:1px solid #0e7490;border-radius:10px;background:#102f40;padding:12px}.gamma-document legend{color:#67e8f9;font-size:14px;font-weight:700;padding:0 5px}.gamma-document input[type=file]{width:100%;max-width:100%;font-size:13px;padding:8px 0;color:#e2e8f0}.gamma-document input::file-selector-button{background:#155e75;color:#fff;border:1px solid #22d3ee;border-radius:6px;padding:8px;margin-right:10px;cursor:pointer}.gamma-document-review{margin-top:10px;border-top:1px solid #336879;padding-top:10px;overflow-wrap:anywhere}.gamma-document-review textarea{width:100%;min-height:140px;max-height:240px;padding:10px;margin-top:8px;font:13px/1.5 system-ui}.gamma-document-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.gamma-assessment{margin:18px 0 0;padding:14px;border:1px solid #62b6c8;border-radius:12px;background:#102f44;color:#edf8ff}
+.gamma-assessment legend{font-weight:700;font-size:14px;padding:0 6px;color:#8ce4ed}
+.gamma-assessment label{display:block;margin:8px 0;font-size:14px}
+.gamma-assessment .gamma-assessment-check{display:flex;align-items:flex-start;gap:9px;font-weight:600;cursor:pointer}
+.gamma-assessment input[type=checkbox]{width:18px;height:18px;flex-shrink:0;margin-top:2px;accent-color:#20d7be}
+.gamma-assessment .gamma-help{color:#cbdfe9;font-size:12px;line-height:1.5}

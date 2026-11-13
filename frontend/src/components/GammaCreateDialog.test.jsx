@@ -32,6 +32,43 @@ test('readers cannot start Gamma generation', async () => {
   await act(async () => root.render(<GammaCreateDialog/>));
   expect(container.textContent).toBe('');
 });
+
+test('assessment is optional, defaults off and submits reviewed document/prompt with bounded image options',async()=>{
+  await open();await fill();
+  const enabled=Array.from(container.querySelectorAll('label')).find(e=>e.textContent.includes('Adicionar avaliação interativa')).querySelector('input');
+  expect(enabled.checked).toBe(false);
+  await act(async()=>enabled.click());
+  const questionCount=container.querySelector('[aria-label="Quantidade de questões da avaliação Gamma"]');
+  const images=Array.from(container.querySelectorAll('label')).find(e=>e.textContent.includes('Gerar imagem de apoio')).querySelector('input');
+  expect(images.checked).toBe(true);
+  for(const value of ['', '0', '11', '2.5']){
+    await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(questionCount,value);questionCount.dispatchEvent(new Event('input',{bubbles:true}));});
+    expect(container.querySelector('[data-testid="gamma-generate"]').disabled).toBe(true);
+  }
+  await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(questionCount,'3');questionCount.dispatchEvent(new Event('input',{bubbles:true}));});
+  const source='Prompt original. Documento revisado: primeira e última unidade devem aparecer nas questões.';
+  await act(async()=>{const p=container.querySelector('[aria-label="Conteúdo Gamma"]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(p,source);p.dispatchEvent(new Event('input',{bubbles:true}));});
+  global.fetch.mockResolvedValue({ok:true,json:async()=>({id:'j',status:'pending'})});
+  await act(async()=>container.querySelector('[data-testid="gamma-generate"]').click());
+  const body=JSON.parse(global.fetch.mock.calls.find(([,o])=>o?.method==='POST')[1].body);
+  expect(body.interactiveAssessment).toEqual({enabled:true,questionCount:3,images:true});expect(body.prompt).toBe(source);
+  expect(body.numCards).toBe(5);expect(body).not.toHaveProperty('projectId');
+});
+
+test('assessment failure explains preserved slides and image warning stays visible for review',async()=>{
+  await open();
+  const rows=[{id:'j',title:'Com falha',status:'completed',interactiveAssessment:{enabled:true,questionCount:5},assessment:{status:'failed',error:'Falhou; slides preservados'}},
+    {id:'ok',title:'Com imagens',status:'completed',totalSlides:6,interactiveAssessment:{enabled:true,questionCount:5},assessment:{status:'ready',questionCount:5,imagesReady:4,warning:'Uma imagem precisa de revisão'}}];
+  global.fetch.mockResolvedValue({ok:true,json:async()=>rows});
+  // Close/open refreshes the history using the normal lifecycle.
+  await act(async()=>root.render(<GammaCreateDialog key="new"/>));
+  await act(async()=>container.querySelector('[data-testid="gamma-create-open"]').click());
+  expect(container.textContent).toContain('slides Gamma preservados');
+  expect(container.textContent).toContain('Tentar somente avaliação novamente');
+  expect(container.textContent).toContain('5 questões prontas para revisar no Editor');
+  expect(container.textContent).toContain('4 imagens de apoio disponíveis na biblioteca');
+  expect(container.textContent).toContain('Uma imagem precisa de revisão');
+});
 test('missing key disables generation and explains image-base limitation', async () => {
   await open(false); await fill();
   expect(container.textContent).toContain('GAMMA_API_KEY');
