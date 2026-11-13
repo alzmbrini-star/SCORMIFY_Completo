@@ -153,7 +153,12 @@ __CSS_CONTENT__
                 <h3>📚 Navegação</h3>
                 <button class="sidebar-close" onclick="CoursePlayer.toggleSidebar()" title="Fechar menu">✕</button>
             </div>
+            <div class="sidebar-filter">
+                <label for="sidebar-pending-only"><input type="checkbox" id="sidebar-pending-only" aria-controls="sidebar-slides"> Somente pendentes</label>
+                <p id="sidebar-pending-count" role="status" aria-live="polite"></p>
+            </div>
             <div id="sidebar-slides"></div>
+            <p id="sidebar-pending-empty" class="sidebar-filter-empty" role="status" hidden>Nenhum slide pendente. Desmarque o filtro para ver todos.</p>
         </div>
         
         <div id="slide-wrapper">

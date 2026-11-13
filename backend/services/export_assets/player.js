@@ -2343,6 +2343,21 @@ var CoursePlayer = (function() {
         }
     }
     
+    function applyPendingSlideFilter() {
+        var filter = document.getElementById('sidebar-pending-only');
+        if (!filter || !course) return;
+        var pendingCount = 0;
+        document.querySelectorAll('.sidebar-slide-item').forEach(function(item, index) {
+            var pending = slideCompletionState(index).kind !== 'completed';
+            if (pending) pendingCount++;
+            item.hidden = filter.checked && !pending;
+        });
+        var count = document.getElementById('sidebar-pending-count');
+        if (count) count.textContent = pendingCount + ' de ' + totalSlides + ' slides pendentes';
+        var empty = document.getElementById('sidebar-pending-empty');
+        if (empty) empty.hidden = !filter.checked || pendingCount !== 0;
+    }
+
     function renderSidebar() {
         var sidebarList = document.getElementById('sidebar-slides');
         if (!sidebarList || !course) return;
@@ -2393,6 +2408,9 @@ var CoursePlayer = (function() {
             item.appendChild(info);
             sidebarList.appendChild(item);
         });
+        var filter = document.getElementById('sidebar-pending-only');
+        if (filter) filter.onchange = applyPendingSlideFilter;
+        applyPendingSlideFilter();
     }
     
     function updateSidebar() {
@@ -2409,9 +2427,10 @@ var CoursePlayer = (function() {
             }
         });
         
-        // Scroll active item into view
+        applyPendingSlideFilter();
+        // Scroll only a visible active item; filtering never changes the slide.
         var activeItem = document.querySelector('.sidebar-slide-item.active');
-        if (activeItem) {
+        if (activeItem && !activeItem.hidden) {
             activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
     }

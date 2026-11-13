@@ -12,6 +12,7 @@ function node() {
     querySelector() { return this.children.at(-1)?.children.at(-1); }};
 }
 const dots = node(), sidebar = node();
+const pendingFilter = {checked:false}, pendingCount = node(), empty = node();
 const ctx = {
   console: {log() {}},
   window: {VideoQuizHost: {configFor: el => el.videoConfig}},
@@ -28,7 +29,7 @@ const ctx = {
   ScormAPI: {recordAssessment() {}, beginRetry() {}},
   checkAndSetCompletion() {}, updateNavigation() {},
   document: {
-    getElementById(id) { return id==='progress-dots'?dots:id==='sidebar-slides'?sidebar:null; },
+    getElementById(id) { return ({'progress-dots':dots,'sidebar-slides':sidebar,'sidebar-pending-only':pendingFilter,'sidebar-pending-count':pendingCount,'sidebar-pending-empty':empty})[id] || null; },
     createElement: node,
     querySelectorAll() { return sidebar.children; },
     querySelector() { return null; }
@@ -37,7 +38,7 @@ const ctx = {
 vm.createContext(ctx);
 vm.runInContext(section('    function gradedVideo(', '    function loadCourse(') +
   section('    function slideCompletionState(', '    function updateNavigation(') +
-  section('    function renderSidebar(', '    // Keyboard navigation') +
+  section('    function applyPendingSlideFilter(', '    // Keyboard navigation') +
   section('    function onQuizComplete(', '    // Called by ScenarioController'), ctx);
 ctx.renderSidebar();
 const status = i => sidebar.children[i].querySelector('.sidebar-slide-status');
@@ -69,4 +70,32 @@ assert.equal(status(1).textContent, '⚠ Quiz pendente (1/2) · Atual');
 ctx.courseCompleted = true; ctx.currentSlide=5; ctx.updateProgress();
 assert.equal(status(5).textContent, '✓ Concluído · Atual');
 assert.equal(status(1).textContent, '⚠ Quiz pendente (1/2)', 'Course flag must not hide missing assessments');
+// Filtering reads the same completion states; it never mutates course/results.
+const originalCourse = JSON.stringify(ctx.course), originalResults = JSON.stringify(ctx.completedQuizzes);
+pendingFilter.checked = true; pendingFilter.onchange();
+assert.equal(sidebar.children[0].hidden, true);
+assert.equal(sidebar.children[1].hidden, false, 'Visited quiz with missing result remains visible');
+assert.equal(sidebar.children[5].hidden, true, 'Completed current slide is hidden too');
+assert.equal(pendingCount.textContent, '1 de 6 slides pendentes');
+assert.equal(empty.hidden, true);
+assert.equal(ctx.currentSlide, 5);
+assert.equal(JSON.stringify(ctx.course), originalCourse);
+assert.equal(JSON.stringify(ctx.completedQuizzes), originalResults);
+ctx.completedQuizzes.a1 = true; ctx.updateSidebar();
+assert(sidebar.children.every(item=>item.hidden));
+assert.equal(empty.hidden, false);
+ctx.onQuizRetry('q1');
+assert.equal(sidebar.children[1].hidden, false, 'Retry immediately restores pending item');
+assert.equal(empty.hidden, true);
+pendingFilter.checked = false; pendingFilter.onchange();
+assert(sidebar.children.every(item=>!item.hidden));
+ctx.currentSlide = 0; ctx.courseCompleted = false; ctx.updateSidebar();
+pendingFilter.checked = true; pendingFilter.onchange();
+assert.equal(sidebar.children[0].hidden, false, 'Current unfinished non-quiz slide stays visible');
+assert.equal(sidebar.children[5].hidden, false, 'Future unfinished slide stays visible');
+ctx.window.ScormifyGuided = {slideState:()=>({stage:'practice',done:true})};
+ctx.course.metadata = {guidedPath:true}; ctx.updateSidebar();
+assert(sidebar.children.every(item=>item.hidden), 'Guided path uses its own completion state');
+ctx.window.ScormifyGuided.slideState=()=>({stage:'practice',done:false}); ctx.updateSidebar();
+assert(sidebar.children.every(item=>!item.hidden));
 console.log('SCORM navigation: skipped, partial, completed, retry, restored, current, graded video and dots passed');

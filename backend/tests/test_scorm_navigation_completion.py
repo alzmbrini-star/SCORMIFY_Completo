@@ -15,6 +15,8 @@ def test_tutor_explains_pending_quiz_indicator_and_export_limit():
     instructions = ' '.join(topic['steps'])
     for phrase in ['Quiz pendente', 'Quiz concluído', 'não aprovação', 'Reexporte o ZIP', 'sem nota']:
         assert phrase in instructions
+    for phrase in ['Somente pendentes', 'não avança slides', 'Página Única']:
+        assert phrase in instructions
 
 
 def test_exported_zip_ships_assessment_aware_navigation(tmp_path):
@@ -33,3 +35,7 @@ def test_exported_zip_ships_assessment_aware_navigation(tmp_path):
     assert 'applySidebarStatus(status, index)' in player
     assert '.sidebar-slide-status.quiz-pending' in page
     assert '.progress-dot.quiz-pending' in page
+    assert 'id="sidebar-pending-only"' in page
+    assert 'Somente pendentes' in page
+    assert '.sidebar-slide-item[hidden]' in page
+    assert 'function applyPendingSlideFilter()' in player
