@@ -137,21 +137,23 @@ export default function GammaCreateDialog({ onCreated }) {
       <section className="space-y-3" aria-label="Histórico Gamma"><h3 className="font-semibold">Gerações recentes</h3>
         {jobs.length===0&&<div className="gamma-info">Nenhuma geração ainda. Comece em Conteúdo e escolha a aparência.</div>}
         {jobs.map(job => <article key={job.id} className="gamma-job space-y-2" data-testid="gamma-job">
-          <strong>{job.title}</strong><div><span role="status" className={`gamma-status gamma-status-${job.status}`}>{labels[job.status] || job.status}{job.progress?.percent != null ? ` · ${job.progress.percent}%` : ''}{job.actualSlides ? ` · ${job.actualSlides} slides` : ''}</span></div>
+          <strong>{job.title}</strong><div><span role="status" className={`gamma-status gamma-status-${job.status}`}>{labels[job.status] || job.status}{job.progress?.percent != null ? ` · ${job.progress.percent}%` : ''}{job.assessment?.status==='ready'&&job.totalSlides?` · ${job.totalSlides} slides no curso completo`:job.actualSlides ? ` · ${job.actualSlides} slides Gamma` : ''}</span></div>
           <p>Quantidade solicitada: {job.numCards || 5}{job.actualSlides ? ` · recebida: ${job.actualSlides}` : ''}</p>
           {job.interactiveAssessment?.enabled&&<div className="gamma-info" aria-label="Avaliação final Gamma"><strong>Avaliação interativa final</strong>
             <p>{job.assessment?.status==='ready'?`${job.assessment.questionCount || job.interactiveAssessment.questionCount} questões prontas para revisar no Editor${job.totalSlides?` · ${job.totalSlides} slides no projeto`:''}`:job.assessment?.status==='failed'?'Avaliação não concluída; slides Gamma preservados.':`Preparação em andamento${job.assessment?.total?` · ${job.assessment.progress || 0}/${job.assessment.total} questões preparadas`:''}`}</p>
             {job.assessment?.imagesReady!=null&&<p>{job.assessment.imagesReady} imagens de apoio disponíveis na biblioteca.</p>}
+            {job.assessment?.status==='ready'&&<p>A avaliação está no último slide do curso no Editor. Se o curso já estava aberto antes da conclusão, confira o projeto em outra aba para preservar suas edições não salvas.</p>}
             {job.assessment?.warning&&<p role="status">{job.assessment.warning}</p>}{job.assessment?.error&&<p role="alert">{job.assessment.error}</p>}
             {job.assessment?.status==='failed'&&<Button size="sm" variant="outline" onClick={()=>retryAssessment(job)}>Tentar somente avaliação novamente — usa créditos IA</Button>}
           </div>}
           {job.error && <p className="text-sm text-amber-500">{job.error}</p>}{job.warning && <p>{job.warning}</p>}
           {job.credits?.deducted != null && <p className="text-sm">Créditos informados pelo Gamma: {job.credits.deducted} consumidos{job.credits.remaining != null ? ` · saldo ${job.credits.remaining}` : ''}.</p>}
           <div className="flex flex-wrap gap-2">
-            {job.status === 'completed' && <Button size="sm" onClick={() => { onCreated?.(); setOpen(false); navigate(`/editor/${job.projectId}`); }}>Abrir novo projeto</Button>}
-            {['completed', 'preserved'].includes(job.status) && <Button size="sm" variant="outline" onClick={() => download(job)}>Baixar ZIP original</Button>}
+            {job.status === 'completed' && <Button size="sm" onClick={() => { onCreated?.(); setOpen(false); navigate(`/editor/${job.projectId}`); }}>{job.interactiveAssessment?.enabled?'Abrir curso completo no Editor':'Abrir novo projeto'}</Button>}
+            {['completed', 'preserved'].includes(job.status) && <Button size="sm" variant="outline" onClick={() => download(job)}>{job.interactiveAssessment?.enabled?'ZIP Gamma — sem avaliação':'Baixar ZIP original'}</Button>}
             {job.gammaUrl && <a href={job.gammaUrl} target="_blank" rel="noopener noreferrer" className="underline p-2">Abrir no Gamma</a>}
           </div>
+          {job.interactiveAssessment?.enabled&&['completed','preserved'].includes(job.status)&&<p className="gamma-help">O ZIP original e a apresentação no Gamma não incluem as questões do SCORMIFY. Para baixar o curso com a avaliação e suas imagens, abra o curso completo no Editor e use Exportar → HTML ou SCORM. Não é necessário gerar novamente.</p>}
         </article>)}
       </section>
       </section></div>

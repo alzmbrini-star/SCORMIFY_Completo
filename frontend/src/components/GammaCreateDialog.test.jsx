@@ -68,6 +68,12 @@ test('assessment failure explains preserved slides and image warning stays visib
   expect(container.textContent).toContain('5 questões prontas para revisar no Editor');
   expect(container.textContent).toContain('4 imagens de apoio disponíveis na biblioteca');
   expect(container.textContent).toContain('Uma imagem precisa de revisão');
+  expect(container.textContent).toContain('6 slides no curso completo');
+  expect(container.textContent).toContain('A avaliação está no último slide');
+  expect(container.textContent).toContain('Abrir curso completo no Editor');
+  expect(container.textContent).toContain('ZIP Gamma — sem avaliação');
+  expect(container.textContent).toContain('Exportar → HTML ou SCORM');
+  expect(global.fetch.mock.calls.filter(([,options])=>options?.method==='POST')).toHaveLength(0);
 });
 test('missing key disables generation and explains image-base limitation', async () => {
   await open(false); await fill();
