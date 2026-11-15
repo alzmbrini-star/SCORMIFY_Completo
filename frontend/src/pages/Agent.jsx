@@ -1072,7 +1072,7 @@ export default function Agent() {
       } else if (data.status === 'processing') {
         addChatMsg('agent', 'Analise em andamento... aguarde.');
         // Poll every 2s for faster response
-        const maxWait = 180000;
+        const maxWait = course.source === 'gamma' || course.gammaJobId ? 1800000 : 180000;
         const start = Date.now();
         let result = null;
         while (Date.now() - start < maxWait) {
@@ -1097,9 +1097,9 @@ export default function Agent() {
 
   const toggleImprovement = (improvement) => {
     setSelectedImprovements(prev => {
-      const exists = prev.find(p => p.description === improvement.description);
+      const exists = prev.find(p => p.slideIndex === improvement.slideIndex && p.description === improvement.description);
       if (exists) {
-        return prev.filter(p => p.description !== improvement.description);
+        return prev.filter(p => p.slideIndex !== improvement.slideIndex || p.description !== improvement.description);
       }
       return [...prev, improvement];
     });
@@ -1119,7 +1119,7 @@ export default function Agent() {
     // Update the type in selectedImprovements if it was selected
     setSelectedImprovements(prev => prev.map(imp => {
       const original = courseAnalysis?.improvements?.[impIndex];
-      if (original && imp.description === original.description) {
+      if (original && imp.slideIndex === original.slideIndex && imp.description === original.description) {
         const updated = { ...imp, type: newType };
         // Krea: attach selected model + build the _kreaImage hint the backend pipeline reads.
         if (newType === 'imagem_krea') {
@@ -1146,7 +1146,7 @@ export default function Agent() {
     // Update narrationScript/backgroundDescription/avatarPosition in selectedImprovements
     setSelectedImprovements(prev => prev.map(imp => {
       const original = courseAnalysis?.improvements?.[impIndex];
-      if (original && imp.description === original.description) {
+      if (original && imp.slideIndex === original.slideIndex && imp.description === original.description) {
         return { ...imp, ...changes };
       }
       return imp;
@@ -2046,7 +2046,7 @@ function CourseListPanel({ courses, loading, onSelect, onRefresh, onReopenWizard
     'from-indigo-600/80 to-sky-500/80',
   ];
 
-  const filtered = filter === 'all' ? courses : courses.filter(c => c.source === filter);
+  const filtered = filter === 'all' ? courses : courses.filter(c => filter === 'imported' ? c.source !== 'agent' : c.source === filter);
   const agentCount = courses.filter(c => c.source === 'agent').length;
   const importedCount = courses.filter(c => c.source !== 'agent').length;
 
@@ -2110,7 +2110,7 @@ function CourseListPanel({ courses, loading, onSelect, onRefresh, onReopenWizard
                 <Badge className={`absolute top-2 left-2 text-[9px] border-0 ${
                   course.source === 'agent' ? 'bg-violet-600/70 text-violet-100' : 'bg-emerald-600/70 text-emerald-100'
                 }`}>
-                  {course.source === 'agent' ? 'Agente' : 'Importado'}
+                  {course.source === 'agent' ? 'Agente' : course.source === 'gamma' ? 'Gamma' : 'Importado'}
                 </Badge>
               </div>
               <CardContent className="p-3 space-y-1.5">

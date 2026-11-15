@@ -133,7 +133,8 @@ async def generate(data: Generate, user=Depends(require_auth)):
            'companyId': company, 'title': data.title, 'requestId': str(data.requestId),
            'status': 'submitting', 'createdAt': now(), 'themeId': data.themeId, 'templateId': data.templateId, 'numCards': data.numCards,
            'interactiveAssessment': data.interactiveAssessment.model_dump(),
-           'assessment': {'status': 'waiting' if data.interactiveAssessment.enabled else 'disabled'}}
+           'assessment': {'status': 'waiting' if data.interactiveAssessment.enabled else 'disabled'},
+           'sourceText': data.prompt}  # Private original/reviewed document text, also when assessment is off.
     if data.interactiveAssessment.enabled:
         job['assessmentSource'] = data.prompt  # Same reviewed prompt, including extracted document text; never public.
     from pymongo.errors import DuplicateKeyError

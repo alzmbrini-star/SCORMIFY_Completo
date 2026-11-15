@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui/tabs';
 import { SlideTypeSwitcher, AvatarSceneMockup } from './AvatarSceneControls';
+import GammaVisualAnalysis, {GammaVisualLoading} from './GammaVisualAnalysis';
 
 const API = getApiUrl();
 
@@ -514,12 +515,14 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
           <CardContent className="p-8 text-center">
             <Loader2 className="w-8 h-8 animate-spin text-blue-400 mx-auto mb-3" />
             <p className="text-sm text-slate-300">Analisando o curso com IA...</p>
+            {(course.source==='gamma'||course.gammaJobId)&&<GammaVisualLoading/>}
           </CardContent>
         </Card>
       )}
 
       {analysis && (
         <div className="space-y-4">
+          <GammaVisualAnalysis reading={analysis.visualAnalysis}/>
           {/* Score Card */}
           <Card className="bg-slate-900/50 border-slate-800">
             <CardContent className="p-4">
@@ -788,7 +791,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
               )}
               <div className="space-y-2">
                 {filtered.map(({ imp, i }) => {
-                  const isSelected = selectedImprovements.find(s => s.description === imp.description);
+                  const isSelected = selectedImprovements.find(s => s.slideIndex === imp.slideIndex && s.description === imp.description);
                   const effectiveType = getEffectiveType(imp, i);
                   const isAvatarScene = imp.type === 'avatar_scene';
                   const wasConverted = effectiveType !== imp.type;

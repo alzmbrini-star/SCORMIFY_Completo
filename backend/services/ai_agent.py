@@ -4632,6 +4632,23 @@ async def apply_course_improvements(session_id: str, project: dict, selected_imp
             "text": " ".join(texts)[:500],
         })
     
+    gamma_reading = project.get('_gammaAnalysis') or {}
+    if gamma_reading:
+        evidence = {r['slideIndex']:r for r in gamma_reading.get('visualAnalysis',{}).get('slides',[]) if r.get('status')=='read'}
+        for row in slides_content:
+            read = evidence.get(row['index'])
+            if read:
+                row['text'] = read.get('visibleText','') + '\n' + read.get('summary','')
+        improvements_desc += '\nREGRAS GAMMA: preserve integralmente TODOS os slides, imagens-base, textos, notas, questões e interações existentes. Não use updatedSlides. Gere complementos somente em newSlides, após o índice do slide de origem. Use a evidência visual de cada slide e a fonte original abaixo; não invente texto ilegível.\nFONTE ORIGINAL: '+gamma_reading.get('sourceContext','')
+    if gamma_reading:
+        selected_indices = {v.get('slideIndex') for v in selected_improvements}
+        for v in selected_new_slides or []:
+            match = re.search(r'(\d+)$',str(v.get('position','')))
+            if match: selected_indices.add(int(match.group(1))-1)
+        # Include complete selected-slide evidence; never truncate the course at its first slides.
+        selected_rows = [r for r in slides_content if r['index'] in selected_indices]
+        improvements_desc += '\nEVIDÊNCIAS DOS SLIDES SELECIONADOS: '+json.dumps(selected_rows,ensure_ascii=False)
+        improvements_desc += '\nPara avaliação, crie newSlides com type quiz; não apenas texto com alternativas. Preserve os índices de origem em afterIndex.'
     avatar_scene_instructions = ""
     if has_avatar_scenes:
         avatar_scene_instructions = """
@@ -4836,6 +4853,22 @@ Retorne JSON com os slides a atualizar:
             prompt
         )
     result = _extract_json(response) or {"updatedSlides": [], "newSlides": []}
+    if gamma_reading:
+        from services.gamma_course_analysis import additive_result
+        result = additive_result(result, project)
+        from services.agent_assessments import generate_assessment, render_assessment
+        async def ask_assessment(attempt, request):
+            return _extract_json(await _resilient_send(f'gamma-improvement-{session_id}-{attempt}', SYSTEM_PROMPT, request))
+        for addition in result.get('newSlides',[]):
+            if addition.get('type') == 'quiz':
+                index = addition.get('afterIndex')
+                evidence = next((r for r in gamma_reading.get('visualAnalysis',{}).get('slides',[]) if r.get('slideIndex')==index and r.get('status')=='read'),None)
+                if evidence is None:
+                    raise ValueError('A avaliação requer uma leitura visual válida do slide de origem. Analise novamente.')
+                source = json.dumps(evidence,ensure_ascii=False)+'\nFonte original: '+gamma_reading.get('sourceContext','')
+                spec = await generate_assessment({'id':'gamma_complement_'+uuid.uuid4().hex[:16], 'title':addition.get('title') or 'Avaliação contextual','moduleName':project.get('name',''),'sourceExcerpt':source}, source, ask_assessment, {'questionCount':3,'images':False})
+                addition['elements'] = [render_assessment(spec)]
+                addition['duration'] = 120
     from services.visual_simulators import generate_visual_simulator
     simulator_indices = {item.get("slideIndex") for item in selected_improvements if item.get("type") == "simulator"}
     for slide in [*result.get("updatedSlides", []), *result.get("newSlides", [])]:
@@ -4844,7 +4877,7 @@ Retorne JSON com os slides a atualizar:
                 json.dumps({k: v for k, v in slide.items() if k != "elements"}, ensure_ascii=False),
                 json.dumps({"courseTitle": project.get("name") or project.get("title"),
                             "config": {key: project.get("agentConfig", {})[key] for key in ("title", "targetAudience", "audience", "depth", "learningObjectives", "objectives") if key in project.get("agentConfig", {})},
-                            "currentSlide": next((s for s in slides_content if s["index"] == slide.get("slideIndex")), {}),
+                            "currentSlide": next((s for s in slides_content if s["index"] == slide.get("afterIndex", slide.get("slideIndex"))), {}),
                             "courseContent": slides_content}, ensure_ascii=False)[:8000],
                 f"agent-edit-simulator-{session_id}",
                 preferences={'complexity':project.get('agentConfig',{}).get('simulatorComplexity','guided'),
