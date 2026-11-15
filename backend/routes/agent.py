@@ -3247,7 +3247,8 @@ async def agent_list_courses(user: dict = Depends(require_auth)):
     projects = await db.projects.aggregate(pipeline).to_list(500)
     for p in projects:
         is_agent = bool(p.get("createdByAgent")) or bool(p.get("agentSessionId"))
-        p["source"] = "gamma" if p.get('source')=='gamma' or p.get('gammaJobId') else "agent" if is_agent else "imported"
+        p["visualAnalysisAvailable"] = p.get('source') in ('ppt','gamma') or bool(p.get('gammaJobId'))
+        p["source"] = "gamma" if p.get('source')=='gamma' or p.get('gammaJobId') else "ppt" if p.get('source')=='ppt' else "agent" if is_agent else "imported"
     return projects
 
 
@@ -3319,12 +3320,13 @@ def _build_improved_elements(ai_elements: list, generate_id_fn) -> list:
     return new_html_elements
 
 
-def _apply_ai_result_to_slides(slides: list, result: dict, generate_id_fn) -> int:
+def _apply_ai_result_to_slides(slides: list, result: dict, generate_id_fn, project=None) -> int:
     """Apply AI improvement result to slides in-place. Returns count of new slides added."""
     import copy
-    if any(s.get('gammaSource') for s in slides):
-        from services.gamma_course_analysis import additive_result
-        result = additive_result(result, {'source':'gamma','course':{'slides':slides}})
+    from services.gamma_course_analysis import additive_result, is_visual_project
+    context = project or {'source':'gamma' if any(s.get('gammaSource') for s in slides) else None,'course':{'slides':slides}}
+    if is_visual_project(context):
+        result = additive_result(result, context)
     for upd in result.get("updatedSlides", []):
         if not isinstance(upd, dict):
             continue
@@ -3397,9 +3399,9 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
     """Analyze an existing course and suggest improvements (async to avoid 504 timeout)."""
     project = await load_authorized_project(project_id, user)
 
-    from services.gamma_course_analysis import is_gamma, fingerprint
-    gamma = is_gamma(project)
-    cache_key = f"course_analysis_gamma_{fingerprint(project)}" if gamma else f"course_analysis_{project_id}"
+    from services.gamma_course_analysis import is_visual_project, fingerprint
+    gamma = is_visual_project(project)
+    cache_key = f"course_analysis_visual_{fingerprint(project)}" if gamma else f"course_analysis_{project_id}"
     cached = await db.analysis_cache.find_one({"key": cache_key}, {"_id": 0})
 
     # If currently processing, check if it's stuck (> 3 min old)
@@ -3479,11 +3481,11 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
     import copy
     project = await load_authorized_project(project_id, user)
 
-    from services.gamma_course_analysis import is_gamma, fingerprint
-    if is_gamma(project):
+    from services.gamma_course_analysis import is_visual_project, fingerprint
+    if is_visual_project(project):
         reading = await db.course_visual_analysis.find_one({'projectId':project_id,'fingerprint':fingerprint(project)})
         if not reading:
-            raise HTTPException(409, 'Analise novamente os slides Gamma antes de preparar complementos; o curso foi preservado.')
+            raise HTTPException(409, 'Analise novamente os slides importados antes de preparar complementos; o curso foi preservado.')
         project['_gammaAnalysis'] = reading['result']
     session_id = project.get("agentSessionId") or str(uuid.uuid4())
     from services.ai_agent import apply_course_improvements
@@ -3495,7 +3497,7 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
 
     # Build preview of "after" slides without modifying originals
     after_slides = copy.deepcopy(original_slides)
-    _apply_ai_result_to_slides(after_slides, result, generate_id)
+    _apply_ai_result_to_slides(after_slides, result, generate_id, project)
 
     # Build before/after comparison for affected slides only
     affected_indices = set()
@@ -3568,7 +3570,7 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
         "id": preview_id,
         "projectId": project_id,
         "aiResult": result,
-        "sourceFingerprint": fingerprint(project) if is_gamma(project) else None,
+        "sourceFingerprint": fingerprint(project) if is_visual_project(project) else None,
         "createdAt": datetime.now(timezone.utc).isoformat(),
     })
 
@@ -3743,8 +3745,8 @@ async def _run_apply_improvements_bg(project_id: str, job_id: str, user: dict, d
                 {"_id": 0},
             )
             if preview:
-                from services.gamma_course_analysis import is_gamma, fingerprint
-                if is_gamma(project) and preview.get('sourceFingerprint') != fingerprint(project):
+                from services.gamma_course_analysis import is_visual_project, fingerprint
+                if is_visual_project(project) and preview.get('sourceFingerprint') != fingerprint(project):
                     await _set_status(status='error',error='O curso mudou após a prévia. Analise novamente; nenhum slide foi substituído.')
                     return
                 result = preview["aiResult"]
@@ -3755,11 +3757,11 @@ async def _run_apply_improvements_bg(project_id: str, job_id: str, user: dict, d
             session_id = project.get("agentSessionId") or str(uuid.uuid4())
             from services.ai_agent import apply_course_improvements
             try:
-                from services.gamma_course_analysis import is_gamma, fingerprint
-                if is_gamma(project):
+                from services.gamma_course_analysis import is_visual_project, fingerprint
+                if is_visual_project(project):
                     reading = await local_db.course_visual_analysis.find_one({'projectId':project_id,'fingerprint':fingerprint(project)})
                     if not reading:
-                        raise ValueError('Analise novamente o curso Gamma antes de aplicar complementos.')
+                        raise ValueError('Analise novamente o curso importado antes de aplicar complementos.')
                     project['_gammaAnalysis'] = reading['result']
                 result = await apply_course_improvements(
                     session_id, project, data.improvements, data.selectedNewSlides,
@@ -3776,18 +3778,18 @@ async def _run_apply_improvements_bg(project_id: str, job_id: str, user: dict, d
         try:
             slides = project.get("course", {}).get("slides", [])
             original_slide_ids = {s.get('id') for s in slides}
-            new_slides_added = _apply_ai_result_to_slides(slides, result, generate_id)
+            new_slides_added = _apply_ai_result_to_slides(slides, result, generate_id, project)
             course = project.get("course", {})
             course["slides"] = slides
-            from services.gamma_course_analysis import is_gamma
+            from services.gamma_course_analysis import is_visual_project
             guard = {'id':project_id}
-            if is_gamma(project): guard['updatedAt'] = project.get('updatedAt')
+            if is_visual_project(project): guard['updatedAt'] = project.get('updatedAt')
             revision = datetime.now(timezone.utc).isoformat()
             stored = await local_db.projects.update_one(
                 guard,
                 {"$set": {"course": course, "updatedAt": revision}},
             )
-            if is_gamma(project) and not stored.matched_count:
+            if is_visual_project(project) and not stored.matched_count:
                 raise ValueError('O curso foi editado durante a geração. As edições foram preservadas; gere uma nova prévia.')
         except Exception as e:
             logger.error(f"[apply bg {job_id}] apply to slides failed: {e}\n{traceback.format_exc()}")
@@ -3798,17 +3800,17 @@ async def _run_apply_improvements_bg(project_id: str, job_id: str, user: dict, d
             nonlocal revision
             query = {'id':project_id}
             values = {'course':{**course,'slides':slides}}
-            if is_gamma(project):
+            if is_visual_project(project):
                 query['updatedAt'] = revision
                 values['updatedAt'] = datetime.now(timezone.utc).isoformat()
             saved = await local_db.projects.update_one(query,{'$set':values})
-            if is_gamma(project):
+            if is_visual_project(project):
                 if not saved.matched_count:
                     raise ValueError('O curso foi editado durante a geração. As edições foram preservadas; revise os complementos já aplicados.')
                 revision = values['updatedAt']
 
         # Never let media generators match an existing Gamma slide by a reused title.
-        media_slides = [s for s in slides if s.get('id') not in original_slide_ids] if is_gamma(project) else slides
+        media_slides = [s for s in slides if s.get('id') not in original_slide_ids] if is_visual_project(project) else slides
         await _set_status(progress=35, message="Gerando cenarios interativos...")
         scenarios_generated = await _process_scenarios(local_db, project_id, result, media_slides, generate_id)
         await store_generated_course()

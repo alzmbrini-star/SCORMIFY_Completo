@@ -515,7 +515,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
           <CardContent className="p-8 text-center">
             <Loader2 className="w-8 h-8 animate-spin text-blue-400 mx-auto mb-3" />
             <p className="text-sm text-slate-300">Analisando o curso com IA...</p>
-            {(course.source==='gamma'||course.gammaJobId)&&<GammaVisualLoading/>}
+            {(course.visualAnalysisAvailable||['gamma','ppt','imported'].includes(course.source)||course.gammaJobId)&&<GammaVisualLoading provider={course.source==='gamma'||course.gammaJobId?'Gamma':'PPT'}/>}
           </CardContent>
         </Card>
       )}

@@ -1072,7 +1072,7 @@ export default function Agent() {
       } else if (data.status === 'processing') {
         addChatMsg('agent', 'Analise em andamento... aguarde.');
         // Poll every 2s for faster response
-        const maxWait = course.source === 'gamma' || course.gammaJobId ? 1800000 : 180000;
+        const maxWait = course.visualAnalysisAvailable || ['gamma','ppt','imported'].includes(course.source) || course.gammaJobId ? 1800000 : 180000;
         const start = Date.now();
         let result = null;
         while (Date.now() - start < maxWait) {
@@ -2110,7 +2110,7 @@ function CourseListPanel({ courses, loading, onSelect, onRefresh, onReopenWizard
                 <Badge className={`absolute top-2 left-2 text-[9px] border-0 ${
                   course.source === 'agent' ? 'bg-violet-600/70 text-violet-100' : 'bg-emerald-600/70 text-emerald-100'
                 }`}>
-                  {course.source === 'agent' ? 'Agente' : course.source === 'gamma' ? 'Gamma' : 'Importado'}
+                  {course.source === 'agent' ? 'Agente' : course.source === 'gamma' ? 'Gamma' : course.source === 'ppt' ? 'PPT' : 'Importado'}
                 </Badge>
               </div>
               <CardContent className="p-3 space-y-1.5">

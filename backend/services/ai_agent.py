@@ -4639,7 +4639,7 @@ async def apply_course_improvements(session_id: str, project: dict, selected_imp
             read = evidence.get(row['index'])
             if read:
                 row['text'] = read.get('visibleText','') + '\n' + read.get('summary','')
-        improvements_desc += '\nREGRAS GAMMA: preserve integralmente TODOS os slides, imagens-base, textos, notas, questões e interações existentes. Não use updatedSlides. Gere complementos somente em newSlides, após o índice do slide de origem. Use a evidência visual de cada slide e a fonte original abaixo; não invente texto ilegível.\nFONTE ORIGINAL: '+gamma_reading.get('sourceContext','')
+        improvements_desc += '\nREGRAS DOS SLIDES IMPORTADOS (Gamma/PPT): preserve integralmente TODOS os slides, imagens-base, textos, notas, questões e interações existentes. Não use updatedSlides. Gere complementos somente em newSlides, após o índice do slide de origem. Use a evidência visual/textual de cada slide e a fonte original abaixo; respeite readingMode=text, sem inventar detalhes não vistos ou texto ilegível.\nFONTE ORIGINAL: '+gamma_reading.get('sourceContext','')
     if gamma_reading:
         selected_indices = {v.get('slideIndex') for v in selected_improvements}
         for v in selected_new_slides or []:

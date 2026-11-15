@@ -54,7 +54,9 @@ async def test_all_images_original_source_binding_progress_and_no_project_writes
 @pytest.mark.asyncio
 async def test_legacy_source_and_unreadable_images_are_explicit_not_invented():
     p=project();db=database('');db.gamma_generations.find_one.return_value={'assessmentSource':'Fonte legada'}
-    send=AsyncMock(side_effect=[response(),{'readable':False,'improvements':response()['improvements']}])
+    async def answer(prompt,picture=None):
+        return response() if '"slideIndex": 0' in prompt else {'readable':False,'improvements':response()['improvements']}
+    send=AsyncMock(side_effect=answer)
     result=await g.analyze(p,db,'unused',send=send)
     assert result['visualAnalysis']['readSlides']==1
     assert len(result['improvements'])==1
