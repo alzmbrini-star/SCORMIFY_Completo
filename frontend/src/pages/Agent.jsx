@@ -183,6 +183,18 @@ export default function Agent() {
   const [editResult, setEditResult] = useState(null);
   const [previewData, setPreviewData] = useState(null);
   const [applyProgress, setApplyProgress] = useState(null); // { progress, message } during async apply
+  useEffect(()=>{
+    if(!selectedCourse?.id||!previewData?.previewId||previewData?.imageStatus!=='processing')return;
+    let cancelled=false;
+    const timer=setInterval(async()=>{
+      try{
+        const response=await fetch(`${API}/api/agent/courses/${selectedCourse.id}/previews/${previewData.previewId}`,{headers:authHeaders()});
+        if(!response.ok){if(!cancelled)setPreviewData(current=>({...current,imageStatus:'failed'}));return;}
+        const status=await response.json();if(!cancelled)setPreviewData(status);
+      }catch{}
+    },3000);
+    return()=>{cancelled=true;clearInterval(timer);};
+  },[selectedCourse?.id,previewData?.previewId,previewData?.imageStatus]);
 
   // Chat
   const [chatMessages, setChatMessages] = useState([

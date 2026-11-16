@@ -7,7 +7,7 @@ def course(n=19):
  return {'source':'gamma','course':{'slides':[{'id':str(i),'title':f'Slide {i+1}','gammaSource':{'elementId':str(i)},'elements':[]} for i in range(n)]}}
 
 def ideas(n=19):
- return {'visualAnalysis':{'readSlides':n,'totalSlides':n,'slides':[]},'improvements':[
+ return {'visualAnalysis':{'assessmentFormatsVersion':2,'readSlides':n,'totalSlides':n,'slides':[]},'improvements':[
   {'slideIndex':i,'sourceSlideId':str(i),'type':kind,'description':f'{kind} {i}','suggestion':'Aplicação contextual','priority':'media'}
   for i in range(n) for kind in ['quiz','scenario','reinforcement']]}
 

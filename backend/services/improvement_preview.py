@@ -23,20 +23,32 @@ def usable(slide, expected):
         return isinstance(slide.get('scenarioConfig'),dict) and bool(slide['scenarioConfig'].get('theme'))
     elements=slide.get('elements') or []
     if slide.get('type')=='quiz':
+        ids={q.get('id') for q in slide.get('nativeQuizQuestions',[]) if isinstance(q,dict)}
+        return bool(ids) and any(e.get('type')=='quiz' and set((e.get('quizConfig') or {}).get('questionIds',[]))==ids for e in elements if isinstance(e,dict))
+    if slide.get('type')=='interactive_assessment':
         return any(isinstance(e,dict) and isinstance(e.get('assessmentConfig'),dict) and e['assessmentConfig'].get('questions') and (e.get('htmlContent') or e.get('content')) for e in elements)
     return any(isinstance(e,dict) and str(e.get('htmlContent') or e.get('content') or '').strip() for e in elements)
 
 
 def coverage(result,selections):
+    from services.assessment_formats import image_counts,canonical_element
     expected=expected_items(selections)
-    found={(s.get('afterIndex'),s.get('type')) for s in result.get('newSlides',[]) if usable(s,expected)}
+    content={(s.get('afterIndex'),s.get('type')) for s in result.get('newSlides',[]) if usable(s,expected)}
+    found=set(content)
+    for s in result.get('newSlides',[]):
+        if s.get('type')=='interactive_assessment':
+            images=image_counts({'newSlides':[s]})
+            if not images['total'] or images['ready']<images['total']:found.discard((s.get('afterIndex'),s.get('type')))
     return {'expected':len(expected),'ready':len(found),'complete':len(found)==len(expected),
+            'contentReady':len(content),'images':image_counts(result),
             'missing':[{'slideIndex':i,'type':t,'description':expected[(i,t)].get('description','')} for i,t in expected if (i,t) not in found]}
 
 
 async def complete_preview(project,selections,previous,generate):
     validate_selection(project,selections)
     expected=expected_items(selections)
+    from services.assessment_formats import migrate_preview
+    previous=migrate_preview(previous)
     retained={}
     for slide in (previous or {}).get('newSlides',[]):
         if usable(slide,expected) and slide.get('requestSignature') in (None,signature(expected[(slide['afterIndex'],slide['type'])])):

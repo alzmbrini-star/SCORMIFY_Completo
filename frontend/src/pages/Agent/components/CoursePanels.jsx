@@ -28,6 +28,7 @@ import { SlideTypeSwitcher, AvatarSceneMockup } from './AvatarSceneControls';
 import GammaVisualAnalysis, {GammaVisualLoading} from './GammaVisualAnalysis';
 import CourseResourceBalance from './CourseResourceBalance';
 import ImprovementHtmlPreview from './ImprovementHtmlPreview';
+import QuizPlayer from '../../../components/quiz/QuizPlayer';
 
 const API = getApiUrl();
 
@@ -503,8 +504,8 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
 
   if (!course) return null;
   const priorityColors = { alta: 'text-red-400 border-red-800/40', media: 'text-amber-400 border-amber-800/40', baixa: 'text-blue-400 border-blue-800/40' };
-  const typeLabels = { content: 'Conteúdo', structure: 'Estrutura', quiz: 'Quiz', narration: 'Narração', visual: 'Visual', simulator: 'Simulador', avatar_scene: 'Cena com Avatar', scenario: 'Cenário Interativo', visual_summary: 'Resumo Visual', reinforcement: 'Reforço', imagem_simples: 'Imagem (econômica)', imagem_premium: 'Imagem Premium', imagem_krea: 'Imagem Krea AI' };
-  const typeIcons = { content: Type, structure: Layers, quiz: Target, narration: Volume2, visual: Palette, simulator: Code, avatar_scene: Video, scenario: Monitor, visual_summary: BarChart3, reinforcement: Lightbulb, imagem_simples: Image, imagem_premium: ImagePlus, imagem_krea: Sparkles };
+  const typeLabels = { content: 'Conteúdo', structure: 'Estrutura', quiz: 'Quiz tradicional', interactive_assessment:'Avaliação interativa com imagens', narration: 'Narração', visual: 'Visual', simulator: 'Simulador', avatar_scene: 'Cena com Avatar', scenario: 'Cenário Interativo', visual_summary: 'Resumo Visual', reinforcement: 'Reforço', imagem_simples: 'Imagem (econômica)', imagem_premium: 'Imagem Premium', imagem_krea: 'Imagem Krea AI' };
+  const typeIcons = { content: Type, structure: Layers, quiz: Target, interactive_assessment:ImagePlus, narration: Volume2, visual: Palette, simulator: Code, avatar_scene: Video, scenario: Monitor, visual_summary: BarChart3, reinforcement: Lightbulb, imagem_simples: Image, imagem_premium: ImagePlus, imagem_krea: Sparkles };
 
   return (
     <div className="space-y-4" data-testid="course-review-panel">
@@ -526,6 +527,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
         <div className="space-y-4">
           <GammaVisualAnalysis reading={analysis.visualAnalysis}/>
           <CourseResourceBalance balance={analysis.resourceBalance}/>
+          {analysis.visualAnalysis&&<p className="rounded-lg border border-teal-800 p-3 text-sm text-teal-100">Quiz tradicional usa o player original, embaralhamento, feedback e nota mínima. Avaliação interativa com imagens usa o player visual e gera uma imagem de apoio por questão (créditos adicionais de IA). Escolha o formato em cada sugestão; nenhum formato existente é convertido automaticamente no curso.</p>}
           {/* Score Card */}
           <Card className="bg-slate-900/50 border-slate-800">
             <CardContent className="p-4">
@@ -972,6 +974,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                             />
                           </div>
                         )}
+                        {['quiz','interactive_assessment'].includes(imp.type)&&<label className="block text-xs text-teal-200">Formato da avaliação<select aria-label={`Formato da avaliação para o slide ${imp.slideIndex+1}`} value={effectiveType} onChange={e=>handleTypeChange(i,e.target.value)} className="block w-full mt-1 rounded border border-slate-600 bg-slate-900 p-2"><option value="quiz">Quiz tradicional — player original</option><option value="interactive_assessment">Avaliação interativa com imagens — usa créditos de imagem</option></select></label>}
                       </CardContent>
                     </Card>
                   );
@@ -1227,7 +1230,7 @@ export function PreviewPanel({ preview, loading, applyProgress, onConfirm, onCan
         </div>
       </div>
 
-      {preview.coverage&&<div className="rounded-lg border border-cyan-800 p-3 text-sm text-cyan-100" role="status">{preview.coverage.ready} de {preview.coverage.expected} recursos prontos · {preview.coverage.reusedCount} reaproveitados · {preview.coverage.generatedCount} gerados agora. {preview.coverage.complete?'Prévia completa; nada foi aplicado ao curso.':'Prévia incompleta: confirme somente após completar os itens ausentes.'}{!preview.coverage.complete&&onComplete&&<Button onClick={onComplete} disabled={loading} className="ml-3">Completar prévia — somente ausentes</Button>}</div>}
+      {preview.coverage&&<div className="rounded-lg border border-cyan-800 p-3 text-sm text-cyan-100" role="status">{preview.coverage.ready} de {preview.coverage.expected} recursos prontos · {preview.coverage.reusedCount} reaproveitados · {preview.coverage.generatedCount} gerados agora. {preview.coverage.images?.total>0&&<p>Imagens de apoio: {preview.coverage.images.ready}/{preview.coverage.images.total} prontas · {preview.coverage.images.failed} falhas. Usa créditos de imagem; perguntas existentes são reaproveitadas.</p>}{preview.coverage.complete?'Prévia completa; nada foi aplicado ao curso.':preview.imageStatus==='processing'?'Gerando imagens de apoio; nada foi aplicado.':'Prévia incompleta: confirme somente após completar os itens ausentes.'}{!preview.coverage.complete&&onComplete&&<Button onClick={onComplete} disabled={loading||preview.imageStatus==='processing'} className="ml-3">Completar prévia — somente ausentes</Button>}</div>}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-slate-800/50 w-full">
           <TabsTrigger value="changes" className="flex-1 text-xs">Slides Alterados ({preview.updatedCount})</TabsTrigger>
@@ -1315,7 +1318,8 @@ export function PreviewPanel({ preview, loading, applyProgress, onConfirm, onCan
                       <span className="text-xs text-slate-500">Apos slide {ns.afterIndex + 1}</span>
                     </div>
                     <p className="text-sm font-medium text-slate-200 mb-2">{ns.title}</p>
-                    {hasHtml ? (
+                    {ns.type&&<p className="text-xs text-teal-300 mb-2">{ns.type==='quiz'?'Quiz tradicional — player original':ns.type==='interactive_assessment'?'Avaliação interativa com imagens':''}</p>}
+                    {ns.nativeQuiz?<div className="h-[560px] overflow-auto"><QuizPlayer quizConfig={ns.nativeQuiz.config} questions={ns.nativeQuiz.questions} onComplete={()=>{}} embedded/></div>:hasHtml ? (
                       <HtmlVisualPreview htmlParts={ns.html} label={`Novo Slide - ${ns.title}`} />
                     ) : (
                       <div className="bg-emerald-950/40 border border-emerald-800/30 rounded-lg p-3 max-h-40 overflow-y-auto">

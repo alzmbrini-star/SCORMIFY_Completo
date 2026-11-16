@@ -4,13 +4,15 @@ import pytest
 from services.improvement_preview import complete_preview,coverage,signature
 
 def setup():
- kinds=['quiz','visual_summary','quiz','reinforcement','narration','reinforcement','scenario']
+ kinds=['interactive_assessment','visual_summary','interactive_assessment','reinforcement','narration','reinforcement','scenario']
  indices=[0,3,6,9,13,16,18]
  project={'id':'p','source':'gamma','course':{'slides':[{'id':str(i),'gammaSource':{'elementId':str(i)}} for i in range(19)]}}
  selected=[{'slideIndex':i,'type':t,'description':f'Objetivo {i}','suggestion':'Proposta'} for i,t in zip(indices,kinds)]
  def slide(item):
   row={'afterIndex':item['slideIndex'],'type':item['type'],'title':item['description'],'elements':[{'type':'html','htmlContent':'<h2>Conteúdo válido</h2>'}]}
-  if item['type']=='quiz':row['elements'][0]['assessmentConfig']={'questions':[{'id':'q','prompt':'Preservar pergunta','correctAnswer':'A'}]}
+  if item['type']=='interactive_assessment':
+   row['elements'][0]['assessmentConfig']={'questions':[{'id':'q','prompt':'Preservar pergunta','correctAnswer':'A','media':{'url':'/api/projects/p/assets/saved.png'}}]}
+   row['elements'][0]['agentAssessment']={'imagesEnabled':True}
   if item['type']=='scenario':row.update(elements=[],scenarioConfig={'theme':'Aplicação','objectives':'Planejar'})
   return row
  return project,selected,slide
@@ -20,7 +22,7 @@ async def test_reuses_four_valid_resources_and_generates_exactly_three_missing_w
  p,selected,slide=setup();old={'newSlides':[slide(i) for i in selected[:4]]};before=copy.deepcopy((p,old))
  generate=AsyncMock(side_effect=lambda i:{'newSlides':[slide(i)]})
  result,info=await complete_preview(p,selected,old,generate)
- assert info=={'expected':7,'ready':7,'complete':True,'missing':[],'reusedCount':4,'generatedCount':3}
+ assert info['expected']==7 and info['ready']==7 and info['complete'] and info['reusedCount']==4 and info['generatedCount']==3
  assert generate.await_count==3 and {c.args[0]['slideIndex'] for c in generate.call_args_list}=={13,16,18}
  assert result['newSlides'][:4]==old['newSlides'] and (p,old)==before
  assert result['updatedSlides']==[]

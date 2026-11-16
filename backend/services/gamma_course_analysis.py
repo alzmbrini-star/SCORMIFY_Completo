@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 VERSION = 'imported-vision-v2'
-TYPES = {'content','structure','quiz','narration','visual','simulator','avatar_scene',
+TYPES = {'content','structure','quiz','interactive_assessment','narration','visual','simulator','avatar_scene',
          'scenario','visual_summary','reinforcement','imagem_simples','imagem_premium','imagem_krea'}
 
 
@@ -159,6 +159,8 @@ async def analyze(project, database, projects_dir, progress=None, send=ask):
     if cached and status.get('readSlides') == status.get('totalSlides') and status.get('totalSlides') and not any(r.get('visualUnavailable') for r in status.get('slides',[])):
         from services.course_resource_balance import balanced_result
         return balanced_result(cached['result'],project)
+    from services.assessment_formats import migrate_analysis
+    previous=migrate_analysis(previous);status=previous.get('visualAnalysis') or {}
     old_rows = {r['slideId']:r for r in status.get('slides',[]) if r.get('status')=='read' and not r.get('visualUnavailable')}
     slides = project.get('course', {}).get('slides', [])
     ppt = is_ppt(project)
@@ -208,7 +210,7 @@ async def analyze(project, database, projects_dir, progress=None, send=ask):
                     'Capa, agenda, objetivos e carga horária são orientação, não temas para quiz. Evite avaliar memorização de horas, sumário ou instruções de navegação. Retorne pedagogicalRole: teaching, orientation ou assessment. '
                     'Separe conteúdo realmente visível de contexto apenas da fonte. Não invente texto ilegível, números ou critérios. '
                     'Não sugira remover ou substituir a imagem-base, nem conteúdo/interações existentes. Os complementos serão novos slides após este slide. '
-                    'Tipos permitidos: quiz, scenario, simulator, visual_summary, reinforcement, narration. Quiz deve descrever o que avaliar e um exemplo ligado ao slide; reinforcement pode ser flashcards. '
+                    'Tipos permitidos: quiz, interactive_assessment, scenario, simulator, visual_summary, reinforcement, narration. quiz é o Quiz tradicional nativo com alternativas, embaralhamento, nota mínima e feedback, sem exigir ilustração. interactive_assessment é a Avaliação interativa com imagens de apoio obrigatórias. São formatos distintos: sugira o mais adequado ao objetivo e diversifique ambos no curso, sem duplicar os dois no mesmo slide. Descreva o que avaliar; reinforcement pode ser flashcards. '
                     'Se já houver um complemento relevante no inventário abaixo, evite duplicá-lo. '
                     'Retorne JSON {"readable":true,"visibleText":"texto lido (até 4000 caracteres)","summary":"conceitos visíveis (até 1500 caracteres)","score":7,"improvements":[{"type":"quiz","priority":"media","description":"por que aqui","suggestion":"proposta específica"}]}. '
                     'Se ilegível, readable=false e improvements=[]. Quando readingMode=text, avalie SOMENTE o texto disponível; não afirme ter visto imagens. Em PPT editável sem fundo completo, a composição mostra apenas os objetos de imagem; o texto extraído vem separado.\n'
@@ -245,7 +247,7 @@ async def analyze(project, database, projects_dir, progress=None, send=ask):
     result = {'overallScore':round(sum(r['score'] for r in good)/len(good),1) if good else 0,
         'strengths':['Leitura vinculada a cada slide; complementos preservam os slides existentes.'] if good else [],
         'improvements':[v for r in rows for v in r['improvements']], 'suggestedNewSlides':[],
-        'missingElements':warnings, 'visualAnalysis':{'version':VERSION,'provider':'PPT' if ppt else 'Gamma','readSlides':len(good),'totalSlides':len(targets),'visualSlides':len(good)-len(text_only),'textOnlySlides':len(text_only),
+        'missingElements':warnings, 'visualAnalysis':{'version':VERSION,'assessmentFormatsVersion':2,'provider':'PPT' if ppt else 'Gamma','readSlides':len(good),'totalSlides':len(targets),'visualSlides':len(good)-len(text_only),'textOnlySlides':len(text_only),
             'sourceAvailable':bool(context),'originalSourceStored':bool(source),'warnings':warnings,'slides':rows}, 'sourceContext':context,
         'sourceFingerprint':key}
     # Do not cache total failure: a later explicit analysis can recover assets/configuration.

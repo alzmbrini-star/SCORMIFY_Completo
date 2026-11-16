@@ -17,7 +17,8 @@ const slideTypeOptions = [
   { value: 'content', label: 'Conteúdo (Texto)', icon: Type, color: 'slate' },
   { value: 'simulator', label: 'Simulador Interativo', icon: Code, color: 'emerald' },
   { value: 'game', label: 'Jogo Educativo', icon: Gamepad2, color: 'emerald' },
-  { value: 'quiz', label: 'Quiz', icon: Target, color: 'amber' },
+  { value: 'quiz', label: 'Quiz tradicional', icon: Target, color: 'amber' },
+  { value: 'interactive_assessment', label: 'Avaliação interativa com imagens', icon: ImagePlus, color: 'teal' },
 ];
 
 const positionOptions = [

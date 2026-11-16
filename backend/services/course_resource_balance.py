@@ -45,7 +45,8 @@ def orientation(item,row,slide):
 
 def balanced_result(result,project):
     """Select a diverse, spaced subset without re-reading/rebilling slide images."""
-    out=copy.deepcopy(result)
+    from services.assessment_formats import migrate_analysis
+    out=migrate_analysis(result)
     info=budget(project)
     slides=project.get('course',{}).get('slides',[])
     rows={r.get('slideIndex'):r for r in out.get('visualAnalysis',{}).get('slides',[])}

@@ -3268,6 +3268,10 @@ def _build_improved_elements(ai_elements: list, generate_id_fn) -> list:
         
         elem_type = elem.get("type", "text")
         elem_height = elem.get("height", 400)
+        if elem_type=='quiz' and isinstance(elem.get('quizConfig'),dict):
+            import copy
+            new_html_elements.append({**copy.deepcopy(elem),'id':generate_id_fn()})
+            continue
         
         # Handle HTML/simulator elements (full HTML documents)
         if elem_type == "html" and elem.get("htmlContent"):
@@ -3378,7 +3382,7 @@ def _apply_ai_result_to_slides(slides: list, result: dict, generate_id_fn, proje
             "audio": [],
             "notes": "",
             "librasScript": ns.get("librasScript", ""),
-            "duration": ns.get('duration',120) if any(e.get('assessmentConfig') for e in new_elements) else 5.0,
+            "duration": ns.get('duration',120) if any(e.get('assessmentConfig') or e.get('type')=='quiz' for e in new_elements) else 5.0,
         }
         if is_visual_project(context):
             new_slide['learningResource']={'sourceSlideId':slides[after_idx].get('id'),'type':ns.get('type','reinforcement'),'policy':'balanced-resources-v1'}
@@ -3489,6 +3493,33 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
     return {"status": "processing", "message": "Analise do curso iniciada..."}
 
 
+def _preview_new_slides(result):
+    import html
+    output=[]
+    for s in result.get('newSlides',[]):
+        parts=[e.get('htmlContent') or e.get('content','') for e in s.get('elements',[]) if e.get('htmlContent') or e.get('content')]
+        if s.get('type')=='scenario' and not parts:
+            cfg=s.get('scenarioConfig') or {}
+            parts=['<h2>Roteiro do cenário</h2><p>'+html.escape(str(cfg.get('theme','')))+'</p><pre>'+html.escape(str(cfg.get('objectives','')))+'</pre><p>A versão interativa completa é gerada somente após aplicação.</p>']
+        native=next((e.get('quizConfig') for e in s.get('elements',[]) if e.get('type')=='quiz'),None)
+        output.append({'afterIndex':s['afterIndex'],'title':s.get('title','Recurso'),'type':s.get('type'),
+                       'html':parts,'content':[], 'nativeQuiz':{'config':native,'questions':s.get('nativeQuizQuestions',[])} if native else None})
+    return output
+
+
+@router.get('/agent/courses/{project_id}/previews/{preview_id}')
+async def agent_preview_status(project_id:str,preview_id:str,user:dict=Depends(require_auth)):
+    project=await load_authorized_project(project_id,user)
+    from services.gamma_course_analysis import fingerprint
+    saved=await db.improvement_previews.find_one({'id':preview_id,'projectId':project_id,'sourceFingerprint':fingerprint(project)},{'_id':0})
+    if not saved:raise HTTPException(409,'A prévia expirou ou o curso mudou. O curso foi preservado.')
+    if saved.get('imageStatus')=='processing' and saved.get('imageLease','')<datetime.now(timezone.utc).isoformat():
+        await db.improvement_previews.update_one({'id':preview_id,'projectId':project_id},{'$set':{'imageStatus':'failed'},'$unset':{'imageLease':''}})
+        saved['imageStatus']='failed'
+    return {'previewId':preview_id,'comparisons':[],'updatedCount':0,'newCount':len(saved['aiResult'].get('newSlides',[])),
+            'newSlides':_preview_new_slides(saved['aiResult']),'coverage':saved.get('coverage'),'imageStatus':saved.get('imageStatus')}
+
+
 @router.post("/agent/courses/{project_id}/preview-improvements")
 async def agent_preview_improvements(project_id: str, data: AgentImprovementsApply, user: dict = Depends(require_auth)):
     """Preview improvements without saving. Returns before/after slide data."""
@@ -3518,6 +3549,9 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
         previous=await db.improvement_previews.find_one(query,{'_id':0},sort=[('createdAt',-1)])
         if data.previewId and not previous:
             raise HTTPException(409,'A prévia mudou ou expirou. Nenhum recurso foi gerado novamente; revise a versão do curso.')
+        if previous and previous.get('imageStatus')=='processing':
+            return {'previewId':previous['id'],'comparisons':[],'updatedCount':0,'newCount':len(previous['aiResult'].get('newSlides',[])),
+                    'newSlides':_preview_new_slides(previous['aiResult']),'coverage':previous.get('coverage'),'imageStatus':'processing'}
         async def generate_one(item):
             return await apply_course_improvements(str(uuid.uuid4()),project,[item],None)
         result,preview_coverage=await complete_preview(project,data.improvements,(previous or {}).get('aiResult'),generate_one)
@@ -3600,6 +3634,7 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
             "html": html_parts,
         })
 
+    if is_visual_project(project):new_slide_previews=_preview_new_slides(result)
     # Cache the AI result for later apply
     preview_id = str(uuid.uuid4())
     await db.improvement_previews.insert_one({
@@ -3611,6 +3646,12 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
         "sourceFingerprint": fingerprint(project) if is_visual_project(project) else None,
         "createdAt": datetime.now(timezone.utc).isoformat(),
     })
+    images=(preview_coverage or {}).get('images') or {}
+    needs_images=images.get('ready',0)<images.get('total',0)
+    if needs_images:
+        from services.preview_assessment_images import start_images
+        saved=await db.improvement_previews.find_one({'id':preview_id,'projectId':project_id},{'_id':0})
+        await start_images(db,PROJECTS_DIR,project,saved)
 
     return {
         "previewId": preview_id,
@@ -3619,6 +3660,7 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
         "updatedCount": len(comparisons),
         "newCount": len(new_slide_previews),
         "coverage": preview_coverage,
+        "imageStatus": 'processing' if needs_images else None,
     }
 
 
@@ -3829,6 +3871,13 @@ async def _run_apply_improvements_bg(project_id: str, job_id: str, user: dict, d
             slides = project.get("course", {}).get("slides", [])
             original_slide_ids = {s.get('id') for s in slides}
             new_slides_added = _apply_ai_result_to_slides(slides, result, generate_id, project)
+            for addition in result.get('newSlides',[]):
+                if addition.get('type')=='quiz':
+                    for question in addition.get('nativeQuizQuestions',[]):
+                        if not re.fullmatch(r'quiz_[0-9a-f]{32}',str(question.get('id',''))):
+                            raise ValueError('Identificador de questão tradicional inválido; o curso foi preservado.')
+                        await local_db.questions.update_one({'id':question['id'],'projectId':project_id},
+                            {'$setOnInsert':{**question,'projectId':project_id,'createdAt':datetime.now(timezone.utc).isoformat(),'updatedAt':datetime.now(timezone.utc).isoformat()}},upsert=True)
             course = project.get("course", {})
             course["slides"] = slides
             from services.gamma_course_analysis import is_visual_project

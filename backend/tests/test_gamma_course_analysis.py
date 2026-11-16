@@ -94,7 +94,8 @@ async def test_long_source_is_considered_whole_before_visual_calls():
 async def test_unchanged_reading_cached_without_paid_reanalysis():
     db=database();value={'visualAnalysis':{'readSlides':2,'totalSlides':2},'cached':True};db.course_visual_analysis.find_one.return_value={'result':value}
     send=AsyncMock();result=await g.analyze(project(),db,'unused',send=send)
-    assert result['cached'] and result['visualAnalysis']==value['visualAnalysis']
+    assert result['cached'] and result['visualAnalysis']['readSlides']==value['visualAnalysis']['readSlides']
+    assert result['visualAnalysis']['assessmentFormatsVersion']==2
     assert result['resourceBalance']['recommendedAdditions']==1
     send.assert_not_awaited();db.project_assets.find_one.assert_not_called()
 

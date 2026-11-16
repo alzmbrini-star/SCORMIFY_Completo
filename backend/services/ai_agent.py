@@ -4650,7 +4650,7 @@ async def apply_course_improvements(session_id: str, project: dict, selected_imp
         # Include complete selected-slide evidence; never truncate the course at its first slides.
         selected_rows = [r for r in slides_content if r['index'] in selected_indices]
         improvements_desc += '\nEVIDÊNCIAS DOS SLIDES SELECIONADOS: '+json.dumps(selected_rows,ensure_ascii=False)
-        improvements_desc += '\nPara avaliação, crie newSlides com type quiz; não apenas texto com alternativas. Preserve os índices de origem em afterIndex.'
+        improvements_desc += '\nAVALIAÇÕES DISTINTAS: type quiz é Quiz tradicional nativo; type interactive_assessment é Avaliação interativa com imagens. Nunca troque um pelo outro. Gere o newSlide com o tipo solicitado; as perguntas serão validadas pelo servidor. Preserve afterIndex.'
         improvements_desc += '\nCONTRATO OBRIGATÓRIO: gere exatamente UM newSlide para CADA melhoria selecionada, com afterIndex igual ao slideIndex solicitado e type igual ao tipo solicitado. Nunca omita os últimos itens. Narração também exige um slide HTML com a transcrição e narrationScript, sem gerar áudio nesta fase. Cenário exige um newSlide type scenario e scenarioConfig. Não devolva apenas notas ou scripts sem newSlide. Retorne todos os itens ou sinalize falha.'
     avatar_scene_instructions = ""
     if has_avatar_scenes:
@@ -4865,14 +4865,20 @@ Retorne JSON com os slides a atualizar:
         async def ask_assessment(attempt, request):
             return _extract_json(await _resilient_send(f'gamma-improvement-{session_id}-{attempt}', SYSTEM_PROMPT, request))
         for addition in result.get('newSlides',[]):
-            if addition.get('type') == 'quiz':
+            if addition.get('type') in ('quiz','interactive_assessment'):
                 index = addition.get('afterIndex')
                 evidence = next((r for r in gamma_reading.get('visualAnalysis',{}).get('slides',[]) if r.get('slideIndex')==index and r.get('status')=='read'),None)
                 if evidence is None:
                     raise ValueError('A avaliação requer uma leitura visual válida do slide de origem. Analise novamente.')
                 source = json.dumps(evidence,ensure_ascii=False)+'\nFonte original: '+gamma_reading.get('sourceContext','')
-                spec = await generate_assessment({'id':'gamma_complement_'+uuid.uuid4().hex[:16], 'title':addition.get('title') or 'Avaliação contextual','moduleName':project.get('name',''),'sourceExcerpt':source}, source, ask_assessment, {'questionCount':3,'images':False})
-                addition['elements'] = [render_assessment(spec)]
+                illustrated=addition['type']=='interactive_assessment'
+                spec = await generate_assessment({'id':'gamma_complement_'+uuid.uuid4().hex[:16], 'title':addition.get('title') or 'Avaliação contextual','moduleName':project.get('name',''),'sourceExcerpt':source}, source, ask_assessment, {'questionCount':3,'images':illustrated})
+                if illustrated:
+                    addition['elements'] = [render_assessment(spec)]
+                else:
+                    from services.assessment_formats import native_quiz
+                    element,questions=native_quiz(spec)
+                    addition['elements']=[element];addition['nativeQuizQuestions']=questions
                 addition['duration'] = 120
     from services.visual_simulators import generate_visual_simulator
     simulator_indices = {item.get("slideIndex") for item in selected_improvements if item.get("type") == "simulator"}
