@@ -4677,6 +4677,7 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                                 vresp = await heygen_v3_request(vc, 'GET',
                                     f"{HEYGEN_BASE_URL}/v2/voices",
                                     headers=HEYGEN_HEADERS,
+                                    catalog_cache=True,
                                 )
                                 if vresp.status_code == 200:
                                     all_voices = vresp.json().get("data", {}).get("voices", [])

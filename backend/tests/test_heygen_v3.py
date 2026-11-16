@@ -128,3 +128,43 @@ def test_all_editor_agent_legacy_calls_pass_through_adapter():
             if isinstance(node,ast.Call) and isinstance(node.func,ast.Attribute) and node.func.attr in ('get','post','request'):
                 rendered=ast.unparse(node)
                 assert not any(route in rendered for route in ('/v2/voices','/v2/avatars','/v2/video/generate','/v1/video.webm','/v1/video_status.get','/v2/user/remaining_quota')), rendered
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('language',['pt-BR','Portuguese','português'])
+async def test_portuguese_filter_accepts_generic_pt_without_inventing_brazil_accent(language,monkeypatch):
+    from routes import heygen
+    from unittest.mock import AsyncMock
+    rows=[{'voice_id':'pt-generic','name':'Voz','language':'pt'},
+          {'voice_id':'pt-br','name':'Brasil','language':'pt-BR'},
+          {'voice_id':'english','name':'Other','language':'en'}]
+    monkeypatch.setattr(heygen,'HEYGEN_API_KEY','fake')
+    monkeypatch.setattr(heygen,'heygen_v3_request',AsyncMock(return_value=httpx.Response(200,json={'data':{'voices':rows}})))
+    result=await heygen.list_heygen_voices(language=language)
+    assert {row['voice_id'] for row in result['voices']}=={'pt-generic','pt-br'}
+    generic=next(row for row in result['voices'] if row['voice_id']=='pt-generic')
+    assert generic['language_code']=='pt' and generic['language']=='pt'
+
+
+@pytest.mark.asyncio
+async def test_cached_voice_catalog_does_not_repeat_thousands_of_rows_per_filter():
+    calls=[]
+    def handle(req):
+        calls.append(req)
+        return httpx.Response(200,json={'data':[{'voice_id':'one','language':'pt'}]})
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        for _ in range(2):
+            result=await request(client,'GET',BASE+'/v2/voices',headers={'x-api-key':'cache-test-only'},catalog_cache=True)
+            assert len(result.json()['data']['voices'])==1
+    assert len(calls)==2  # private + public once, then reuse the normalized result.
+
+
+@pytest.mark.asyncio
+async def test_paid_timeout_never_retries(monkeypatch):
+    from routes import heygen
+    from unittest.mock import AsyncMock
+    fake=AsyncMock(side_effect=httpx.ReadTimeout('unknown outcome'))
+    monkeypatch.setattr(heygen,'heygen_v3_request',fake)
+    with pytest.raises(httpx.ReadTimeout):
+        await heygen.heygen_request('POST',BASE+'/v2/video/generate',json_body=legacy_payload(),max_attempts=3)
+    assert fake.await_count==1

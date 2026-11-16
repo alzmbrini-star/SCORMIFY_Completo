@@ -5,8 +5,11 @@ Catalogs use look IDs (not group IDs) so selections remain usable for videos.
 """
 import copy
 import uuid
+import time
 from urllib.parse import parse_qs, quote, urlsplit
 import httpx
+
+_voice_cache = {}
 
 
 def _response(original, body):
@@ -101,7 +104,7 @@ def video_payload(payload, transparent=False):
     return result
 
 
-async def request(client, method, url, **kwargs):
+async def request(client, method, url, catalog_cache=False, **kwargs):
     """Adapt only known HeyGen operations; no global HTTP patching or paid retries."""
     parts = urlsplit(url)
     base, path = f'{parts.scheme}://{parts.netloc}', parts.path
@@ -109,8 +112,17 @@ async def request(client, method, url, **kwargs):
     if method == 'GET' and path in ('/v2/voices', '/v2/avatars'):
         voices = path.endswith('voices')
         kwargs.pop('params', None)
-        return await _catalog(client, base, '/v3/models/audio/voices' if voices else '/v3/avatars/looks',
+        cache_key = (base, next((value for key,value in headers.items() if key.lower()=='x-api-key'), ''))
+        cached = _voice_cache.get(cache_key) if voices and catalog_cache else None
+        if cached and time.monotonic()-cached[0] < 300:
+            return _response(None, copy.deepcopy(cached[1]))
+        response = await _catalog(client, base, '/v3/models/audio/voices' if voices else '/v3/avatars/looks',
                               headers, 'voices' if voices else 'avatars', **kwargs)
+        if voices and catalog_cache and response.status_code == 200:
+            if len(_voice_cache)>10:
+                _voice_cache.clear()
+            _voice_cache[cache_key] = (time.monotonic(), response.json())
+        return response
     if method == 'POST' and path in ('/v2/video/generate', '/v1/video.webm'):
         kwargs['json'] = video_payload(kwargs.get('json') or {}, path.endswith('video.webm'))
         headers.setdefault('Idempotency-Key', str(uuid.uuid4()))

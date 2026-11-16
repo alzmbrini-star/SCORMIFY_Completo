@@ -336,7 +336,7 @@ async def list_heygen_voices(language: Optional[str] = None, gender: Optional[st
         async with httpx.AsyncClient(timeout=30.0) as http_client:
             response = await heygen_v3_request(http_client, 'GET',
                 f"{HEYGEN_BASE_URL}/v2/voices",
-                headers=HEYGEN_HEADERS
+                headers=HEYGEN_HEADERS, catalog_cache=True,
             )
             
             if response.status_code != 200:
@@ -352,10 +352,11 @@ async def list_heygen_voices(language: Optional[str] = None, gender: Optional[st
                 # Support specific language codes like "pt-BR", "pt-PT", "en-US"
                 if '-' in language:
                     # Exact match for language code
-                    voices = [v for v in voices if v.get("language", "").lower() == language.lower()]
+                    voices = [v for v in voices if v.get("language", "").lower() in (language.lower(), language.lower().split('-')[0])]
                 else:
                     # Partial match (e.g., "portuguese" matches "Portuguese (Brazil)")
-                    voices = [v for v in voices if language.lower() in v.get("language", "").lower()]
+                    language_alias = {'portuguese':'pt','português':'pt','portugues':'pt'}.get(language.lower(), language.lower())
+                    voices = [v for v in voices if language.lower() in v.get("language", "").lower() or v.get('language','').lower().split('-')[0] == language_alias]
             
             # Filter by gender if specified
             if gender and gender.lower() != 'all':
@@ -367,7 +368,7 @@ async def list_heygen_voices(language: Optional[str] = None, gender: Optional[st
                 lang = voice.get("language", "")
                 voice_name = voice.get("name", "")
                 # Determine language code and country
-                lang_code = voice.get('language_code') or (lang if '-' in lang else '')
+                lang_code = voice.get('language_code') or (lang if re.fullmatch(r'[a-z]{2}(?:-[A-Za-z]{2})?', lang) else '')
                 country_flag = ""
                 
                 # Check if Portuguese and determine variant
@@ -431,9 +432,11 @@ async def list_heygen_voices(language: Optional[str] = None, gender: Optional[st
                 if lang and lang not in seen_languages:
                     seen_languages.add(lang)
                     # Create a simplified label
-                    if "brazil" in lang.lower():
+                    if lang.lower() == 'pt':
+                        language_options.append({"value": lang, "label": "Português — variante não informada", "code": "pt"})
+                    elif lang.lower() == 'pt-br' or "brazil" in lang.lower():
                         language_options.append({"value": lang, "label": "🇧🇷 Português (Brasil)", "code": "pt-BR"})
-                    elif "portugal" in lang.lower():
+                    elif lang.lower() == 'pt-pt' or "portugal" in lang.lower():
                         language_options.append({"value": lang, "label": "🇵🇹 Português (Portugal)", "code": "pt-PT"})
                     elif "english" in lang.lower():
                         if "us" in lang.lower() or "american" in lang.lower():
