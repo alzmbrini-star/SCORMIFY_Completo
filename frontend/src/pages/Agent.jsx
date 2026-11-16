@@ -1073,7 +1073,7 @@ export default function Agent() {
     setLoading(true);
     addChatMsg('agent', `Analisando o curso "${course.name}"...`);
     try {
-      const res = await fetch(`${API}/api/agent/courses/${course.id}/analyze${cachedOnly?'?cached_only=true':''}`, { method: 'POST', headers: authHeaders() });
+      const res = await fetch(`${API}/api/agent/courses/${course.id}/analyze${cachedOnly?'?cached_only=true':'?resume_partial=true'}`, { method: 'POST', headers: authHeaders() });
       if (!res.ok) {const error=await res.json().catch(()=>({}));throw new Error(error.detail||'Erro ao analisar o curso');}
       const data = await res.json();
 
@@ -1081,7 +1081,7 @@ export default function Agent() {
       if (data.overallScore !== undefined || data.improvements) {
         setCourseAnalysis(data);
         setSelectedImprovements([]);
-        addChatMsg('agent', `Analise concluida! Nota geral: ${data.overallScore}/10. ${data.improvements?.length || 0} melhorias sugeridas.`);
+        addChatMsg('agent', data.visualAnalysis && data.visualAnalysis.readSlides < data.visualAnalysis.totalSlides ? `Análise incompleta: ${data.visualAnalysis.readSlides} de ${data.visualAnalysis.totalSlides} slides lidos. Leituras válidas preservadas; confira o motivo das falhas por slide.` : `Analise concluida! Nota geral: ${data.overallScore}/10. ${data.improvements?.length || 0} melhorias sugeridas.`);
       } else if (data.status === 'processing') {
         addChatMsg('agent', 'Analise em andamento... aguarde.');
         // Poll every 2s for faster response
@@ -1102,7 +1102,7 @@ export default function Agent() {
         if (!result) throw new Error('Timeout aguardando analise do curso');
         setCourseAnalysis(result);
         setSelectedImprovements([]);
-        addChatMsg('agent', `Analise concluida! Nota geral: ${result.overallScore}/10. ${result.improvements?.length || 0} melhorias sugeridas.`);
+        addChatMsg('agent', result.visualAnalysis && result.visualAnalysis.readSlides < result.visualAnalysis.totalSlides ? `Análise incompleta: ${result.visualAnalysis.readSlides} de ${result.visualAnalysis.totalSlides} slides lidos. Leituras válidas preservadas; confira o motivo das falhas por slide.` : `Analise concluida! Nota geral: ${result.overallScore}/10. ${result.improvements?.length || 0} melhorias sugeridas.`);
       }
     } catch (e) { toast.error(e.message || 'Erro na analise'); addChatMsg('agent', 'Erro ao analisar o curso.'); }
     finally { setLoading(false); }

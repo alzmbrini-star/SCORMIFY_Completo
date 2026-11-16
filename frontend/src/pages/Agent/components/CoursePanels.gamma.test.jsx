@@ -27,3 +27,9 @@ test('visual evidence is readable per slide and safely escaped; legacy source ab
  expect(html).toContain('&lt;script&gt;fonte&lt;/script&gt;');
  expect(html).not.toContain('<script>');
 });
+
+test('partial analysis states lack of general grade and explains provider error safely',()=>{
+ const html=renderToStaticMarkup(<GammaVisualAnalysis reading={{readSlides:1,totalSlides:19,slides:[{slideId:'failed',slideIndex:0,status:'failed',errorMessage:'Limite temporário da API, não imagem ilegível.'},{slideId:'ok',slideIndex:2,status:'read',summary:'Público-alvo',visibleText:'Gestores'}]}}/>);
+ expect(html).toContain('sem nota geral');expect(html).toContain('somente os slides pendentes');
+ expect(html).toContain('Limite temporário da API');expect(html).toContain('Público-alvo');
+});

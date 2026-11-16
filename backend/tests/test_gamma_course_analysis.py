@@ -70,7 +70,7 @@ async def test_missing_original_and_failed_picture_do_not_hallucinate():
     db=database('');p=project();send=AsyncMock()
     with patch.object(g,'load_picture',side_effect=ValueError('private backend detail')):
         result=await g.analyze(p,db,'unused',send=send)
-    assert not result['improvements'] and result['overallScore']==0
+    assert not result['improvements'] and result['overallScore'] is None
     assert not result['visualAnalysis']['sourceAvailable']
     assert 'private backend detail' not in str(result)
     send.assert_not_awaited();db.course_visual_analysis.update_one.assert_not_called()
@@ -109,6 +109,54 @@ async def test_partial_reading_reuses_good_slides_and_recovers_only_failed_slide
     second=await g.analyze(project(),db,'unused',send=retry)
     assert second['visualAnalysis']['readSlides']==2
     retry.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_recovers_18_preserves_slide3_and_all_26_originals_questions_and_resources():
+    p=project();base=copy.deepcopy(p['course']['slides'][0]);p['course']['questions']=[{'id':'original-question','score':7}]
+    targets={0,2,3,4,6,7,8,10,11,12,14,15,16,17,19,20,21,23,24}
+    p['course']['slides']=[]
+    for index in range(26):
+        row=copy.deepcopy(base);row.update(id=f'slide-{index}',order=index,title=f'Original {index+1}')
+        if index not in targets:
+            row.pop('gammaSource');row['learningResource']={'kind':'original-resource'}
+        p['course']['slides'].append(row)
+    old={'slideId':'slide-2','slideIndex':2,'status':'read','score':7,'summary':'Leitura válida do slide 3',
+         'visibleText':'Público-alvo e métodos originais','improvements':[]}
+    db=database();db.course_visual_analysis.find_one.return_value={'result':{'sourceContext':'Fonte já sintetizada',
+        'visualAnalysis':{'readSlides':1,'totalSlides':19,'slides':[copy.deepcopy(old)]}}}
+    before=copy.deepcopy(p)
+    send=AsyncMock(return_value=response())
+    result=await g.analyze(p,db,'unused',send=send)
+    assert send.await_count==18
+    assert result['visualAnalysis']['readSlides']==19
+    assert result['visualAnalysis']['analysisStatus']=='complete'
+    assert next(row for row in result['visualAnalysis']['slides'] if row['slideId']=='slide-2')==old
+    assert len(p['course']['slides'])==26 and p==before
+    assert db.course_visual_analysis.update_one.call_count==19  # 18 checkpoints + final result, never projects/course.
+
+
+@pytest.mark.asyncio
+async def test_quota_stops_remaining_reads_and_does_not_call_it_illegibility():
+    from services.course_vision_runtime import VisionFailure
+    p=project();db=database();send=AsyncMock(side_effect=VisionFailure('quota_exhausted'))
+    result=await g.analyze(p,db,'unused',send=send)
+    assert send.await_count==1
+    assert [r['errorCode'] for r in result['visualAnalysis']['slides']]==['quota_exhausted','not_attempted']
+    assert result['overallScore'] is None
+    assert result['visualAnalysis']['analysisStatus']=='unavailable'
+    assert all(r['status']=='failed' for r in result['visualAnalysis']['slides'])
+
+
+@pytest.mark.asyncio
+async def test_partial_result_never_gives_general_grade_and_checkpoints_valid_read():
+    db=database();send=AsyncMock(side_effect=[response(),TimeoutError('private network details')])
+    result=await g.analyze(project(),db,'unused',send=send)
+    assert result['overallScore'] is None and result['visualAnalysis']['analysisStatus']=='partial'
+    assert result['visualAnalysis']['slides'][1]['errorCode']=='timeout'
+    assert 'private network' not in str(result)
+    checkpoint=db.course_visual_analysis.update_one.call_args_list[0].args[1]['$set']['result']
+    assert checkpoint['visualAnalysis']['readSlides']==1
 
 
 @pytest.mark.parametrize('src',['https://evil.test/api/projects/p/assets/a.png','/api/projects/other/assets/a.png','/api/projects/p/assets/%2e%2e%2fsecret','/api/projects/p/assets/a%5cb.png'])

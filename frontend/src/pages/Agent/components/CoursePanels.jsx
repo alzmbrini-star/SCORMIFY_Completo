@@ -533,11 +533,11 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
             <CardContent className="p-4">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-xl bg-blue-600/10 flex items-center justify-center">
-                  <span className="text-2xl font-bold text-blue-400">{analysis.overallScore}</span>
-                  <span className="text-xs text-slate-400">/10</span>
+                  <span className="text-2xl font-bold text-blue-400">{analysis.visualAnalysis && analysis.visualAnalysis.readSlides < analysis.visualAnalysis.totalSlides ? '—' : analysis.overallScore ?? '—'}</span>
+                  {(!analysis.visualAnalysis || analysis.visualAnalysis.readSlides === analysis.visualAnalysis.totalSlides) && analysis.overallScore != null && <span className="text-xs text-slate-400">/10</span>}
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-medium text-sm mb-1">Avaliação Geral</h3>
+                  <h3 className="font-medium text-sm mb-1">{analysis.visualAnalysis && analysis.visualAnalysis.readSlides < analysis.visualAnalysis.totalSlides ? 'Análise incompleta — sem nota geral' : 'Avaliação Geral'}</h3>
                   {analysis.strengths?.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {analysis.strengths.map((s, i) => (

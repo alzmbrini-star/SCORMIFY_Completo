@@ -3446,7 +3446,13 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
             from services.course_resource_balance import balanced_result
             result = balanced_result(result,project)
         await db.analysis_cache.delete_one({"key": cache_key})
-        return result
+        reading_status = result.get('visualAnalysis') or {}
+        resume = (gamma and request.query_params.get('resume_partial') == 'true'
+                  and reading_status.get('readSlides',0) < reading_status.get('totalSlides',0))
+        if not resume:
+            return result
+        # Only an explicit author action resumes failed slides. Polling never
+        # starts another paid run after an incomplete result.
 
     # If error, return error and clear cache
     if cached and cached.get("status") == "error":
