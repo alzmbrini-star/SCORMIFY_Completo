@@ -49,6 +49,7 @@ function formatBalance(name, balance) {
     return `${paid.toLocaleString('pt-BR')} tokens pagos + ${sub} assinatura`;
   }
   if (name === 'heygen') {
+    if (balance.walletBalance != null) return `${balance.currency || 'USD'} ${balance.walletBalance.toLocaleString('pt-BR')} na carteira API`;
     if (balance.remainingQuota != null) return `${balance.remainingQuota.toLocaleString('pt-BR')} creditos restantes`;
     return `${balance.voicesAvailable} vozes disponiveis`;
   }

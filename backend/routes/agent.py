@@ -10,6 +10,7 @@ import logging
 import base64
 import re
 import httpx
+from services.heygen_api import request as heygen_v3_request
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
@@ -2828,7 +2829,7 @@ async def _trigger_heygen_videos(project_id: str, pending_list: list):
                         "voice_id": item["voice_id"],
                         "dimension": {"width": 1280, "height": 720},
                     }
-                    response = await http_client.post(
+                    response = await heygen_v3_request(http_client, 'POST',
                         f"{HEYGEN_BASE_URL}/v1/video.webm",
                         headers=HEYGEN_HEADERS,
                         json=webm_payload,
@@ -2836,7 +2837,7 @@ async def _trigger_heygen_videos(project_id: str, pending_list: list):
                     if response.status_code == 200:
                         used_transparent = True
                         logger.info(f"HeyGen WebM transparent succeeded for slide {item['slideId']}")
-                    else:
+                    elif response.status_code in (400, 422):
                         logger.warning(f"WebM transparent failed for slide {item['slideId']} ({response.status_code}): {response.text[:200]}")
                         response = None
 
@@ -2858,7 +2859,7 @@ async def _trigger_heygen_videos(project_id: str, pending_list: list):
                             "dimension": {"width": 1280, "height": 720},
                             "title": f"Agent-{project_id}-{item['slideId']}"
                         }
-                        response = await http_client.post(
+                        response = await heygen_v3_request(http_client, 'POST',
                             f"{HEYGEN_BASE_URL}/v2/video/generate",
                             headers=HEYGEN_HEADERS,
                             json=fallback_payload,
@@ -2919,7 +2920,7 @@ async def agent_heygen_status(project_id: str, user: dict = Depends(require_auth
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,150}", str(video_id)):
             raise ValueError("Identificador de vídeo inválido; nenhuma geração foi solicitada.")
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(f"{HEYGEN_BASE_URL}/v1/video_status.get",
+            response = await heygen_v3_request(client, 'GET', f"{HEYGEN_BASE_URL}/v1/video_status.get",
                 params={"video_id":video_id}, headers=HEYGEN_HEADERS)
             response.raise_for_status()
             return response.json().get("data", {})
@@ -4506,7 +4507,7 @@ async def get_avatar_generation_status(project_id: str, user: dict = Depends(req
         if scene.get("heygenVideoId") and scene.get("heygenStatus") == "processing":
             try:
                 async with httpx.AsyncClient(timeout=30.0) as http_client:
-                    resp = await http_client.get(
+                    resp = await heygen_v3_request(http_client, 'GET',
                         f"{HEYGEN_BASE_URL}/v1/video_status.get?video_id={scene['heygenVideoId']}",
                         headers=HEYGEN_HEADERS,
                     )
@@ -4673,15 +4674,15 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                     if not heygen_voice_id:
                         try:
                             async with httpx.AsyncClient(timeout=15.0) as vc:
-                                vresp = await vc.get(
+                                vresp = await heygen_v3_request(vc, 'GET',
                                     f"{HEYGEN_BASE_URL}/v2/voices",
                                     headers=HEYGEN_HEADERS,
                                 )
                                 if vresp.status_code == 200:
                                     all_voices = vresp.json().get("data", {}).get("voices", [])
                                     # Priority: pt-BR > any Portuguese > first available
-                                    pt_br_voices = [v for v in all_voices if "brazil" in v.get("language", "").lower() or "brasil" in v.get("language", "").lower()]
-                                    pt_voices = [v for v in all_voices if "portuguese" in v.get("language", "").lower() or "português" in v.get("language", "").lower()]
+                                    pt_br_voices = [v for v in all_voices if v.get('language', '').lower() == 'pt-br' or "brazil" in v.get("language", "").lower() or "brasil" in v.get("language", "").lower()]
+                                    pt_voices = [v for v in all_voices if v.get('language', '').lower().startswith('pt') or "portuguese" in v.get("language", "").lower() or "português" in v.get("language", "").lower()]
                                     if pt_br_voices:
                                         heygen_voice_id = pt_br_voices[0].get("voice_id", "")
                                         logger.info(f"Auto-selected PT-BR HeyGen voice: {pt_br_voices[0].get('name', '')} ({heygen_voice_id})")
@@ -4727,7 +4728,7 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                         }
                         logger.info(f"HeyGen trying WebM transparent: avatar={avatar_id}, voice_id={heygen_voice_id}")
                         try:
-                            response = await http_client.post(
+                            response = await heygen_v3_request(http_client, 'POST',
                                 f"{HEYGEN_BASE_URL}/v1/video.webm",
                                 headers=HEYGEN_HEADERS,
                                 json=webm_payload,
@@ -4735,12 +4736,12 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                             if response.status_code == 200:
                                 used_transparent = True
                                 logger.info("HeyGen WebM transparent succeeded")
-                            else:
+                            elif response.status_code in (400, 422):
                                 logger.warning(f"WebM transparent failed ({response.status_code}): {response.text[:200]}")
                                 response = None
                         except Exception as webm_err:
                             logger.warning(f"WebM request error: {webm_err}")
-                            response = None
+                            raise  # Unknown outcome: never submit a second paid video.
 
                         # Strategy 2: Fallback to standard v2 (same as manual creation flow)
                         if response is None:
@@ -4761,7 +4762,7 @@ async def _trigger_avatar_scene_generation(project_id: str, scenes: list):
                                 "title": f"AvatarScene-{project_id[:8]}-{slide_id[:8]}"
                             }
                             logger.info(f"HeyGen fallback v2: avatar={avatar_id}, voice_id={heygen_voice_id}")
-                            response = await http_client.post(
+                            response = await heygen_v3_request(http_client, 'POST',
                                 f"{HEYGEN_BASE_URL}/v2/video/generate",
                                 headers=HEYGEN_HEADERS,
                                 json=fallback_payload,

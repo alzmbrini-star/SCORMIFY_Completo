@@ -45,7 +45,7 @@ export function SlideVideoDialog({
           {heygenCredits && (
             <div className={`ml-auto flex items-center gap-1.5 px-3 py-1 rounded-full text-xs ${heygenCredits.has_credits ? 'bg-green-500/10 text-green-400' : heygenCredits.has_plan_credits ? 'bg-amber-500/10 text-amber-400' : 'bg-red-500/10 text-red-400'}`}>
               {heygenCredits.has_credits ? '✅' : '⚠️'}
-              {heygenCredits.has_credits ? `${heygenCredits.remaining_quota} créditos API` : heygenCredits.has_plan_credits ? `API: 0 | Plano: ${heygenCredits.plan_credit}` : '0 créditos'}
+              {heygenCredits.balance_label || (heygenCredits.has_credits ? `${heygenCredits.remaining_quota} créditos API` : heygenCredits.has_plan_credits ? `API: 0 | Plano: ${heygenCredits.plan_credit}` : '0 créditos')}
             </div>
           )}
         </div>

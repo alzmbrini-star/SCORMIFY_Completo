@@ -62,13 +62,13 @@ export function HeygenDialog({
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">{heygenCredits.has_credits ? '✅' : '⚠️'} Créditos HeyGen:</span>
               <span className={`font-bold ${heygenCredits.has_credits ? 'text-green-500' : 'text-red-500'}`}>
-                {heygenCredits.has_credits ? `${heygenCredits.remaining_quota} créditos API` : heygenCredits.has_plan_credits ? `API: 0 | Plano: ${heygenCredits.plan_credit}` : 'Sem créditos'}
+                {heygenCredits.balance_label || (heygenCredits.has_credits ? `${heygenCredits.remaining_quota} créditos API` : heygenCredits.has_plan_credits ? `API: 0 | Plano: ${heygenCredits.plan_credit}` : 'Sem créditos')}
               </span>
             </div>
             {!heygenCredits.has_credits && heygenCredits.has_plan_credits && (
               <p className="text-xs text-amber-400 mt-1">Seus créditos do plano ({heygenCredits.plan_credit}) são para o Studio web. Para usar a API, verifique se sua chave API tem créditos habilitados em app.heygen.com</p>
             )}
-            {!heygenCredits.has_credits && <span className="text-xs text-red-500">Recarregue para gerar vídeos</span>}
+            {!heygenCredits.has_credits && heygenCredits.balance_known !== false && <span className="text-xs text-red-500">Confira o saldo API na conta HeyGen</span>}
           </div>
         ) : null}
 

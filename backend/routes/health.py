@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 import httpx
+from services.heygen_api import request as heygen_v3_request
 from fastapi import APIRouter, Depends, HTTPException
 
 from routes.deps import db, ELEVENLABS_API_KEY
@@ -175,19 +176,19 @@ async def _check_heygen() -> dict:
     t0 = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            # HeyGen v2: /v2/voices is cheap and proves auth works
+            # One read-only V3 public page proves auth, without paid generation.
             resp = await client.get(
-                "https://api.heygen.com/v2/voices",
+                "https://api.heygen.com/v3/models/audio/voices?type=public&limit=1",
                 headers={"X-Api-Key": key},
             )
         latency = int((time.monotonic() - t0) * 1000)
         if resp.status_code == 200:
             body = resp.json()
-            voices = body.get("data", {}).get("voices", [])
+            voices = body.get("data") or []
             # Also fetch remaining credits
             try:
                 async with httpx.AsyncClient(timeout=5.0) as client:
-                    q = await client.get(
+                    q = await heygen_v3_request(client, 'GET',
                         "https://api.heygen.com/v1/user/remaining_quota",
                         headers={"X-Api-Key": key},
                     )
@@ -198,6 +199,8 @@ async def _check_heygen() -> dict:
                             "latencyMs": latency,
                             "balance": {
                                 "remainingQuota": qdata.get("remaining_quota"),
+                                "walletBalance": qdata.get('wallet_balance'),
+                                "currency": qdata.get('currency'),
                                 "voicesAvailable": len(voices),
                             },
                         }

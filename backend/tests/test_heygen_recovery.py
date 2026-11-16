@@ -123,6 +123,7 @@ def test_legacy_placeholder_id_mismatch_is_recovered_only_with_exact_question_el
 
 def test_worker_creates_and_closes_own_client_on_each_event_loop_and_reuses_jobs(monkeypatch):
     import motor.motor_asyncio
+    from services.heygen_api import request as heygen_v3_request
     rows=[];clients=[];posts=[]
     class Client:
         def __init__(self,*args,**kwargs):
@@ -145,12 +146,13 @@ def test_worker_creates_and_closes_own_client_on_each_event_loop_and_reuses_jobs
             posts.append((url,kwargs));return SimpleNamespace(status_code=200,json=lambda:{'data':{'video_id':'v'+str(len(posts))}})
     monkeypatch.setattr(motor.motor_asyncio,'AsyncIOMotorClient',Client)
     fn=load_function('_trigger_heygen_videos',dict(os=os,httpx=SimpleNamespace(AsyncClient=HTTP),
-        HEYGEN_BASE_URL='https://api.heygen.com',HEYGEN_HEADERS={},now_utc=lambda:'now',logger=logging.getLogger('test')))
+        HEYGEN_BASE_URL='https://api.heygen.com',HEYGEN_HEADERS={},heygen_v3_request=heygen_v3_request,now_utc=lambda:'now',logger=logging.getLogger('test')))
     item=dict(slideId='s1',avatar_id='avatar',voice_id='voice',script='Texto completo.',title='Aula')
     asyncio.run(fn('p1',[item]));asyncio.run(fn('p2',[item]));asyncio.run(fn('p1',[item]))
     assert len(posts)==2 and len(clients)==3 and all(c.closed for c in clients)
     assert len({id(c.loop) for c in clients})==3
-    assert posts[0][1]['json']['input_text']=='Texto completo.'
+    assert posts[0][0]=='https://api.heygen.com/v3/videos'
+    assert posts[0][1]['json']['script']=='Texto completo.'
 
 
 def test_status_authorizes_project_before_reconciling():

@@ -10,6 +10,7 @@ import os
 import uuid
 import json
 import logging
+from services.heygen_api import request as heygen_v3_request
 
 from routes.deps import (
     db, now_utc, HEYGEN_API_KEY, HEYGEN_BASE_URL, HEYGEN_HEADERS,
@@ -73,13 +74,15 @@ async def heygen_request(
                 req_kwargs = {"headers": final_headers}
                 if json_body is not None:
                     req_kwargs["json"] = json_body
-                last_resp = await client.request(method, url, **req_kwargs)
+                # A mutation is submitted once: a timeout must not create a
+                # duplicate paid video. V3 also receives an idempotency key.
+                last_resp = await heygen_v3_request(client, method, url, **req_kwargs)
             except httpx.RequestError as e:
                 logger.warning(
                     "heygen_request network error attempt=%d url=%s err=%s",
                     attempt, url, repr(e),
                 )
-                if attempt == max_attempts:
+                if method != 'GET' or attempt == max_attempts:
                     raise
                 await asyncio.sleep(delay)
                 delay *= 2
@@ -87,7 +90,7 @@ async def heygen_request(
         # Retry on transient WAF / rate-limit / server errors. 401 stays
         # final (means the api key is genuinely invalid). 4xx other than
         # 403/429 also stays final to surface validation errors fast.
-        retryable = last_resp.status_code in (403, 429) or last_resp.status_code >= 500
+        retryable = method == 'GET' and (last_resp.status_code in (403, 429) or last_resp.status_code >= 500)
         if not retryable or attempt == max_attempts:
             if last_resp.status_code != 200:
                 logger.warning(
@@ -123,7 +126,7 @@ async def _refresh_heygen_avatars_cache(*, sync_timeout: float = 90.0) -> bool:
         return False
     try:
         async with httpx.AsyncClient(timeout=sync_timeout) as client:
-            response = await client.get(
+            response = await heygen_v3_request(client, 'GET',
                 f"{HEYGEN_BASE_URL}/v2/avatars",
                 headers=HEYGEN_HEADERS,
             )
@@ -331,7 +334,7 @@ async def list_heygen_voices(language: Optional[str] = None, gender: Optional[st
     
     try:
         async with httpx.AsyncClient(timeout=30.0) as http_client:
-            response = await http_client.get(
+            response = await heygen_v3_request(http_client, 'GET',
                 f"{HEYGEN_BASE_URL}/v2/voices",
                 headers=HEYGEN_HEADERS
             )
@@ -364,7 +367,7 @@ async def list_heygen_voices(language: Optional[str] = None, gender: Optional[st
                 lang = voice.get("language", "")
                 voice_name = voice.get("name", "")
                 # Determine language code and country
-                lang_code = ""
+                lang_code = voice.get('language_code') or (lang if '-' in lang else '')
                 country_flag = ""
                 
                 # Check if Portuguese and determine variant
@@ -566,14 +569,14 @@ async def generate_heygen_video(request: HeyGenVideoRequest):
                     }
                 }
                 
-                response = await http_client.post(
+                response = await heygen_v3_request(http_client, 'POST',
                     f"{HEYGEN_BASE_URL}/v1/video.webm",
                     headers=HEYGEN_HEADERS,
                     json=payload
                 )
                 
                 # If WebM endpoint fails, fall back to standard endpoint
-                if response.status_code != 200:
+                if response.status_code in (400, 422):
                     error_data = {}
                     try:
                         error_data = response.json()
@@ -609,7 +612,7 @@ async def generate_heygen_video(request: HeyGenVideoRequest):
                     "title": request.title
                 }
                 
-                response = await http_client.post(
+                response = await heygen_v3_request(http_client, 'POST',
                     f"{HEYGEN_BASE_URL}/v2/video/generate",
                     headers=HEYGEN_HEADERS,
                     json=payload
@@ -962,7 +965,7 @@ async def get_heygen_video_status(video_id: str):
     
     try:
         async with httpx.AsyncClient(timeout=30.0) as http_client:
-            response = await http_client.get(
+            response = await heygen_v3_request(http_client, 'GET',
                 f"{HEYGEN_BASE_URL}/v1/video_status.get",
                 headers=HEYGEN_HEADERS,
                 params={"video_id": video_id}
@@ -1040,7 +1043,7 @@ async def refresh_heygen_video_status(video_id: str):
     
     try:
         async with httpx.AsyncClient(timeout=30.0) as http_client:
-            response = await http_client.get(
+            response = await heygen_v3_request(http_client, 'GET',
                 f"{HEYGEN_BASE_URL}/v1/video_status.get?video_id={video_id}",
                 headers=HEYGEN_HEADERS
             )
@@ -1127,7 +1130,7 @@ async def get_heygen_credits(force_refresh: bool = False):
     
     try:
         async with httpx.AsyncClient(timeout=30.0) as http_client:
-            response = await http_client.get(
+            response = await heygen_v3_request(http_client, 'GET',
                 f"{HEYGEN_BASE_URL}/v2/user/remaining_quota",
                 headers=HEYGEN_HEADERS
             )
@@ -1154,7 +1157,11 @@ async def get_heygen_credits(force_refresh: bool = False):
                 "plan_credit": plan_credit,
                 "used_quota": quota_data.get("used_quota"),
                 "plan": quota_data.get("plan"),
-                "has_credits": remaining_quota > 0,
+                "has_credits": remaining_quota > 0 or (quota_data.get('wallet_balance') or 0) > 0,
+                "wallet_balance": quota_data.get('wallet_balance'),
+                "currency": quota_data.get('currency'),
+                "balance_known": quota_data.get('balance_known', True),
+                "balance_label": (f"{quota_data.get('currency') or 'USD'} {quota_data['wallet_balance']:.2f} na carteira API" if quota_data.get('wallet_balance') is not None else f"{remaining_quota} créditos API" if quota_data.get('balance_known', True) else 'Saldo não informado pelo HeyGen'),
                 "has_plan_credits": plan_credit > 0,
                 "api_note": "remaining_quota = créditos para API de vídeo, plan_credit = créditos do plano Studio"
             }
@@ -1342,7 +1349,7 @@ async def heygen_video_events(video_id: str, request: Request):
                         try:
                             async with httpx.AsyncClient() as client:
                                 headers = {"X-Api-Key": HEYGEN_API_KEY}
-                                resp = await client.get(
+                                resp = await heygen_v3_request(client, 'GET',
                                     f"https://api.heygen.com/v1/video_status.get?video_id={video_id}",
                                     headers=headers,
                                     timeout=10.0
@@ -1651,7 +1658,7 @@ async def generate_slide_video(request: SlideVideoRequest):
 
     try:
         async with httpx.AsyncClient(timeout=60.0) as http_client:
-            response = await http_client.post(
+            response = await heygen_v3_request(http_client, 'POST',
                 f"{HEYGEN_BASE_URL}/v2/video/generate",
                 headers=HEYGEN_HEADERS,
                 json=payload
@@ -1753,7 +1760,7 @@ async def generate_batch_slide_videos(request: BatchSlideVideoRequest):
 
         try:
             async with httpx.AsyncClient(timeout=60.0) as http_client:
-                response = await http_client.post(
+                response = await heygen_v3_request(http_client, 'POST',
                     f"{HEYGEN_BASE_URL}/v2/video/generate",
                     headers=HEYGEN_HEADERS,
                     json=payload
