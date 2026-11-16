@@ -83,7 +83,7 @@ export default function QuizPlayer({
       isCorrect,
     };
 
-    setAnswers(prev => [...prev, answerRecord]);
+    setAnswers(prev => [...prev.filter(answer => answer.questionId !== answerRecord.questionId), answerRecord]);
 
     if (quizConfig?.showFeedback) {
       setShowFeedback(true);
@@ -93,7 +93,7 @@ export default function QuizPlayer({
     }
   };
 
-  const moveToNext = useCallback(() => {
+  const moveToNext = () => {
     setShowFeedback(false);
     setSelectedAnswer(null);
 
@@ -103,11 +103,11 @@ export default function QuizPlayer({
       // Quiz complete - calculate results
       calculateResults();
     }
-  }, [currentIndex, totalQuestions]); // eslint-disable-line react-hooks/exhaustive-deps
+  };
 
   const calculateResults = useCallback(() => {
     const updatedAnswers = [...answers];
-    if (selectedAnswer && currentQuestion) {
+    if (selectedAnswer && currentQuestion && !updatedAnswers.some(answer => answer.questionId === currentQuestion.id)) {
       const selectedAlt = currentQuestion.alternatives?.find(a => a.id === selectedAnswer);
       updatedAnswers.push({
         questionId: currentQuestion.id,

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import GuidedPathPreview from './GuidedPathPreview';
 import { imageShadowStyle } from '../../utils/imageShadow';
 import { assessmentFrameDocument, assessmentFrameSandbox, assessmentFrameAllow } from '../assessment/assessmentFrame';
-import axios from 'axios';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 import {
@@ -17,13 +16,8 @@ import {
   VolumeX,
   Menu,
   Check,
-  Trophy,
-  AlertCircle,
-  RotateCcw,
-  CheckCircle,
-  XCircle,
 } from 'lucide-react';
-import QuizPlayer from '../quiz/QuizPlayer';
+import NativeQuizPreview from '../quiz/NativeQuizPreview';
 import ScenarioPlayer from '../scenario/ScenarioPlayer';
 import { sanitizeHtmlForDisplay, getRtfContentStyles, wrapInteractiveFullbleed, fitGameElementToSlide } from '../../utils/htmlUtils';
 
@@ -66,100 +60,6 @@ const processHtmlContent = (htmlContent, projectId) => {
   return processed;
 };
 
-// Inline Quiz Player for split preview
-const QuizPreviewPlayer = ({ quizConfig, projectId }) => {
-  const [questions, setQuestions] = useState([]);
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState(null);
-  const [showFeedback, setShowFeedback] = useState(false);
-  const [score, setScore] = useState(0);
-  const [isFinished, setIsFinished] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadQuestions = async () => {
-      try {
-        const ids = quizConfig.questionIds || [];
-        if (ids.length === 0) { setLoading(false); return; }
-        const resp = await axios.get(`${API_URL}/api/questions`, { params: { project_id: projectId } });
-        let qs = (resp.data || []).filter(q => ids.includes(q.id));
-        if (quizConfig.shuffleQuestions) qs = qs.sort(() => Math.random() - 0.5);
-        if (quizConfig.questionCount && quizConfig.questionCount < qs.length) qs = qs.slice(0, quizConfig.questionCount);
-        setQuestions(qs);
-      } catch { }
-      setLoading(false);
-    };
-    loadQuestions();
-  }, [quizConfig, projectId]);
-
-  if (loading) return <div className="flex items-center justify-center h-full text-xs text-white/60">Carregando quiz...</div>;
-  if (questions.length === 0) return <div className="flex items-center justify-center h-full text-xs text-white/60">Nenhuma questão</div>;
-
-  if (isFinished) {
-    const finalScore = ((score / questions.length) * 10).toFixed(1);
-    const passed = parseFloat(finalScore) >= (quizConfig.passingScore || 7);
-    return (
-      <div className="flex flex-col items-center justify-center h-full p-3 text-center">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${passed ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
-          {passed ? <Trophy className="w-5 h-5 text-green-400" /> : <AlertCircle className="w-5 h-5 text-red-400" />}
-        </div>
-        <p className="text-lg font-bold text-white">{finalScore}</p>
-        <p className="text-xs text-white/60 mb-2">{passed ? 'Aprovado!' : 'Tente novamente'}</p>
-        <Button size="sm" variant="outline" className="text-xs border-white/20 text-white" onClick={() => { setCurrentQuestion(0); setScore(0); setSelectedAnswer(null); setShowFeedback(false); setIsFinished(false); }}>
-          <RotateCcw className="w-3 h-3 mr-1" /> Refazer
-        </Button>
-      </div>
-    );
-  }
-
-  const q = questions[currentQuestion];
-  const handleAnswer = (altIndex) => {
-    if (showFeedback) return;
-    setSelectedAnswer(altIndex);
-    setShowFeedback(true);
-    if (q.alternatives[altIndex]?.is_correct) setScore(s => s + 1);
-  };
-
-  const handleNext = () => {
-    if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion(c => c + 1);
-      setSelectedAnswer(null);
-      setShowFeedback(false);
-    } else {
-      setIsFinished(true);
-    }
-  };
-
-  return (
-    <div className="flex flex-col h-full p-2 text-white overflow-auto" style={{ scrollbarWidth: 'thin' }}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] text-white/50 uppercase tracking-wider">{q.type === 'true_false' ? 'V/F' : 'Quiz'}</span>
-        <span className="text-[10px] text-white/50">{currentQuestion + 1}/{questions.length}</span>
-      </div>
-      <div className="w-full h-0.5 bg-white/10 mb-2 rounded-full"><div className="h-full bg-cyan-500 rounded-full transition-all" style={{ width: `${((currentQuestion + 1) / questions.length) * 100}%` }} /></div>
-      <p className="text-xs font-medium mb-2 leading-relaxed">{q.question}</p>
-      <div className="space-y-1.5 flex-1">
-        {q.alternatives?.map((alt, i) => (
-          <button key={i} onClick={() => handleAnswer(i)} className={`w-full text-left text-[11px] p-2 rounded-md border transition-all ${
-            showFeedback ? (alt.is_correct ? 'border-green-500 bg-green-500/20' : selectedAnswer === i ? 'border-red-500 bg-red-500/20' : 'border-white/10 opacity-50')
-            : selectedAnswer === i ? 'border-cyan-500 bg-cyan-500/10' : 'border-white/10 hover:border-white/30'
-          }`}>
-            <span className="flex items-center gap-1.5">
-              {showFeedback && alt.is_correct && <CheckCircle className="w-3 h-3 text-green-400 shrink-0" />}
-              {showFeedback && !alt.is_correct && selectedAnswer === i && <XCircle className="w-3 h-3 text-red-400 shrink-0" />}
-              {alt.text}
-            </span>
-          </button>
-        ))}
-      </div>
-      {showFeedback && (
-        <Button size="sm" className="mt-2 w-full text-xs h-7" onClick={handleNext}>
-          {currentQuestion < questions.length - 1 ? 'Próxima' : 'Ver Resultado'}
-        </Button>
-      )}
-    </div>
-  );
-};
 
 const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onExpandFullscreen, onClose }) => {
   const [currentTime, setCurrentTime] = useState(0);
@@ -467,7 +367,7 @@ const SplitPreview = ({ course, projectId, currentSlideIndex, onSlideChange, onE
                   ) : null}
                   {element.type === 'quiz' && element.quizConfig && (
                     <div className="w-full h-full">
-                      <QuizPreviewPlayer quizConfig={element.quizConfig} projectId={projectId} />
+                      <NativeQuizPreview quizConfig={element.quizConfig} projectId={projectId} />
                     </div>
                   )}
                   {element.type === 'scenario' && element.scenarioData && (
