@@ -3510,7 +3510,19 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
     from services.ai_agent import apply_course_improvements
     from models import generate_id
 
-    result = await apply_course_improvements(session_id, project, data.improvements, data.selectedNewSlides)
+    preview_coverage = None
+    if is_visual_project(project) and not data.selectedNewSlides:
+        from services.improvement_preview import complete_preview
+        query={'projectId':project_id,'sourceFingerprint':fingerprint(project)}
+        if data.previewId:query['id']=data.previewId
+        previous=await db.improvement_previews.find_one(query,{'_id':0},sort=[('createdAt',-1)])
+        if data.previewId and not previous:
+            raise HTTPException(409,'A prévia mudou ou expirou. Nenhum recurso foi gerado novamente; revise a versão do curso.')
+        async def generate_one(item):
+            return await apply_course_improvements(str(uuid.uuid4()),project,[item],None)
+        result,preview_coverage=await complete_preview(project,data.improvements,(previous or {}).get('aiResult'),generate_one)
+    else:
+        result = await apply_course_improvements(session_id, project, data.improvements, data.selectedNewSlides)
 
     original_slides = project.get("course", {}).get("slides", [])
 
@@ -3576,11 +3588,16 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
     # New slides preview
     new_slide_previews = []
     for ns in result.get("newSlides", []):
+        html_parts=[e.get('htmlContent') or e.get('content','') for e in ns.get('elements',[]) if e.get('htmlContent') or e.get('content')]
+        if ns.get('type')=='scenario' and ns.get('scenarioConfig') and not html_parts:
+            import html as html_module
+            config=ns['scenarioConfig']
+            html_parts=['<h2>Roteiro do cenário</h2><p>'+html_module.escape(ns.get('title','Cenário'))+'</p><p>'+html_module.escape(str(config.get('theme','')))+'</p><pre style="white-space:pre-wrap">'+html_module.escape(str(config.get('objectives','')))+'</pre><p>A versão interativa completa é gerada somente se as mudanças forem aplicadas ao curso.</p>']
         new_slide_previews.append({
             "afterIndex": ns.get("afterIndex", 0),
             "title": ns.get("title", "Novo Slide"),
             "content": [_strip_html(e.get("htmlContent") or e.get("content", "")) for e in ns.get("elements", [])],
-            "html": [e.get("htmlContent") or e.get("content", "") for e in ns.get("elements", []) if e.get("htmlContent") or e.get("content")],
+            "html": html_parts,
         })
 
     # Cache the AI result for later apply
@@ -3589,6 +3606,8 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
         "id": preview_id,
         "projectId": project_id,
         "aiResult": result,
+        "coverage": preview_coverage,
+        "requestedImprovements": data.improvements,
         "sourceFingerprint": fingerprint(project) if is_visual_project(project) else None,
         "createdAt": datetime.now(timezone.utc).isoformat(),
     })
@@ -3599,6 +3618,7 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
         "newSlides": new_slide_previews,
         "updatedCount": len(comparisons),
         "newCount": len(new_slide_previews),
+        "coverage": preview_coverage,
     }
 
 
@@ -3631,10 +3651,14 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
     if data.previewId:
         preview = await db.improvement_previews.find_one(
             {"id": data.previewId, "projectId": project_id},
-            {"_id": 0, "id": 1},
+            {"_id": 0, "id": 1, "aiResult": 1, "coverage": 1},
         )
         if not preview:
             raise HTTPException(400, "Preview expired or not found. Please preview again.")
+        if is_visual_project(project) and not data.selectedNewSlides:
+            from services.improvement_preview import coverage
+            if not coverage(preview.get('aiResult') or {},data.improvements)['complete']:
+                raise HTTPException(400,'A prévia está incompleta. Complete os recursos ausentes antes de aplicar; o curso foi preservado.')
 
     # Idempotency: reuse an in-flight job if user clicks twice
     existing = await db.apply_jobs.find_one(

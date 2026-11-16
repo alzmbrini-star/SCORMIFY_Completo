@@ -4651,6 +4651,7 @@ async def apply_course_improvements(session_id: str, project: dict, selected_imp
         selected_rows = [r for r in slides_content if r['index'] in selected_indices]
         improvements_desc += '\nEVIDÊNCIAS DOS SLIDES SELECIONADOS: '+json.dumps(selected_rows,ensure_ascii=False)
         improvements_desc += '\nPara avaliação, crie newSlides com type quiz; não apenas texto com alternativas. Preserve os índices de origem em afterIndex.'
+        improvements_desc += '\nCONTRATO OBRIGATÓRIO: gere exatamente UM newSlide para CADA melhoria selecionada, com afterIndex igual ao slideIndex solicitado e type igual ao tipo solicitado. Nunca omita os últimos itens. Narração também exige um slide HTML com a transcrição e narrationScript, sem gerar áudio nesta fase. Cenário exige um newSlide type scenario e scenarioConfig. Não devolva apenas notas ou scripts sem newSlide. Retorne todos os itens ou sinalize falha.'
     avatar_scene_instructions = ""
     if has_avatar_scenes:
         avatar_scene_instructions = """

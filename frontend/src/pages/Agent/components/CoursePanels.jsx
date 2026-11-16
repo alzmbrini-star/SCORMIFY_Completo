@@ -27,6 +27,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui
 import { SlideTypeSwitcher, AvatarSceneMockup } from './AvatarSceneControls';
 import GammaVisualAnalysis, {GammaVisualLoading} from './GammaVisualAnalysis';
 import CourseResourceBalance from './CourseResourceBalance';
+import ImprovementHtmlPreview from './ImprovementHtmlPreview';
 
 const API = getApiUrl();
 
@@ -1191,47 +1192,14 @@ function StatusBadge({ label, status }) {
 }
 
 
-export function PreviewPanel({ preview, loading, applyProgress, onConfirm, onCancel, onSubmitForApproval, companies }) {
+export function PreviewPanel({ preview, loading, applyProgress, onConfirm, onCancel, onSubmitForApproval, companies, onComplete }) {
   const [activeTab, setActiveTab] = useState('changes');
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
 
   if (!preview) return null;
 
-  // Check if content looks like HTML/CSS code (not readable text)
-  const isHtmlContent = (text) => {
-    if (!text) return false;
-    return /(<[a-z][\s\S]*>|{[^}]*:[^}]*}|body\s*{|\.[\w-]+\s*{)/i.test(text);
-  };
-
-  // Render HTML visually in a sandboxed iframe
-  const HtmlVisualPreview = ({ htmlParts, label }) => {
-    const combined = (htmlParts || []).join('\n');
-    if (!combined) return <span className="text-slate-500 italic text-xs">Sem conteudo</span>;
-
-    const hasHtml = isHtmlContent(combined);
-
-    if (hasHtml) {
-      const srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:12px;font-family:'Segoe UI',Roboto,sans-serif;background:#1c1917;color:#fff;overflow:auto;font-size:13px;}</style></head><body>${combined}</body></html>`;
-      return (
-        <iframe
-          srcDoc={srcdoc}
-          sandbox="allow-same-origin"
-          className="w-full rounded-lg border border-slate-700 bg-slate-900"
-          style={{ height: 200, pointerEvents: 'none' }}
-          title={label}
-        />
-      );
-    }
-
-    // Fallback: plain text
-    return (
-      <p className="text-xs text-slate-300 whitespace-pre-line leading-relaxed">
-        {combined.substring(0, 500)}
-        {combined.length > 500 && '...'}
-      </p>
-    );
-  };
+  const HtmlVisualPreview = ImprovementHtmlPreview;
 
   const handleSubmitApproval = () => {
     if (selectedCompanyId && onSubmitForApproval) {
@@ -1259,6 +1227,7 @@ export function PreviewPanel({ preview, loading, applyProgress, onConfirm, onCan
         </div>
       </div>
 
+      {preview.coverage&&<div className="rounded-lg border border-cyan-800 p-3 text-sm text-cyan-100" role="status">{preview.coverage.ready} de {preview.coverage.expected} recursos prontos · {preview.coverage.reusedCount} reaproveitados · {preview.coverage.generatedCount} gerados agora. {preview.coverage.complete?'Prévia completa; nada foi aplicado ao curso.':'Prévia incompleta: confirme somente após completar os itens ausentes.'}{!preview.coverage.complete&&onComplete&&<Button onClick={onComplete} disabled={loading} className="ml-3">Completar prévia — somente ausentes</Button>}</div>}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-slate-800/50 w-full">
           <TabsTrigger value="changes" className="flex-1 text-xs">Slides Alterados ({preview.updatedCount})</TabsTrigger>
@@ -1391,7 +1360,7 @@ export function PreviewPanel({ preview, loading, applyProgress, onConfirm, onCan
       <div className="flex gap-3 pt-2">
         <Button
           onClick={onConfirm}
-          disabled={loading}
+          disabled={loading||preview.coverage?.complete===false}
           className="flex-1 bg-emerald-600 hover:bg-emerald-700"
           data-testid="confirm-improvements-btn"
         >
@@ -1401,7 +1370,7 @@ export function PreviewPanel({ preview, loading, applyProgress, onConfirm, onCan
         {onSubmitForApproval && (
           <Button
             onClick={() => setShowApprovalDialog(true)}
-            disabled={loading}
+            disabled={loading||preview.coverage?.complete===false}
             variant="outline"
             className="flex-1 border-amber-700 text-amber-300 hover:bg-amber-900/20"
             data-testid="submit-improvements-for-approval-btn"

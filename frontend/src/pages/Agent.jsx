@@ -1162,13 +1162,13 @@ export default function Agent() {
     try {
       const res = await fetch(`${API}/api/agent/courses/${selectedCourse.id}/preview-improvements`, {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ improvements: selectedImprovements, selectedNewSlides: selectedNewSlides.length > 0 ? selectedNewSlides : null }),
+        body: JSON.stringify({ improvements: selectedImprovements, selectedNewSlides: selectedNewSlides.length > 0 ? selectedNewSlides : null, previewId:previewData?.previewId||null }),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setPreviewData(data);
       setCurrentStep(2);
-      addChatMsg('agent', `Preview pronto! ${data.updatedCount} slides alterados, ${data.newCount} novos slides. Revise as mudanças antes de confirmar.`);
+      addChatMsg('agent', data.coverage&&!data.coverage.complete?`Prévia parcial: ${data.coverage.ready} de ${data.coverage.expected} recursos. Nada foi aplicado. Use Completar prévia para tentar somente os ausentes.`:`Preview pronto! ${data.updatedCount} slides alterados, ${data.newCount} novos slides. ${data.coverage?.reusedCount||0} recursos reaproveitados. Revise as mudanças antes de confirmar.`);
     } catch { toast.error('Erro ao gerar preview'); addChatMsg('agent', 'Erro ao gerar preview das melhorias.'); }
     finally { setLoading(false); }
   };
@@ -1485,7 +1485,7 @@ export default function Agent() {
               {/* EDIT MODE */}
               {mode === 'edit' && currentStep === 0 && <CourseListPanel courses={agentCourses} loading={loading} onSelect={handleSelectCourse} onRefresh={loadAgentCourses} onReopenWizard={handleReopenWizard} />}
               {mode === 'edit' && currentStep === 1 && <CourseReviewPanel course={selectedCourse} analysis={courseAnalysis} loading={loading} selectedImprovements={selectedImprovements} toggleImprovement={toggleImprovement} selectedNewSlides={selectedNewSlides} toggleNewSlide={toggleNewSlide} onApply={handleApplyImprovements} onTypeOverride={handleTypeOverride} onScriptOverride={handleScriptOverride} />}
-              {mode === 'edit' && currentStep === 2 && <PreviewPanel preview={previewData} loading={loading} applyProgress={applyProgress} onConfirm={handleConfirmImprovements} onCancel={handleCancelPreview} onSubmitForApproval={isSuperAdmin ? handleSubmitImprovementsForApproval : null} companies={companiesList} />}
+              {mode === 'edit' && currentStep === 2 && <PreviewPanel preview={previewData} loading={loading} applyProgress={applyProgress} onConfirm={handleConfirmImprovements} onCancel={handleCancelPreview} onSubmitForApproval={isSuperAdmin ? handleSubmitImprovementsForApproval : null} companies={companiesList} onComplete={handleApplyImprovements} />}
               {mode === 'edit' && currentStep === 3 && <EditResultPanel result={editResult} course={selectedCourse} navigate={navigate} onUndo={handleUndoImprovements} loading={loading} />}
             </div>
           </ScrollArea>
