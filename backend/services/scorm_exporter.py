@@ -294,14 +294,6 @@ IMS_MANIFEST_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8"?>
     </organizations>
     <resources>
         <resource identifier="resource1" type="webcontent" adlcp:scormtype="sco" href="{launch_href}">
-            <file href="index.html"/>
-            <file href="course.json"/>
-            <file href="scripts/scorm-api.js"/>
-            <file href="scripts/quiz-controller.js"/>
-            <file href="scripts/scenario-controller.js"/>
-            <file href="scripts/player.js"/>
-            <file href="scripts/tutor.js"/>
-            <file href="styles/tutor.css"/>
             {resource_files}
         </resource>
     </resources>
@@ -1090,21 +1082,17 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     with open(package_dir / "index.html", 'w', encoding='utf-8') as f:
         f.write(html_content)
     
-    # Generate resource files list for manifest
-    resource_files = []
-    
-    # Add assets
-    assets_dir = package_dir / "assets"
-    if assets_dir.exists():
-        for asset in assets_dir.iterdir():
-            resource_files.append(f'<file href="assets/{asset.name}"/>')
+    # Inventory actual files recursively, never directories. Include runtime
+    # dependencies too (e.g. gamification), rather than a fixed partial list.
+    from services.scorm_manifest import manifest_file_entries
+    resource_files = manifest_file_entries(package_dir)
     
     # Generate imsmanifest.xml
     manifest_content = IMS_MANIFEST_TEMPLATE.format(
         identifier=f"SCORM_{project.id}",
         title=clean_title,
         launch_href=f"index.html?v={export_token}",
-        resource_files='\n            '.join(resource_files)
+        resource_files=resource_files
     )
     if (course_data.get('metadata') or {}).get('guidedPath'):
         threshold=int(course_data['metadata']['guidedPath'].get('passingScore',80))
