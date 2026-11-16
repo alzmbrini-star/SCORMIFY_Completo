@@ -1458,7 +1458,8 @@ PARA TODOS OS SLIDES:
                 chat_id = f"{session_id}_story_b{batch_start}_r{retries}"
                 chat = (_new_simulator_chat(chat_id) if quality_type == "simulator"
                         else _new_chat(chat_id, provider=provider, model=model))
-                attempt_prompt = prompt
+                from services.resource_layouts import PROMPT as resource_layout_prompt
+                attempt_prompt = prompt + '\n\n' + resource_layout_prompt
                 if last_batch_error:
                     attempt_prompt += '\n\nCORRIJA A RESPOSTA ANTERIOR: ' + last_batch_error
                 if quality_checked and retries > 0:
@@ -1545,6 +1546,10 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                             if quality_type == "simulator"
                             else _rich_interactive_complexity_score(generated_html, quality_type)
                         )
+                        if quality_type == 'flashcard' and data['slides'][0].get('resourceLayout'):
+                            from services.resource_layouts import validate_layout
+                            validate_layout(data['slides'][0]['resourceLayout'])
+                            complexity = max(complexity, 8)
                         if complexity < 6:
                             logger.warning(
                                 "%s storyboard batch %s scored %s/10; regenerating with richer constraints",
@@ -2646,6 +2651,8 @@ def _wrap_interactive_fullbleed(html_content: str) -> str:
     """Inject the auto-fit snippet into interactive HTML (idempotent)."""
     from services.simulator_slide import upgrade_simulator_slide
     html_content = upgrade_simulator_slide(html_content)
+    if 'data-resource-layout="study-resources-v1"' in html_content:
+        return html_content
     if 'data-sim-engine="didactic-visualization-v1"' in html_content:return html_content
     if 'data-case-study-version="2"' in html_content or 'data-human-simulator-version="1"' in html_content or 'data-sim-engine="entity-planning-v1"' in html_content or 'data-sim-engine="finite-rules-v1"' in html_content:
         return html_content
@@ -2890,6 +2897,13 @@ def _repair_legacy_game_html(sb_slide: dict, html_content: str) -> str:
 
 def _interactive_html_is_functional(html_content: str, content_type: str = "") -> bool:
     """Reject empty LLM skeletons before they become blank course slides."""
+    if 'data-resource-layout="study-resources-v1"' in (html_content or ''):
+        from services.resource_layouts import validate_layout, render_layout
+        match = re.search(r'<script id="resource-layout-data" type="application/json">([\s\S]*?)</script>', html_content)
+        try:
+            return bool(match) and render_layout(validate_layout(json.loads(match.group(1)))) == html_content
+        except (ValueError, TypeError):
+            return False
     raw = (html_content or "").strip()
     lowered = raw.lower()
     if len(raw) < 500 or any(marker in lowered for marker in _INTERACTIVE_PLACEHOLDERS):
@@ -3375,6 +3389,11 @@ def _normalize_interactive_storyboard_slide(slide: dict) -> dict:
     activity so neither the storyboard nor the generated course is blank.
     """
     stype = str((slide or {}).get("type") or "")
+    if stype == 'flashcard' and slide.get('resourceLayout'):
+        from services.resource_layouts import prepare_resource_slide
+        prepared = prepare_resource_slide(slide)
+        slide.clear(); slide.update(prepared)
+        return slide
     if stype == 'game' and (slide.get('gamePlan') or {}).get('version') == 1:
         from services.storyboard_game_plan import game_plan_preview
         slide['elements'] = [{'type': 'html', 'interactiveType': 'game-plan',
@@ -3407,6 +3426,15 @@ def _normalize_interactive_storyboard_slide(slide: dict) -> dict:
         html_content = _repair_legacy_game_html(slide, html_content)
 
     slide["elements"] = [{"type": "html", "interactiveType": stype, "htmlContent": html_content}]
+    if stype == 'flashcard':
+        from services.resource_layouts import prepare_resource_slide
+        try:
+            prepared = prepare_resource_slide(slide)
+        except ValueError:
+            # Recover actual source text through the established safe deck.
+            slide['elements'] = [{'type':'html', 'htmlContent':_build_flashcard_fallback_html(slide)}]
+            prepared = prepare_resource_slide(slide)
+        slide.clear(); slide.update(prepared)
     return slide
 
 
@@ -4015,6 +4043,8 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 }]
         elif stype in ("infographic", "flashcard", "timeline", "case_study"):
             bg = palette.get("contentBg", "#ffffff")
+            if stype == 'flashcard':
+                _normalize_interactive_storyboard_slide(sb_slide)
             # These types use HTML+JS interactive content just like simulators
             html_content = ""
             for el in sb_slide.get("elements", []):
@@ -4060,7 +4090,8 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     "y": 0,
                     "width": 1920,
                     "height": 820,
-                    "htmlDisplayMode": "fit",
+                    "htmlDisplayMode": "page" if 'data-resource-layout="study-resources-v1"' in html_content else "fit",
+                    **({'resourceLayoutVersion':'study-resources-v1'} if 'data-resource-layout="study-resources-v1"' in html_content else {}),
                     "zIndex": 1,
                 }]
             else:
@@ -4842,6 +4873,8 @@ Retorne JSON com os slides a atualizar:
 }}
 ```"""
     
+    from services.resource_layouts import PROMPT as resource_layout_prompt
+    prompt += '\n\n' + resource_layout_prompt
     has_simulators = any(
         item.get("type") == "simulator"
         for item in [*selected_improvements, *(selected_new_slides or [])]
@@ -4897,6 +4930,9 @@ Retorne JSON com os slides a atualizar:
             )
             slide["type"] = "simulator"
             slide["elements"] = [{"type": "html", "htmlContent": generated["html"], "width": 960, "height": 540}]
+    from services.resource_layouts import prepare_resource_slide
+    for key in ('newSlides', 'updatedSlides'):
+        result[key] = [prepare_resource_slide(slide) for slide in result.get(key, [])]
     return result
 
 

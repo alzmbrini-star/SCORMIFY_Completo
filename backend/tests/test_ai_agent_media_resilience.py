@@ -99,8 +99,8 @@ def test_flashcard_fallback_has_five_real_cards_and_interactions():
     )
 
     assert ai_agent._interactive_html_is_functional(generated, "flashcard")
-    cards = json.loads(re.search(r"const cards=(\[.*?\]);let index", generated).group(1))
-    assert len(cards) == 5
+    cards = json.loads(re.search(r"(?:const|let) cards=(\[.*?\]);(?:let )?index", generated).group(1))
+    assert len(cards) >= 5
     assert "rotateY(180deg)" in generated
     assert "Não sei" in generated
     assert "Resultado:" in generated

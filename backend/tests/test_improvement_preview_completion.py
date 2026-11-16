@@ -14,6 +14,10 @@ def setup():
    row['elements'][0]['assessmentConfig']={'questions':[{'id':'q','prompt':'Preservar pergunta','correctAnswer':'A','media':{'url':'/api/projects/p/assets/saved.png'}}]}
    row['elements'][0]['agentAssessment']={'imagesEnabled':True}
   if item['type']=='scenario':row.update(elements=[],scenarioConfig={'theme':'Aplicação','objectives':'Planejar'})
+  if item['type'] in ('reinforcement','visual_summary','narration'):
+   from services.resource_layouts import prepare_resource_slide
+   row['resourceLayout']={'kind':'note' if item['type']=='narration' else 'flow' if item['type']=='visual_summary' else 'cards','title':row['title'],'items':[{'front':'Conceito','back':'Explicação didática completa.'}]}
+   row=prepare_resource_slide(row)
   return row
  return project,selected,slide
 

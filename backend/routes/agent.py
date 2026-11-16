@@ -3290,6 +3290,9 @@ def _build_improved_elements(ai_elements: list, generate_id_fn) -> list:
                     "startTime": 0,
                     "animations": [],
                 }
+                if elem.get('resourceLayoutVersion'):
+                    el['resourceLayoutVersion'] = elem['resourceLayoutVersion']
+                    el['htmlDisplayMode'] = 'page'
                 if isinstance(elem.get('assessmentConfig'),dict):
                     import copy
                     el['assessmentConfig'] = copy.deepcopy(elem['assessmentConfig'])
