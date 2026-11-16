@@ -3380,6 +3380,8 @@ def _apply_ai_result_to_slides(slides: list, result: dict, generate_id_fn, proje
             "librasScript": ns.get("librasScript", ""),
             "duration": ns.get('duration',120) if any(e.get('assessmentConfig') for e in new_elements) else 5.0,
         }
+        if is_visual_project(context):
+            new_slide['learningResource']={'sourceSlideId':slides[after_idx].get('id'),'type':ns.get('type','reinforcement'),'policy':'balanced-resources-v1'}
         # Attach scenario config for post-processing
         if is_scenario and ns.get("scenarioConfig"):
             new_slide["_scenarioConfig"] = ns["scenarioConfig"]
@@ -3403,6 +3405,15 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
     gamma = is_visual_project(project)
     cache_key = f"course_analysis_visual_{fingerprint(project)}" if gamma else f"course_analysis_{project_id}"
     cached = await db.analysis_cache.find_one({"key": cache_key}, {"_id": 0})
+    if request.query_params.get('cached_only')=='true':
+        if not gamma:
+            raise HTTPException(400,'Reequilíbrio disponível para análises visuais Gamma/PPT.')
+        reading = await db.course_visual_analysis.find_one({'projectId':project_id,'fingerprint':fingerprint(project)})
+        saved_result = reading.get('result') if reading else cached.get('result') if cached and cached.get('status')=='done' else None
+        if not saved_result:
+            raise HTTPException(409,'Não há análise salva para esta versão. Nenhuma leitura de IA foi iniciada; faça uma nova análise quando desejar.')
+        from services.course_resource_balance import balanced_result
+        return balanced_result(saved_result,project)
 
     # If currently processing, check if it's stuck (> 3 min old)
     if cached and cached.get("status") == "processing":
@@ -3423,6 +3434,9 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
     # If done, return result and clear cache for next time
     if cached and cached.get("status") == "done":
         result = cached["result"]
+        if gamma:
+            from services.course_resource_balance import balanced_result
+            result = balanced_result(result,project)
         await db.analysis_cache.delete_one({"key": cache_key})
         return result
 
@@ -3483,6 +3497,11 @@ async def agent_preview_improvements(project_id: str, data: AgentImprovementsApp
 
     from services.gamma_course_analysis import is_visual_project, fingerprint
     if is_visual_project(project):
+        from services.course_resource_balance import validate_selection
+        try:
+            validate_selection(project,data.improvements,data.selectedNewSlides)
+        except ValueError as e:
+            raise HTTPException(400,str(e))
         reading = await db.course_visual_analysis.find_one({'projectId':project_id,'fingerprint':fingerprint(project)})
         if not reading:
             raise HTTPException(409, 'Analise novamente os slides importados antes de preparar complementos; o curso foi preservado.')
@@ -3602,6 +3621,13 @@ async def agent_apply_improvements(project_id: str, data: AgentImprovementsApply
     project = await load_authorized_project(project_id, user)
 
     # Validate previewId now (so we fail-fast with 400 instead of running)
+    from services.gamma_course_analysis import is_visual_project
+    if is_visual_project(project):
+        from services.course_resource_balance import validate_selection
+        try:
+            validate_selection(project,data.improvements,data.selectedNewSlides)
+        except ValueError as e:
+            raise HTTPException(400,str(e))
     if data.previewId:
         preview = await db.improvement_previews.find_one(
             {"id": data.previewId, "projectId": project_id},

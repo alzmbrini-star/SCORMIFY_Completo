@@ -1049,19 +1049,20 @@ export default function Agent() {
     }
   };
 
-  const handleSelectCourse = (course) => {
-    setSelectedCourse(course);
+  const handleSelectCourse = (course, cachedOnly = false) => {
+    setSelectedCourse({...course,cachedReview:cachedOnly});
     addChatMsg('user', `Selecionei o curso: ${course.name}`);
     setCurrentStep(1);
-    handleAnalyzeCourse(course);
+    setCourseAnalysis(null);
+    handleAnalyzeCourse(course,cachedOnly);
   };
 
-  const handleAnalyzeCourse = async (course) => {
+  const handleAnalyzeCourse = async (course,cachedOnly = false) => {
     setLoading(true);
     addChatMsg('agent', `Analisando o curso "${course.name}"...`);
     try {
-      const res = await fetch(`${API}/api/agent/courses/${course.id}/analyze`, { method: 'POST', headers: authHeaders() });
-      if (!res.ok) throw new Error();
+      const res = await fetch(`${API}/api/agent/courses/${course.id}/analyze${cachedOnly?'?cached_only=true':''}`, { method: 'POST', headers: authHeaders() });
+      if (!res.ok) {const error=await res.json().catch(()=>({}));throw new Error(error.detail||'Erro ao analisar o curso');}
       const data = await res.json();
 
       // If result returned directly (not processing), use it
@@ -2119,6 +2120,7 @@ function CourseListPanel({ courses, loading, onSelect, onRefresh, onReopenWizard
                 {course.createdAt && (
                   <p className="text-[10px] text-slate-500">{new Date(course.createdAt).toLocaleDateString('pt-BR')}</p>
                 )}
+                {['gamma','ppt','imported'].includes(course.source)&&<Button size="sm" variant="outline" className="w-full h-8 text-xs text-emerald-300" disabled={loading} onClick={e=>{e.stopPropagation();onSelect(course,true);}} data-testid={`rebalance-analysis-${course.id}`}>Reequilibrar análise salva (sem IA)</Button>}
                 {course.source === 'agent' && onReopenWizard && (
                   <Button
                     size="sm"

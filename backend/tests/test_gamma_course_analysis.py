@@ -39,8 +39,9 @@ async def test_all_images_original_source_binding_progress_and_no_project_writes
     p=project(); before=copy.deepcopy(p);db=database();send=AsyncMock(return_value=response());progress=AsyncMock()
     result=await g.analyze(p,db,'unused',progress,send)
     assert result['visualAnalysis']['readSlides']==2 and result['visualAnalysis']['sourceAvailable']
-    assert [r['slideIndex'] for r in result['improvements']]==[0,1]
-    assert [r['sourceSlideId'] for r in result['improvements']]==['s1','s2']
+    assert [r['slideIndex'] for r in result['improvements']]==[0]
+    assert [r['sourceSlideId'] for r in result['improvements']]==['s1']
+    assert [r['slideIndex'] for r in result['visualAnalysis']['slides']]==[0,1]
     for call in send.call_args_list:
         assert 'Fonte original: critérios iniciais e finais.' in call.args[0]
         assert 'hasAssessment' in call.args[0]
@@ -92,7 +93,9 @@ async def test_long_source_is_considered_whole_before_visual_calls():
 @pytest.mark.asyncio
 async def test_unchanged_reading_cached_without_paid_reanalysis():
     db=database();value={'visualAnalysis':{'readSlides':2,'totalSlides':2},'cached':True};db.course_visual_analysis.find_one.return_value={'result':value}
-    send=AsyncMock();assert await g.analyze(project(),db,'unused',send=send)==value
+    send=AsyncMock();result=await g.analyze(project(),db,'unused',send=send)
+    assert result['cached'] and result['visualAnalysis']==value['visualAnalysis']
+    assert result['resourceBalance']['recommendedAdditions']==1
     send.assert_not_awaited();db.project_assets.find_one.assert_not_called()
 
 

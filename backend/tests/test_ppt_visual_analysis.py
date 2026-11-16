@@ -22,7 +22,8 @@ async def test_ppt_reads_full_background_and_combines_extracted_text_notes_and_i
  assert p==before
  assert result['visualAnalysis']['provider']=='PPT'
  assert result['visualAnalysis']['visualSlides']==1 and result['visualAnalysis']['textOnlySlides']==1
- assert [x['slideIndex'] for x in result['improvements']]==[0,1]
+ assert [x['slideIndex'] for x in result['improvements']]==[0]
+ assert len(result['visualAnalysis']['slides'])==2
  visual=next(call for call in send.call_args_list if call.args[1])
  for text in ['Aumentar distância na chuva.','Preserve notas originais','Questão já criada']:
   assert text in visual.args[0]

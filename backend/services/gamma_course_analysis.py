@@ -157,7 +157,8 @@ async def analyze(project, database, projects_dir, progress=None, send=ask):
     previous = (cached or {}).get('result') or {}
     status = previous.get('visualAnalysis') or {}
     if cached and status.get('readSlides') == status.get('totalSlides') and status.get('totalSlides') and not any(r.get('visualUnavailable') for r in status.get('slides',[])):
-        return cached['result']
+        from services.course_resource_balance import balanced_result
+        return balanced_result(cached['result'],project)
     old_rows = {r['slideId']:r for r in status.get('slides',[]) if r.get('status')=='read' and not r.get('visualUnavailable')}
     slides = project.get('course', {}).get('slides', [])
     ppt = is_ppt(project)
@@ -203,7 +204,8 @@ async def analyze(project, database, projects_dir, progress=None, send=ask):
                     if not ppt or not slide_context(slide):
                         raise
                     picture=None;mode='text'
-                raw = await send('Leia a imagem-base deste slide e sugira ATÉ 3 complementos didáticos específicos ao que ele ensina, não recomendações genéricas. '
+                raw = await send('Leia a imagem-base deste slide. Complementos são opcionais: sugira zero quando não houver ganho pedagógico, ou até três alternativas candidatas (não cumulativas) específicas ao que ele ensina. Uma seleção global enxuta escolherá aproximadamente um complemento a cada três slides explicativos. '
+                    'Capa, agenda, objetivos e carga horária são orientação, não temas para quiz. Evite avaliar memorização de horas, sumário ou instruções de navegação. Retorne pedagogicalRole: teaching, orientation ou assessment. '
                     'Separe conteúdo realmente visível de contexto apenas da fonte. Não invente texto ilegível, números ou critérios. '
                     'Não sugira remover ou substituir a imagem-base, nem conteúdo/interações existentes. Os complementos serão novos slides após este slide. '
                     'Tipos permitidos: quiz, scenario, simulator, visual_summary, reinforcement, narration. Quiz deve descrever o que avaliar e um exemplo ligado ao slide; reinforcement pode ser flashcards. '
@@ -217,6 +219,7 @@ async def analyze(project, database, projects_dir, progress=None, send=ask):
                 if not isinstance(raw,dict) or raw.get('readable') is not True:
                     raise ValueError('Texto não legível')
                 row = {'slideIndex':index,'slideId':slide['id'],'status':'read',
+                    'pedagogicalRole':raw.get('pedagogicalRole','teaching') if raw.get('pedagogicalRole') in ('teaching','orientation','assessment') else 'teaching',
                     'readingMode':mode,
                     'visualUnavailable':mode=='text' and bool(slide.get('backgroundImage') or any(e.get('type')=='image' and e.get('src') for e in slide.get('elements',[]))),
                     'visibleText':str(raw.get('visibleText') or '')[:4000], 'summary':str(raw.get('summary') or '')[:1500],
@@ -249,7 +252,8 @@ async def analyze(project, database, projects_dir, progress=None, send=ask):
     if good:
         await asyncio.to_thread(database.course_visual_analysis.update_one,
             {'projectId':project['id'],'fingerprint':key},{'$set':{'result':result}},upsert=True)
-    return result
+    from services.course_resource_balance import balanced_result
+    return balanced_result(result,project)
 
 
 def additive_result(result, project):
@@ -269,5 +273,7 @@ def additive_result(result, project):
     for addition in new:
         if not isinstance(addition,dict) or type(addition.get('afterIndex')) is not int or not 0 <= addition['afterIndex'] < len(existing):
             raise ValueError('Complemento sem vínculo válido ao slide de origem; nenhum slide foi alterado.')
+    from services.course_resource_balance import validate_additions
+    validate_additions(project,new)
     safe['updatedSlides'] = []
     return safe

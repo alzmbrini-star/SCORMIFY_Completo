@@ -4634,6 +4634,8 @@ async def apply_course_improvements(session_id: str, project: dict, selected_imp
     
     gamma_reading = project.get('_gammaAnalysis') or {}
     if gamma_reading:
+        from services.course_resource_balance import validate_selection
+        validate_selection(project,selected_improvements,selected_new_slides)
         evidence = {r['slideIndex']:r for r in gamma_reading.get('visualAnalysis',{}).get('slides',[]) if r.get('status')=='read'}
         for row in slides_content:
             read = evidence.get(row['index'])
@@ -4856,6 +4858,8 @@ Retorne JSON com os slides a atualizar:
     if gamma_reading:
         from services.gamma_course_analysis import additive_result
         result = additive_result(result, project)
+        if len(result.get('newSlides',[]))>len(selected_improvements)+len(selected_new_slides or []):
+            raise ValueError('A IA excedeu a quantidade de recursos selecionados. Nenhum slide foi aplicado.')
         from services.agent_assessments import generate_assessment, render_assessment
         async def ask_assessment(attempt, request):
             return _extract_json(await _resilient_send(f'gamma-improvement-{session_id}-{attempt}', SYSTEM_PROMPT, request))

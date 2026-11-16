@@ -26,6 +26,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui/tabs';
 import { SlideTypeSwitcher, AvatarSceneMockup } from './AvatarSceneControls';
 import GammaVisualAnalysis, {GammaVisualLoading} from './GammaVisualAnalysis';
+import CourseResourceBalance from './CourseResourceBalance';
 
 const API = getApiUrl();
 
@@ -515,7 +516,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
           <CardContent className="p-8 text-center">
             <Loader2 className="w-8 h-8 animate-spin text-blue-400 mx-auto mb-3" />
             <p className="text-sm text-slate-300">Analisando o curso com IA...</p>
-            {(course.visualAnalysisAvailable||['gamma','ppt','imported'].includes(course.source)||course.gammaJobId)&&<GammaVisualLoading provider={course.source==='gamma'||course.gammaJobId?'Gamma':'PPT'}/>}
+            {course.cachedReview?<p className="text-xs text-emerald-200 mt-3">Reequilibrando a análise salva, sem iniciar leitura de IA ou alterar o curso.</p>:(course.visualAnalysisAvailable||['gamma','ppt','imported'].includes(course.source)||course.gammaJobId)&&<GammaVisualLoading provider={course.source==='gamma'||course.gammaJobId?'Gamma':'PPT'}/>}
           </CardContent>
         </Card>
       )}
@@ -523,6 +524,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
       {analysis && (
         <div className="space-y-4">
           <GammaVisualAnalysis reading={analysis.visualAnalysis}/>
+          <CourseResourceBalance balance={analysis.resourceBalance}/>
           {/* Score Card */}
           <Card className="bg-slate-900/50 border-slate-800">
             <CardContent className="p-4">
