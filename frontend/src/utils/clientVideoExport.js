@@ -45,15 +45,25 @@ export async function embeddableImageUrl(apiUrl, src) {
     const api = new URL(apiUrl || window.location.origin, window.location.origin);
     const image = new URL(absolute, window.location.origin);
     const headers = {};
-    if (image.origin === api.origin && image.pathname.startsWith('/api/')) {
+    const publicAsset = /^\/api\/projects\/[^/]+\/assets\/[^/]+$/.test(image.pathname);
+    if (image.origin === api.origin && image.pathname.startsWith('/api/') && !publicAsset) {
       const token = localStorage.getItem('scormify_auth_token');
       if (token) headers.Authorization = `Bearer ${token}`;
     }
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
     let response;
-    try { response = await fetch(new Request(absolute, {credentials:'omit', mode:'cors', headers, signal:controller.signal})); }
-    finally { clearTimeout(timeout); }
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      try {
+        // A thumbnail may already have cached this URL as a no-cors image.
+        // Never reuse that response for the export's readable CORS request.
+        response = await fetch(new Request(absolute, {credentials:'omit', mode:'cors', cache:'no-store', headers, signal:controller.signal}));
+        break;
+      } catch (error) {
+        if (attempt === 1) throw error;
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } finally { clearTimeout(timeout); }
+    }
     if (!response.ok) throw new Error(`Imagem ${response.status}`);
     const blob = await response.blob();
     return await new Promise((resolve, reject) => {
