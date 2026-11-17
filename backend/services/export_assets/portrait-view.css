@@ -29,6 +29,33 @@
  .sp-visual-journey .sp-layout-cinematic-scene .sp-section-title{position:static!important}
  .sp-visual-journey .sp-layout-cinematic-scene .sp-image::after{display:none}
  .sp-section-body>*,.sp-html{min-width:0;overflow-wrap:anywhere}
+}
+@media(max-width:768px){
+ /* Reflow teaching text only. Never resize authored canvas overlays or the
+    controls inside an opaque interactive-app iframe. Inline desktop sizes
+    remain untouched outside this small-screen media query. */
+ .sp-section-body>.sp-reading-block,.sp-section-body>.sp-text{width:100%;max-width:100%;font-size:17px!important;line-height:1.6!important;word-break:normal!important;overflow-wrap:break-word!important}
+ .sp-section-body>.sp-text[data-reading-role="heading"]{font-size:clamp(26px,7vw,32px)!important;line-height:1.2!important}
+ .sp-section-body>.sp-reading-block :where(div,p,li,span,blockquote){font-size:17px!important;line-height:1.6!important;min-width:0;word-break:normal!important;overflow-wrap:break-word!important}
+ .sp-section-body>.sp-reading-block :where(h1,h2,h3,h4,h5,h6){word-break:normal!important;overflow-wrap:break-word!important;letter-spacing:normal!important;line-height:1.22!important}
+ .sp-section-body>.sp-reading-block h1{font-size:clamp(26px,7vw,32px)!important}
+ .sp-section-body>.sp-reading-block h2{font-size:clamp(23px,6vw,28px)!important}
+ .sp-section-body>.sp-reading-block :where(h3,h4,h5,h6){font-size:20px!important}
+ .sp-section-body>.sp-reading-block :where(strong,b,em,a){font-size:inherit!important}
+ .sp-section-body>.sp-reading-block [style*="grid-template-columns"]{grid-template-columns:minmax(0,1fr)!important;gap:12px!important}
+ .sp-section-body>.sp-reading-block :where([data-course-cover],[data-course-journey],[data-agent-copy-version]){height:auto!important;overflow:visible!important;padding:8px 0!important}
+ .sp-section-body>.sp-reading-block [data-course-cover]>p:first-child{font-size:12px!important;letter-spacing:.1em!important;margin-bottom:16px!important}
+ .sp-section-body>.sp-reading-block [data-course-cover]>h1{margin-bottom:18px!important}
+ .sp-section-body>.sp-reading-block [data-course-journey] ol{display:grid!important;grid-template-columns:minmax(0,1fr)!important;padding:0!important}
+ .sp-section-body>.sp-reading-block [data-course-journey] li{height:auto!important;min-height:0!important;padding:16px!important;gap:12px!important;align-items:flex-start!important}
+ .sp-section-body>.sp-reading-block [data-course-journey] li strong{flex:0 0 auto!important;white-space:nowrap!important;font-size:20px!important;line-height:1.35!important}
+ .sp-section-body>.sp-reading-block [data-course-journey] li span{flex:1 1 0%;min-width:0}
+ .sp-section-body>.sp-reading-label>div{height:auto!important;flex-wrap:wrap!important;gap:8px!important;align-items:center!important}
+ .sp-section-body>.sp-reading-label span{font-size:12px!important;line-height:1.5!important;letter-spacing:.08em!important}
+ .sp-section-body>.sp-reading-label span:first-of-type{flex:1 1 220px!important}
+ .sp-section-body>.sp-reading-label span:last-of-type:not(:first-of-type){flex-basis:100%!important;margin-left:0!important}
+}
+@media(max-width:768px) and (orientation:portrait){
  .sp-section:not(.sp-visual-section) .sp-html>iframe,.sp-simulator>iframe{width:100%!important;height:72dvh!important;min-height:440px!important;max-height:none!important}
  .sp-section-title{font-size:clamp(20px,6vw,28px)!important;line-height:1.25}
  .sp-quiz-options,.sp-quiz .options{grid-template-columns:1fr!important}

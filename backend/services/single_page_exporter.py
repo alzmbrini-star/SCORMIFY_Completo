@@ -460,7 +460,11 @@ def _render_text_element_inner(el: dict) -> str:
     content = el.get("content") or ""
     style = el.get("style") or {}
     style_attr = _style_dict_to_css(style)
-    return f'<div class="sp-text" style="{style_attr}">{_safe_text_html(content)}</div>'
+    size=style.get('fontSize',16)
+    try:large=float(str(size).removesuffix('px'))>=44
+    except (TypeError,ValueError):large=False
+    reading_role='heading' if large else 'body'
+    return f'<div class="sp-text" data-reading-role="{reading_role}" style="{style_attr}">{_safe_text_html(content)}</div>'
 
 
 def _render_image_element_inner(el: dict, project_id: str, assets_dir: str, base_url: str) -> str:
@@ -1220,19 +1224,22 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
             f'</div>'
         )
     is_interactive = bool(re.search(r"<button|<details|onclick=", raw, re.IGNORECASE))
+    # Flowing teaching fragments can reflow without touching apps/iframes or
+    # image-canvas overlays. Preserve desktop typography and authored handlers.
+    reading_class=' sp-reading-block'+(' sp-reading-label' if _looks_like_header_bar(raw) else '')
     # Inline branches (no iframe) — apply shadow as an inline style on the
     # wrapper div. This scopes the effect to just this HTML block, avoiding
     # any leak to sibling elements in the parent single-page document.
     inline_style = f' style="text-shadow:{shadow_value};"' if shadow_value else ''
     if is_interactive:
         return (
-            f'<div class="sp-html sp-interactive" data-interactive="html" data-required="true" '
+            f'<div class="sp-html sp-interactive{reading_class}" data-interactive="html" data-required="true" '
             f'onclick="window.SP&&SP.markClicked(this)"{inline_style}>'
             f'{raw}'
             f'<div class="sp-html-hint">👆 Clique aqui para liberar a próxima seção</div>'
             f'</div>'
         )
-    return f'<div class="sp-html"{inline_style}>{raw}</div>'
+    return f'<div class="sp-html{reading_class}"{inline_style}>{raw}</div>'
 
 
 def _render_quiz_element_inner(el: dict, slide_idx: int, el_idx: int, questions_lookup: Dict[str, dict]) -> str:
