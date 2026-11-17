@@ -27,6 +27,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from services.image_shadow import image_shadow_css
+from contextvars import ContextVar
+_PREVIEW_MEDIA=ContextVar('singlepage_preview_media',default=False)
 
 
 # --------------------------------------------------------------------------- helpers
@@ -68,6 +70,10 @@ def _resolve_asset_url(url: str, project_id: str, assets_dir: str, base_url: str
         return url
     if url.startswith("data:") or url.startswith("blob:"):
         return url
+    if _PREVIEW_MEDIA.get():
+        if url.startswith('assets/'):
+            return base_url.rstrip('/')+'/api/projects/'+project_id+'/'+url
+        return base_url.rstrip('/')+url if url.startswith('/') else url
     # Match Whiteboard renderer output (MP4 or APNG). These live in a
     # global storage dir, not the per-project assets dir.
     m_wb = re.match(r"^/api/whiteboard/file/([^/?#]+)$", url)
@@ -145,7 +151,9 @@ def _inline_assets_in_html(html_str: str, project_id: str, assets_dir: str, base
     if not html_str:
         return ""
     from services.assessment_assets import inline_assessment_assets
-    html_str = inline_assessment_assets(html_str, assets_dir)
+    html_str = inline_assessment_assets(html_str, assets_dir,inline_media=not _PREVIEW_MEDIA.get())
+    if _PREVIEW_MEDIA.get():
+        return re.sub(r'(?<![\w:/])(/api/(?:projects|companies|whiteboard)/[^\s\"\'<>\\)]+)',lambda m:base_url.rstrip('/')+m[1],html_str)
 
     def repl(match: re.Match) -> str:
         full = match.group(0)
@@ -1530,7 +1538,14 @@ def _render_simulator_element_inner(el: dict, project_id: str, assets_dir: str, 
 # --------------------------------------------------------------------------- main
 
 
-def generate_single_page_html(
+def generate_single_page_html(*args,preview_mode=False,**kwargs):
+    """Thread-local preview media policy; normal HTML/SCORM remain self-contained."""
+    token=_PREVIEW_MEDIA.set(preview_mode)
+    try:return _generate_single_page_html(*args,**kwargs)
+    finally:_PREVIEW_MEDIA.reset(token)
+
+
+def _generate_single_page_html(
     project_doc: dict,
     assets_dir: str,
     base_url: str = "",

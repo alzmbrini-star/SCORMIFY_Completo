@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 
-def inline_assessment_assets(document: str, assets_dir: str) -> str:
+def inline_assessment_assets(document: str, assets_dir: str, inline_media: bool = True) -> str:
     from services.video_quiz_playback import upgrade_video_quiz_playback
     document = upgrade_video_quiz_playback(document)
     # Repair existing snapshots as well as newly generated assessments.
@@ -29,6 +29,7 @@ def inline_assessment_assets(document: str, assets_dir: str) -> str:
             if not isinstance(value, dict):
                 return value
             result = {key: visit(item) for key, item in value.items()}
+            if not inline_media:return result
             source_key = 'src' if 'src' in result and 'checkpoints' in result else 'url'
             url = result.get(source_key)
             if not isinstance(url, str):

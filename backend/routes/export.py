@@ -781,9 +781,13 @@ async def _run_html_export_job(
     project_doc: dict,
     use_single_page: bool,
     external_url: str,
+    preview_mode: bool = False,
 ):
     """Heavy HTML standalone export work — runs as an asyncio task."""
     try:
+        if preview_mode:
+            from services.singlepage_preview_assets import prepare_preview_assets
+            project_doc=await asyncio.to_thread(prepare_preview_assets,project_doc,str(PROJECTS_DIR/project_id/'assets'),external_url)
         from services.heygem import prepare_for_export
         await prepare_for_export(project_doc,db,str(PROJECTS_DIR / project_id / 'assets'))
         export_warnings: list[dict] = []
@@ -970,6 +974,7 @@ async def _run_html_export_job(
                 questions=questions,
                 tutor_config=tutor_settings,
                 gamification_config=gamification_settings_html,
+                preview_mode=preview_mode,
             )
         else:
             await generate_standalone_html(
@@ -1155,7 +1160,7 @@ async def start_singlepage_preview(project_id:str,request:Request,user:dict=Depe
          'companyId':project.get('companyId'),'userId':user.get('user_id')}
     jobs[job_id]=job
     await create_job(job_id,job)
-    task=asyncio.create_task(_run_html_export_job(job_id,project_id,project,True,_get_external_url(request)))
+    task=asyncio.create_task(_run_html_export_job(job_id,project_id,project,True,_get_external_url(request),preview_mode=True))
     _active_export_tasks.add(task);task.add_done_callback(_active_export_tasks.discard)
     return {'jobId':job_id,'statusUrl':f'/api/job/{job_id}','mode':'single_page'}
 
