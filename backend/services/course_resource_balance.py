@@ -4,7 +4,7 @@ import math
 import re
 import unicodedata
 
-POLICY = 'balanced-resources-v1'
+POLICY = 'balanced-resources-v2'
 
 
 def plain(value):
@@ -30,7 +30,8 @@ def budget(project):
     target=math.ceil(teaching/3)
     return {'policy':POLICY,'explanatorySlides':teaching,'existingResourceSlides':resources,
             'recommendedTotal':target,'recommendedAdditions':max(0,target-resources),
-            'hardMaximumTotal':teaching,'remainingHardLimit':max(0,teaching-resources)}
+            'hardMaximumTotal':teaching,'remainingHardLimit':max(0,teaching-resources),
+            'suggestionLimit':target,'applicationLimit':min(target,max(0,teaching-resources))}
 
 
 def orientation(item,row,slide):
@@ -64,7 +65,9 @@ def balanced_result(result,project):
             continue
         seen.add(key);candidates.append(i)
     chosen=[];counts={};used=set()
-    limit=min(info['recommendedAdditions'],info['remainingHardLimit'])
+    # Advice remains visible even when the soft target or hard ceiling is met.
+    # Generation/application, not analysis, enforce the remaining allowance.
+    limit=info['suggestionLimit']
     while candidates and len(chosen)<limit:
         eligible=[i for i in candidates if i['slideIndex'] not in used]
         if not eligible:break
@@ -80,16 +83,16 @@ def balanced_result(result,project):
     candidate_count=max(len(seen),out.get('resourceBalance',{}).get('candidateCount',0))
     info.update(selectedSuggestions=len(chosen),candidateCount=candidate_count,omittedCandidates=max(0,candidate_count-len(chosen)))
     out['resourceBalance']=info
-    for row in rows.values():
-        row['improvements']=[i for i in out['improvements'] if i['slideIndex']==row.get('slideIndex')]
+    # Preserve the complete paid per-slide evidence/candidates for cache reuse.
+    # Only the top-level shortlist is filtered; no authored course data is touched.
     return out
 
 
 def validate_selection(project,improvements,new_slides=None):
     count=len(improvements or [])+len(new_slides or [])
     info=budget(project)
-    if count>min(info['recommendedAdditions'],info['remainingHardLimit']):
-        raise ValueError(f"Equilíbrio didático: selecione no máximo {info['recommendedAdditions']} novos complementos para {info['explanatorySlides']} slides explicativos. O curso foi preservado.")
+    if count>info['applicationLimit']:
+        raise ValueError(f"Equilíbrio didático: selecione no máximo {info['applicationLimit']} novos complementos neste lote. Há {info['existingResourceSlides']} recursos e o teto total é {info['hardMaximumTotal']}. O curso foi preservado.")
     if any(not isinstance(i,dict) for i in improvements or []):
         raise ValueError('Seleção de recursos inválida.')
     indices=[i.get('slideIndex') for i in improvements or []]
@@ -102,7 +105,7 @@ def validate_selection(project,improvements,new_slides=None):
 
 def validate_additions(project,additions):
     info=budget(project)
-    if len(additions)>min(info['recommendedAdditions'],info['remainingHardLimit']):
+    if len(additions)>info['applicationLimit']:
         raise ValueError('A geração excedeu o limite de complementos do curso. Nenhum novo slide foi aplicado; selecione menos recursos.')
     indices=[a['afterIndex'] for a in additions]
     if len(indices)!=len(set(indices)):

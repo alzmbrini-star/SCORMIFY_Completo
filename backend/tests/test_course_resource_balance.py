@@ -22,18 +22,22 @@ def test_51_candidates_for_19_teaching_slides_become_at_most_seven_distributed_d
  assert p==before and len(raw['improvements'])==51
  assert balanced_result(result,p)==result
 
-def test_existing_resources_are_deducted_and_never_counted_as_more_teaching():
+def test_existing_resources_reduce_soft_target_not_visible_suggestions():
  p=course();p['course']['slides'] += [{'id':f'r{i}','learningResource':{'type':'quiz'},'elements':[]} for i in range(6)]
  assert budget(p)['recommendedAdditions']==1
- assert len(balanced_result(ideas(),p)['improvements'])==1
+ assert len(balanced_result(ideas(),p)['improvements'])==7
  p['course']['slides'].append({'id':'last','learningResource':{'type':'scenario'}})
  assert budget(p)['recommendedAdditions']==0
- assert balanced_result(ideas(),p)['improvements']==[]
+ assert len(balanced_result(ideas(),p)['improvements'])==7
+ assert budget(p)['applicationLimit']==7
+ validate_selection(p,balanced_result(ideas(),p)['improvements'])
 
 def test_legacy_unmarked_gamma_additions_do_not_inflate_the_budget():
  p=course();p['course']['slides'] += [{'id':f'old{i}','elements':[]} for i in range(51)]
  assert budget(p)['explanatorySlides']==19 and budget(p)['existingResourceSlides']==51
- assert balanced_result(ideas(),p)['improvements']==[]
+ assert len(balanced_result(ideas(),p)['improvements'])==7
+ assert budget(p)['applicationLimit']==0
+ with pytest.raises(ValueError):validate_selection(p,balanced_result(ideas(),p)['improvements'])
 
 def test_orientation_and_admin_hour_quizzes_are_not_prioritized():
  p=course();raw=ideas();raw['improvements'][0]['description']='Quantas horas de projeto integrador?'
@@ -60,6 +64,32 @@ def test_duplicates_from_model_are_refused_and_tutor_documents_budget():
  from services.creator_guide import GUIDE
  text=' '.join(next(e for e in GUIDE if e['id']=='course-resource-balance')['steps'])
  assert '19' in text and '7' in text and 'não são slides salvos' in text
+
+
+@pytest.mark.parametrize('existing,allowed',[(0,7),(7,7),(17,2),(18,1),(19,0),(22,0)])
+def test_application_is_bounded_by_batch_and_hard_total_without_mutation(existing,allowed):
+ p=course();p['course']['slides'] += [{'id':f'r{i}','learningResource':{'type':'quiz'},
+   'elements':[{'quizConfig':{'questionIds':['q'],'passingScore':70},'assessmentConfig':{'questions':[{'media':{'url':'original.png'}}]}}],
+   'notes':'Keep'} for i in range(existing)]
+ p['course']['questions']=[{'id':'q','text':'Original','points':3}]
+ before=copy.deepcopy(p);out=balanced_result(ideas(),p)
+ assert len(out['improvements'])==7 and out['resourceBalance']['applicationLimit']==allowed
+ validate_selection(p,out['improvements'][:allowed])
+ validate_additions(p,[{'afterIndex':i} for i in range(allowed)])
+ with pytest.raises(ValueError):validate_selection(p,[{'slideIndex':i} for i in range(allowed+1)])
+ with pytest.raises(ValueError):validate_additions(p,[{'afterIndex':i} for i in range(allowed+1)])
+ assert p==before
+
+
+def test_rebalance_keeps_all_paid_row_candidates_and_evidence_without_rebilling():
+ p=course();p['course']['slides'] += [{'id':f'r{i}','learningResource':{'type':'quiz'}} for i in range(7)]
+ raw=ideas();raw['improvements']=[]
+ raw['visualAnalysis']['slides']=[{'slideIndex':i,'slideId':str(i),'status':'read',
+   'visibleText':f'Original {i}','summary':'Evidência','improvements':ideas()['improvements'][i*3:i*3+3]} for i in range(19)]
+ before=copy.deepcopy(raw);out=balanced_result(raw,p)
+ assert len(out['improvements'])==7
+ assert out['visualAnalysis']==before['visualAnalysis'] and raw==before
+ assert balanced_result(out,p)==out
 
 
 def cached_route():
@@ -90,6 +120,21 @@ async def test_cached_only_endpoint_rebalances_without_ai_or_course_writes():
   paid.assert_not_awaited()
  assert len(result['improvements'])==7
  scope['load_authorized_project'].assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_cached_only_26_slide_course_recovers_advice_without_paid_reads_or_edits():
+ from unittest.mock import patch,AsyncMock
+ scope,request=cached_route()
+ p=scope['load_authorized_project'].return_value
+ p['course']['slides'] += [{'id':f'r{i}','learningResource':{'type':'quiz'},'notes':'Original'} for i in range(7)]
+ before=copy.deepcopy(p)
+ with patch('services.gamma_course_analysis.analyze',new_callable=AsyncMock) as paid:
+  result=await scope['agent_analyze_course']('p',request,{'user_id':'author'})
+  paid.assert_not_awaited()
+ assert len(result['improvements'])==7 and result['resourceBalance']['applicationLimit']==7
+ assert result['resourceBalance']['recommendedAdditions']==0
+ assert p==before and len(p['course']['slides'])==26
 
 
 @pytest.mark.asyncio

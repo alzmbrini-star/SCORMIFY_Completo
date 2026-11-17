@@ -503,6 +503,9 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
   };
 
   if (!course) return null;
+  const selectedResourceCount = selectedImprovements.length + selectedNewSlides.length;
+  const applicationLimit = analysis?.resourceBalance?.applicationLimit;
+  const overResourceLimit = applicationLimit != null && selectedResourceCount > applicationLimit;
   const priorityColors = { alta: 'text-red-400 border-red-800/40', media: 'text-amber-400 border-amber-800/40', baixa: 'text-blue-400 border-blue-800/40' };
   const typeLabels = { content: 'Conteúdo', structure: 'Estrutura', quiz: 'Quiz tradicional', interactive_assessment:'Avaliação interativa com imagens', narration: 'Narração', visual: 'Visual', simulator: 'Simulador', avatar_scene: 'Cena com Avatar', scenario: 'Cenário Interativo', visual_summary: 'Resumo Visual', reinforcement: 'Reforço', imagem_simples: 'Imagem (econômica)', imagem_premium: 'Imagem Premium', imagem_krea: 'Imagem Krea AI' };
   const typeIcons = { content: Type, structure: Layers, quiz: Target, interactive_assessment:ImagePlus, narration: Volume2, visual: Palette, simulator: Code, avatar_scene: Video, scenario: Monitor, visual_summary: BarChart3, reinforcement: Lightbulb, imagem_simples: Image, imagem_premium: ImagePlus, imagem_krea: Sparkles };
@@ -1051,9 +1054,10 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
           )}
 
           {/* Apply button */}
+          {overResourceLimit && <p role="alert" className="text-sm text-amber-200">Você selecionou {selectedResourceCount} itens. Selecione no máximo {applicationLimit} novos complementos neste lote; os recursos existentes serão preservados.</p>}
           <Button
             onClick={onApply}
-            disabled={loading || (selectedImprovements.length === 0 && selectedNewSlides.length === 0)}
+            disabled={loading || overResourceLimit || selectedResourceCount === 0}
             className="w-full bg-blue-600 hover:bg-blue-700"
             data-testid="apply-improvements-btn"
           >
