@@ -1282,7 +1282,12 @@ def _render_quiz_element_inner(el: dict, slide_idx: int, el_idx: int, questions_
 
 def _render_scenario_element_inner(el: dict, slide_idx: int, el_idx: int, project_id='', assets_dir='', base_url='') -> str:
     from services.scenario_assets import map_scenario_images, resolve_scenario_image
-    sd = map_scenario_images(el.get('scenarioData'), lambda url: resolve_scenario_image(url, assets_dir, base_url))
+    # Branching scenarios often reuse one photograph at many decision nodes.
+    # Preview must retain references here too, not duplicate multi-MB payloads
+    # into both serialized state and attribute-escaped HTML at every node.
+    sd = map_scenario_images(el.get('scenarioData'), lambda url:
+        _resolve_asset_url(url,project_id,assets_dir,base_url) if _PREVIEW_MEDIA.get()
+        else resolve_scenario_image(url, assets_dir, base_url))
     title = _esc(sd.get("title", "Cenário interativo"))
     desc = _esc(sd.get("description", ""))
     context = _esc(sd.get("context", ""))

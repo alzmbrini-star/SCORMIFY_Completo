@@ -34,3 +34,15 @@ def test_large_preview_payload_becomes_small_before_rendering(tmp_path):
     assert len(json.dumps(snapshot))<1500
     output=generate_single_page_html(snapshot,str(tmp_path),'https://app.invalid',preview_mode=True)
     assert len(output)<500000
+
+def test_preview_scenario_reuses_references_instead_of_embedding_every_node(tmp_path,monkeypatch):
+    def forbidden(*args,**kwargs):raise AssertionError('Preview must not embed scenario media')
+    monkeypatch.setattr('services.scenario_assets.resolve_scenario_image',forbidden)
+    url='/api/projects/p/assets/scene.png'
+    scenario={'title':'Decisão','imageUrl':url,'start_node_id':'n0','nodes':[{'id':'n'+str(i),'imageUrl':url,'narrative':'Conteúdo '+str(i),'choices':[]} for i in range(20)]}
+    project={'id':'p','name':'Scenario','course':{'slides':[{'id':'s','title':'Prática','elements':[{'id':'decision','type':'scenario','scenarioData':scenario}]}]}}
+    before=copy.deepcopy(project)
+    output=generate_single_page_html(project,str(tmp_path),'https://app.invalid',preview_mode=True)
+    assert project==before and 'https://app.invalid/api/projects/p/assets/scene.png' in output
+    assert 'Conteúdo 19' in output and 'Iniciar Cenário Interativo' in output
+    assert len(output)<500000
