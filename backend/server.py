@@ -328,15 +328,17 @@ async def _run_migrate_urls():
     try:
         migrated_count = 0
         # Use projection to avoid loading full course data into memory
-        projects = await db.projects.find(
+        projects = db.projects.find(
             {},
             {"_id": 0, "id": 1, "course.slides.elements.type": 1, "course.slides.elements.htmlContent": 1, "course.slides.elements.src": 1, "course.slides.backgroundImage": 1}
-        ).to_list(1000)
-        for project in projects:
-            updated = False
+        ).batch_size(1)
+        async for project in projects:
+            updates = {}
+            guard = {'id': project['id']}
             course = project.get('course', {})
-            for slide in course.get('slides', []):
-                for element in slide.get('elements', []):
+            for slide_index,slide in enumerate(course.get('slides', [])):
+                for element_index,element in enumerate(slide.get('elements', [])):
+                    field=f'course.slides.{slide_index}.elements.{element_index}'
                     if element.get('type') == 'html' and element.get('htmlContent'):
                         html = element['htmlContent']
                         if not isinstance(html, str):
@@ -344,25 +346,27 @@ async def _run_migrate_urls():
                         new_html = re.sub(r'https?://[^/\s"\']+/api/assets/', '/api/assets/', html)
                         new_html = re.sub(r'https?://[^/\s"\']+/api/projects/', '/api/projects/', new_html)
                         if new_html != html:
-                            element['htmlContent'] = new_html
-                            updated = True
+                            updates[field+'.htmlContent'] = new_html
+                            guard[field+'.htmlContent'] = html
                             migrated_count += 1
                     src = element.get('src', '')
                     if src and src.startswith('http') and '/api/' in src:
                         new_src = re.sub(r'https?://[^/\s"\']+(/api/.*)', r'\1', src)
                         if new_src != src:
-                            element['src'] = new_src
-                            updated = True
+                            updates[field+'.src'] = new_src
+                            guard[field+'.src'] = src
                             migrated_count += 1
                 bg = slide.get('backgroundImage', '')
                 if bg and bg.startswith('http') and '/api/' in bg:
                     new_bg = re.sub(r'https?://[^/\s"\']+(/api/.*)', r'\1', bg)
                     if new_bg != bg:
-                        slide['backgroundImage'] = new_bg
-                        updated = True
+                        updates[f'course.slides.{slide_index}.backgroundImage'] = new_bg
+                        guard[f'course.slides.{slide_index}.backgroundImage'] = bg
                         migrated_count += 1
-            if updated:
-                await db.projects.update_one({'id': project['id']}, {'$set': {'course': course}})
+            if updates:
+                # This projection deliberately omits questions, notes, layout,
+                # and metadata. Never replace a course with that partial view.
+                await db.projects.update_one(guard, {'$set': updates})
         if migrated_count > 0:
             logger.info(f"Startup URL migration: fixed {migrated_count} absolute URLs to relative")
         else:
