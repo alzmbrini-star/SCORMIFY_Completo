@@ -3505,6 +3505,7 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
 
 def _preview_new_slides(result):
     import html
+    from services.preview_editing import editor_data
     output=[]
     for s in result.get('newSlides',[]):
         parts=[e.get('htmlContent') or e.get('content','') for e in s.get('elements',[]) if e.get('htmlContent') or e.get('content')]
@@ -3513,7 +3514,7 @@ def _preview_new_slides(result):
             parts=['<h2>Roteiro do cenário</h2><p>'+html.escape(str(cfg.get('theme','')))+'</p><pre>'+html.escape(str(cfg.get('objectives','')))+'</pre><p>A versão interativa completa é gerada somente após aplicação.</p>']
         native=next((e.get('quizConfig') for e in s.get('elements',[]) if e.get('type')=='quiz'),None)
         output.append({'afterIndex':s['afterIndex'],'title':s.get('title','Recurso'),'type':s.get('type'),
-                       'html':parts,'content':[], 'nativeQuiz':{'config':native,'questions':s.get('nativeQuizQuestions',[])} if native else None})
+                       'html':parts,'content':[], 'editor':editor_data(s), 'nativeQuiz':{'config':native,'questions':s.get('nativeQuizQuestions',[])} if native else None})
     return output
 
 
@@ -3528,6 +3529,35 @@ async def agent_preview_status(project_id:str,preview_id:str,user:dict=Depends(r
         saved['imageStatus']='failed'
     return {'previewId':preview_id,'comparisons':[],'updatedCount':0,'newCount':len(saved['aiResult'].get('newSlides',[])),
             'newSlides':_preview_new_slides(saved['aiResult']),'coverage':saved.get('coverage'),'imageStatus':saved.get('imageStatus')}
+
+
+class PreviewTextEdit(BaseModel):
+    afterIndex: int
+    type: str
+    revision: str
+    questionId: Optional[str] = None
+    changes: dict
+
+
+@router.patch('/agent/courses/{project_id}/previews/{preview_id}/text')
+async def agent_edit_preview_text(project_id:str,preview_id:str,data:PreviewTextEdit,user:dict=Depends(require_auth)):
+    project=await load_authorized_project(project_id,user)
+    from services.gamma_course_analysis import fingerprint
+    from services.preview_editing import edit_result
+    scope={'id':preview_id,'projectId':project_id,'sourceFingerprint':fingerprint(project)}
+    saved=await db.improvement_previews.find_one(scope,{'_id':0})
+    if not saved:raise HTTPException(409,'A prévia expirou ou o curso mudou. Nenhum conteúdo foi alterado.')
+    if saved.get('imageStatus')=='processing':raise HTTPException(409,'Aguarde a geração das imagens antes de editar a prévia.')
+    try:
+        result=edit_result(saved['aiResult'],data.afterIndex,data.type,data.revision,data.changes,data.questionId)
+    except LookupError as exc:raise HTTPException(409,str(exc))
+    except ValueError as exc:raise HTTPException(400,str(exc))
+    # Compare-and-swap prevents concurrent editors or image workers losing data.
+    updated=await db.improvement_previews.update_one({**scope,'aiResult':saved['aiResult'],'imageStatus':{'$ne':'processing'}},
+        {'$set':{'aiResult':result,'textEditedAt':datetime.now(timezone.utc).isoformat()}})
+    if not updated.matched_count:raise HTTPException(409,'A prévia foi atualizada por outra operação. Reabra antes de salvar.')
+    return {'previewId':preview_id,'comparisons':[],'updatedCount':0,'newCount':len(result.get('newSlides',[])),
+            'newSlides':_preview_new_slides(result),'coverage':saved.get('coverage'),'imageStatus':saved.get('imageStatus')}
 
 
 @router.post("/agent/courses/{project_id}/preview-improvements")

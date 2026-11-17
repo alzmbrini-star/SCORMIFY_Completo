@@ -28,6 +28,7 @@ import { SlideTypeSwitcher, AvatarSceneMockup } from './AvatarSceneControls';
 import GammaVisualAnalysis, {GammaVisualLoading} from './GammaVisualAnalysis';
 import CourseResourceBalance from './CourseResourceBalance';
 import ImprovementHtmlPreview from './ImprovementHtmlPreview';
+import PreviewTextEditor from './PreviewTextEditor';
 import QuizPlayer from '../../../components/quiz/QuizPlayer';
 
 const API = getApiUrl();
@@ -1199,10 +1200,11 @@ function StatusBadge({ label, status }) {
 }
 
 
-export function PreviewPanel({ preview, loading, applyProgress, onConfirm, onCancel, onSubmitForApproval, companies, onComplete }) {
+export function PreviewPanel({ preview, loading, applyProgress, onConfirm, onCancel, onSubmitForApproval, companies, onComplete, onEditText }) {
   const [activeTab, setActiveTab] = useState('changes');
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  const [editingResource,setEditingResource]=useState(null);
 
   if (!preview) return null;
 
@@ -1323,6 +1325,8 @@ export function PreviewPanel({ preview, loading, applyProgress, onConfirm, onCan
                       <span className="text-xs text-slate-500">Apos slide {ns.afterIndex + 1}</span>
                     </div>
                     <p className="text-sm font-medium text-slate-200 mb-2">{ns.title}</p>
+                    {ns.editor&&onEditText&&<Button type="button" variant="outline" className="mb-3" disabled={loading||preview.imageStatus==='processing'||(editingResource!==null&&editingResource!==i)} onClick={()=>setEditingResource(i)}>Editar textos da prévia</Button>}
+                    {editingResource===i&&<PreviewTextEditor key={ns.editor.revision} slide={ns} onCancel={()=>setEditingResource(null)} onSave={async data=>{await onEditText(data);setEditingResource(null);}}/>}
                     {ns.type&&<p className="text-xs text-teal-300 mb-2">{ns.type==='quiz'?'Quiz tradicional — player original':ns.type==='interactive_assessment'?'Avaliação interativa com imagens':''}</p>}
                     {ns.nativeQuiz?<div className="h-[560px] overflow-auto"><QuizPlayer quizConfig={ns.nativeQuiz.config} questions={ns.nativeQuiz.questions} onComplete={()=>{}} embedded/></div>:hasHtml ? (
                       <HtmlVisualPreview htmlParts={ns.html} label={`Novo Slide - ${ns.title}`} />
@@ -1369,7 +1373,7 @@ export function PreviewPanel({ preview, loading, applyProgress, onConfirm, onCan
       <div className="flex gap-3 pt-2">
         <Button
           onClick={onConfirm}
-          disabled={loading||preview.coverage?.complete===false}
+          disabled={loading||editingResource!==null||preview.coverage?.complete===false}
           className="flex-1 bg-emerald-600 hover:bg-emerald-700"
           data-testid="confirm-improvements-btn"
         >
@@ -1379,7 +1383,7 @@ export function PreviewPanel({ preview, loading, applyProgress, onConfirm, onCan
         {onSubmitForApproval && (
           <Button
             onClick={() => setShowApprovalDialog(true)}
-            disabled={loading||preview.coverage?.complete===false}
+            disabled={loading||editingResource!==null||preview.coverage?.complete===false}
             variant="outline"
             className="flex-1 border-amber-700 text-amber-300 hover:bg-amber-900/20"
             data-testid="submit-improvements-for-approval-btn"

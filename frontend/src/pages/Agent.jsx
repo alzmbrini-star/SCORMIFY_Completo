@@ -1185,6 +1185,14 @@ export default function Agent() {
     finally { setLoading(false); }
   };
 
+  const handleEditPreviewText = async data => {
+    const response=await fetch(`${API}/api/agent/courses/${selectedCourse.id}/previews/${previewData.previewId}/text`,{
+      method:'PATCH',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify(data)});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(typeof result.detail==='string'?result.detail:'Não foi possível salvar os textos na prévia.');
+    setPreviewData(result);toast.success('Textos salvos somente na prévia. Curso preservado.');
+  };
+
   const handleConfirmImprovements = async () => {
     if (!previewData?.previewId) return;
     setLoading(true);
@@ -1497,7 +1505,7 @@ export default function Agent() {
               {/* EDIT MODE */}
               {mode === 'edit' && currentStep === 0 && <CourseListPanel courses={agentCourses} loading={loading} onSelect={handleSelectCourse} onRefresh={loadAgentCourses} onReopenWizard={handleReopenWizard} />}
               {mode === 'edit' && currentStep === 1 && <CourseReviewPanel course={selectedCourse} analysis={courseAnalysis} loading={loading} selectedImprovements={selectedImprovements} toggleImprovement={toggleImprovement} selectedNewSlides={selectedNewSlides} toggleNewSlide={toggleNewSlide} onApply={handleApplyImprovements} onTypeOverride={handleTypeOverride} onScriptOverride={handleScriptOverride} />}
-              {mode === 'edit' && currentStep === 2 && <PreviewPanel preview={previewData} loading={loading} applyProgress={applyProgress} onConfirm={handleConfirmImprovements} onCancel={handleCancelPreview} onSubmitForApproval={isSuperAdmin ? handleSubmitImprovementsForApproval : null} companies={companiesList} onComplete={handleApplyImprovements} />}
+              {mode === 'edit' && currentStep === 2 && <PreviewPanel preview={previewData} loading={loading} applyProgress={applyProgress} onConfirm={handleConfirmImprovements} onCancel={handleCancelPreview} onSubmitForApproval={isSuperAdmin ? handleSubmitImprovementsForApproval : null} companies={companiesList} onComplete={handleApplyImprovements} onEditText={handleEditPreviewText} />}
               {mode === 'edit' && currentStep === 3 && <EditResultPanel result={editResult} course={selectedCourse} navigate={navigate} onUndo={handleUndoImprovements} loading={loading} />}
             </div>
           </ScrollArea>
