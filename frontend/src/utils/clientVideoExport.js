@@ -6,30 +6,7 @@
  */
 import html2canvas from 'html2canvas';
 import DOMPurify from 'dompurify';
-
-function pickMimeType() {
-  if (typeof MediaRecorder === 'undefined') {
-    throw new Error('Este navegador não oferece suporte à gravação de vídeo. Use uma versão atual do Chrome ou Edge.');
-  }
-  const candidates = [
-    // Canvas capture is consistently implemented for WebM in Chrome/Edge.
-    // Some Chromium builds claim MP4/H.264 support but produce an audio-only
-    // file when the video track comes from canvas.captureStream().
-    // VP8 must come before VP9: Chromium can advertise VP9+Opus support and
-    // still abort at runtime with "Error muxing video data" when a live
-    // canvas track is combined with WebAudio narration.
-    { mime: 'video/webm;codecs=vp8,opus', ext: 'webm' },
-    { mime: 'video/webm;codecs=vp9,opus', ext: 'webm' },
-    { mime: 'video/webm', ext: 'webm' },
-    { mime: 'video/mp4;codecs=avc1,mp4a.40.2', ext: 'mp4' },
-    { mime: 'video/mp4;codecs=avc1', ext: 'mp4' },
-    { mime: 'video/mp4', ext: 'mp4' },
-  ];
-  for (const c of candidates) {
-    if (MediaRecorder.isTypeSupported(c.mime)) return c;
-  }
-  return { mime: 'video/webm', ext: 'webm' };
-}
+import { recordCanvasVideo, validateVideoBlob } from './canvasVideoRecorder';
 
 function absoluteMediaUrl(apiUrl, src) {
   if (!src) return '';
@@ -54,7 +31,7 @@ function playableVideoUrl(apiUrl, src) {
   return `${(apiUrl || '').replace(/\/+$/, '')}/api/proxy-video?url=${encodeURIComponent(absolute)}`;
 }
 
-async function embeddableImageUrl(apiUrl, src) {
+export async function embeddableImageUrl(apiUrl, src) {
   const absolute = absoluteMediaUrl(apiUrl, src);
   if (!absolute || /^(data:|blob:)/i.test(absolute)) return absolute;
   try {
@@ -62,7 +39,21 @@ async function embeddableImageUrl(apiUrl, src) {
     // origin, while the editor runs on the static-app origin. Turning the
     // response into a data URL prevents html2canvas from discarding the image
     // because of canvas tainting/CORS redirects.
-    const response = await fetch(absolute, { credentials: 'include' });
+    // Assets use bearer authentication when needed, not cross-site cookies.
+    // A Request also avoids the legacy global interceptor sending API tokens
+    // to an unrelated external image whose path happens to contain /api/.
+    const api = new URL(apiUrl || window.location.origin, window.location.origin);
+    const image = new URL(absolute, window.location.origin);
+    const headers = {};
+    if (image.origin === api.origin && image.pathname.startsWith('/api/')) {
+      const token = localStorage.getItem('scormify_auth_token');
+      if (token) headers.Authorization = `Bearer ${token}`;
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    let response;
+    try { response = await fetch(new Request(absolute, {credentials:'omit', mode:'cors', headers, signal:controller.signal})); }
+    finally { clearTimeout(timeout); }
     if (!response.ok) throw new Error(`Imagem ${response.status}`);
     const blob = await response.blob();
     return await new Promise((resolve, reject) => {
@@ -72,8 +63,7 @@ async function embeddableImageUrl(apiUrl, src) {
       reader.readAsDataURL(blob);
     });
   } catch (error) {
-    console.warn('[VideoExport] Não foi possível incorporar a imagem:', error?.message || error);
-    return absolute;
+    throw new Error('Não foi possível carregar uma imagem do slide. Verifique a conexão e o acesso à imagem. ' + (error?.message || 'Falha de rede'));
   }
 }
 
@@ -249,6 +239,13 @@ async function renderSlideToImage(slide, apiUrl, canvasW, canvasH) {
       // before capture and exfiltrate cookies / localStorage. DOMPurify
       // strips all event handlers and unsafe tags but keeps formatting.
       htmlDiv.innerHTML = DOMPurify.sanitize(content);
+      for (const image of htmlDiv.querySelectorAll('img[src]')) {
+        const embedded = await embeddableImageUrl(apiUrl, image.getAttribute('src'));
+        image.removeAttribute('srcset');
+        const ready = waitForImage(image);
+        image.src = embedded;
+        await ready;
+      }
       wrapper.appendChild(htmlDiv);
     } else if (el.type === 'button') {
       const btn = document.createElement('div');
@@ -367,25 +364,20 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === 'suspended') await audioCtx.resume();
   const mixDest = audioCtx.createMediaStreamDestination();
+  const images = [], slideVideos = [];
+  let recordingCanvas;
+  try {
 
   onProgress(8, `Renderizando ${slides.length} slides...`);
 
   // Render each slide to canvas using html2canvas (WYSIWYG)
-  const images = [];
   for (let i = 0; i < slides.length; i++) {
     try {
       const img = await renderSlideToImage(slides[i], apiUrl, canvasW, canvasH);
       images.push(img);
       console.log(`[VideoExport] Slide ${i + 1}: rendered OK`);
     } catch (e) {
-      console.error(`[VideoExport] Slide ${i + 1} render failed:`, e);
-      const fb = document.createElement('canvas');
-      fb.width = canvasW; fb.height = canvasH;
-      const cx = fb.getContext('2d');
-      cx.fillStyle = '#1a1a2e'; cx.fillRect(0, 0, canvasW, canvasH);
-      cx.fillStyle = '#fff'; cx.font = '32px sans-serif'; cx.textAlign = 'center';
-      cx.fillText(`Slide ${i + 1}`, canvasW / 2, canvasH / 2);
-      images.push(fb);
+      throw new Error(`Slide ${i + 1}: ${e.message || 'Não foi possível renderizar o conteúdo.'}`);
     }
     onProgress(8 + Math.round(((i + 1) / slides.length) * 15), `Slide ${i + 1}/${slides.length} renderizado`);
   }
@@ -397,7 +389,6 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
   const offsetX = (canvasW - slideW * scaleRatio) / 2;
   const offsetY = (canvasH - slideH * scaleRatio) / 2;
 
-  const slideVideos = [];
   for (let i = 0; i < slides.length; i++) {
     const vels = slides[i].videoElements || [];
     if (vels.length > 0) {
@@ -417,7 +408,7 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
           });
           console.log(`[VideoExport] Slide ${i + 1}: HeyGen ${v.duration.toFixed(1)}s`);
         } catch (e) {
-          console.warn(`[VideoExport] Slide ${i + 1}: HeyGen failed - ${e.message}`);
+          throw new Error(`Slide ${i + 1}: não foi possível carregar o vídeo. ${e.message}`);
         }
       }
       slideVideos[i] = loaded;
@@ -438,7 +429,7 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
         loaded.push({ buffer: buf, startTime: aud.startTime || 0, volume: aud.volume || 1.0 });
         console.log(`[VideoExport] Slide ${i + 1}: audio ${buf.duration.toFixed(1)}s`);
       } catch (e) {
-        console.warn(`[VideoExport] Slide ${i + 1}: audio failed - ${e.message}`);
+        throw new Error(`Slide ${i + 1}: não foi possível carregar a narração. ${e.message}`);
       }
     }
     slideAudioBuffers[i] = loaded;
@@ -452,7 +443,7 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
       globalAudioBuf = { buffer: await loadAudioBuffer(audioCtx, url), volume: globalAudioData.volume || 0.5, loop: !!globalAudioData.loop };
       console.log(`[VideoExport] Global audio: ${globalAudioBuf.buffer.duration.toFixed(1)}s`);
     } catch (e) {
-      console.warn('[VideoExport] Global audio failed:', e.message);
+      throw new Error(`Não foi possível carregar a trilha sonora. ${e.message}`);
     }
   }
 
@@ -460,12 +451,16 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
 
   // Setup recording canvas
   const canvas = document.createElement('canvas');
+  recordingCanvas = canvas;
   canvas.width = canvasW; canvas.height = canvasH;
+  // Chromium may never submit frames for a detached, never-painted canvas.
+  // Keep a small live preview in the document throughout the recording.
+  canvas.setAttribute('aria-label', 'Prévia da gravação do vídeo');
+  canvas.style.cssText = 'position:fixed;right:16px;bottom:16px;width:min(320px,40vw);height:auto;z-index:2147483000;pointer-events:none;border:2px solid #0891b2;border-radius:8px;background:#000';
+  document.body.appendChild(canvas);
   const ctx = canvas.getContext('2d');
   ctx.drawImage(images[0], 0, 0, canvasW, canvasH);
-
-  const { mime: mimeType, ext: preferredExt } = pickMimeType();
-  console.log(`[VideoExport] Format: ${mimeType} (.${preferredExt})`);
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
   // Connect HeyGen video audio
   const videoGains = new Map();
@@ -486,141 +481,78 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
     }
   }
 
-  // Build combined stream
-  const canvasStream = canvas.captureStream(30);
-  const canvasVideoTrack = canvasStream.getVideoTracks()[0];
-  if (!canvasVideoTrack || canvasVideoTrack.readyState !== 'live') {
-    try { audioCtx.close(); } catch (_) { /* noop */ }
-    throw new Error('O navegador não conseguiu criar a trilha visual dos slides.');
+  const durations = slides.map((slide, idx) => Math.max(Number(slide.duration) || defaultDuration,
+    ...slideVideos[idx].map(({video}) => Number.isFinite(video.duration) ? video.duration : 0),
+    ...slideAudioBuffers[idx].map(({buffer, startTime}) => startTime + buffer.duration)));
+  const totalDuration = durations.reduce((sum, value) => sum + value, 0);
+  const hasAudio = Boolean(globalAudioBuf || videoGains.size || slideAudioBuffers.some(list => list.length));
+  const sources = [];
+  let current = -1, silentClock, recording = false;
+  function stopMedia() {
+    sources.splice(0).forEach(source => { try { source.stop(); } catch (_) { /* already ended */ } });
+    try { silentClock?.stop(); } catch (_) { /* noop */ }
+    silentClock = null;
+    slideVideos.flat().forEach(({video}) => { video.pause(); videoGains.get(video)?.gain.setValueAtTime(0, audioCtx.currentTime); });
+    current = -1;
+    recording = false;
   }
-  const combined = new MediaStream();
-  for (const t of canvasStream.getVideoTracks()) combined.addTrack(t);
-  for (const t of mixDest.stream.getAudioTracks()) combined.addTrack(t);
-
-  let recorder;
-  try {
-    recorder = new MediaRecorder(combined, {
-      mimeType,
-      videoBitsPerSecond: 5000000,
-      audioBitsPerSecond: 192000,
-    });
-  } catch (error) {
-    try {
-      // Some Chromium builds report a supported codec combination but reject
-      // it when audio and canvas tracks are combined. Let the browser choose.
-      recorder = new MediaRecorder(combined, { videoBitsPerSecond: 5000000 });
-    } catch (_) {
-      throw new Error(`Não foi possível iniciar o codificador de vídeo: ${error.message}`);
-    }
-  }
-  const chunks = [];
-  recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-
-  return new Promise((resolve, reject) => {
-    const activeSources = [];
-
-    recorder.onstop = () => {
-      for (const s of activeSources) { try { s.stop(); } catch (e) { /* */ } }
-      try { audioCtx.close(); } catch (e) { /* */ }
-      if (!chunks.length || !chunks.some((chunk) => chunk.size > 0)) {
-        reject(new Error('O navegador encerrou a gravação sem produzir dados.'));
-        return;
+  const blob = await recordCanvasVideo({
+    canvas, audioTracks: hasAudio ? mixDest.stream.getAudioTracks() : [], duration: totalDuration,
+    start: () => {
+      current = -1; recording = true;
+      if (hasAudio) {
+        // A live but un-fed WebAudio destination can stall muxing. Keep the
+        // clock producing silence until narration/video actually begins.
+        silentClock = audioCtx.createConstantSource(); silentClock.offset.value = 0;
+        silentClock.connect(mixDest); silentClock.start();
       }
-      const actualType = recorder.mimeType || mimeType;
-      const actualExt = /mp4/i.test(actualType) ? 'mp4' : 'webm';
-      const blob = new Blob(chunks, { type: actualType });
-      const safeName = projectName.replace(/[^\w\s-]/g, '').replace(/\s+/g, '_');
-      const ts = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
-      onProgress(100, 'Video pronto!');
-      resolve({ blob, filename: `${safeName}_${ts}.${actualExt}` });
-    };
-    recorder.onerror = (e) => reject(new Error('MediaRecorder: ' + (e.error?.message || 'erro')));
-    recorder.start(1000);
-
-    // Start global audio
-    if (globalAudioBuf) {
-      const src = audioCtx.createBufferSource();
-      src.buffer = globalAudioBuf.buffer; src.loop = globalAudioBuf.loop;
-      const g = audioCtx.createGain(); g.gain.value = globalAudioBuf.volume;
-      src.connect(g); g.connect(mixDest); src.start(0);
-      activeSources.push(src);
-    }
-
-    let cur = 0, slideStart = performance.now(), animId = null;
-
-    function startSlide(idx) {
-      for (const { video } of (slideVideos[idx] || [])) {
-        const g = videoGains.get(video);
-        if (g) g.gain.value = 1.0;
-        video.currentTime = 0;
-        video.muted = true;
-        video.play().catch((error) => {
-          console.warn('[VideoExport] Reprodução visual bloqueada:', error?.message || error);
+      if (globalAudioBuf) {
+        const source = audioCtx.createBufferSource(); source.buffer = globalAudioBuf.buffer; source.loop = globalAudioBuf.loop;
+        const gain = audioCtx.createGain(); gain.gain.value = globalAudioBuf.volume;
+        source.connect(gain); gain.connect(mixDest); source.start(); sources.push(source);
+      }
+    },
+    stop: stopMedia,
+    draw: elapsed => {
+      let idx = 0, boundary = durations[0];
+      while (idx < images.length - 1 && elapsed >= boundary) boundary += durations[++idx];
+      if (recording && idx !== current) {
+        if (current >= 0) slideVideos[current].forEach(({video}) => { video.pause(); videoGains.get(video)?.gain.setValueAtTime(0, audioCtx.currentTime); });
+        current = idx;
+        slideVideos[idx].forEach(({video}) => {
+          video.currentTime = 0; video.muted = true;
+          videoGains.get(video)?.gain.setValueAtTime(1, audioCtx.currentTime);
+          video.play().catch(error => console.warn('[VideoExport] Reprodução de vídeo:', error.message));
+        });
+        slideAudioBuffers[idx].forEach(({buffer, startTime, volume}) => {
+          const source = audioCtx.createBufferSource(), gain = audioCtx.createGain();
+          source.buffer = buffer; gain.gain.value = volume;
+          source.connect(gain); gain.connect(mixDest); source.start(audioCtx.currentTime + startTime); sources.push(source);
         });
       }
-      for (const { buffer, startTime, volume } of (slideAudioBuffers[idx] || [])) {
-        const src = audioCtx.createBufferSource(); src.buffer = buffer;
-        const g = audioCtx.createGain(); g.gain.value = volume;
-        src.connect(g); g.connect(mixDest);
-        src.start(audioCtx.currentTime + startTime);
-        activeSources.push(src);
-      }
-    }
-
-    function stopSlide(idx) {
-      for (const { video } of (slideVideos[idx] || [])) {
-        const g = videoGains.get(video);
-        if (g) g.gain.value = 0;
-        video.pause();
-      }
-    }
-
-    function durOf(idx) {
-      const base = slides[idx]?.duration || defaultDuration;
-      let max = base;
-      for (const { video } of (slideVideos[idx] || [])) {
-        if (video.duration > 0 && isFinite(video.duration)) max = Math.max(max, video.duration);
-      }
-      for (const { buffer, startTime } of (slideAudioBuffers[idx] || [])) {
-        max = Math.max(max, startTime + buffer.duration);
-      }
-      return max;
-    }
-
-    startSlide(0);
-
-    function render() {
-      const elapsed = (performance.now() - slideStart) / 1000;
-      if (elapsed >= durOf(cur)) {
-        stopSlide(cur);
-        cur++;
-        slideStart = performance.now();
-        if (cur >= images.length) {
-          ctx.drawImage(images[images.length - 1], 0, 0, canvasW, canvasH);
-          setTimeout(() => { cancelAnimationFrame(animId); recorder.stop(); }, 500);
-          return;
-        }
-        startSlide(cur);
-        onProgress(30 + Math.round(((cur + 1) / images.length) * 65), `Gravando slide ${cur + 1}/${images.length}...`);
-      }
-
-      // Draw slide background
-      ctx.drawImage(images[cur], 0, 0, canvasW, canvasH);
-
-      // Overlay HeyGen video
-      for (const { video, x, y, width: vw, height: vh } of (slideVideos[cur] || [])) {
-        // Do not require !paused here. Even if the browser briefly pauses a
-        // media element, its decoded current frame must remain visible rather
-        // than turning the whole video slide into a blank frame.
-        if (video.readyState >= 2 && !video.ended) {
-          try { drawVideoFit(ctx, video, x, y, vw, vh); } catch (e) { /* */ }
-        }
-      }
-
-      animId = requestAnimationFrame(render);
-    }
-
-    onProgress(30, `Gravando slide 1/${images.length}...`);
-    render();
+      ctx.drawImage(images[idx], 0, 0, canvasW, canvasH);
+      slideVideos[idx].forEach(({video, x, y, width, height}) => {
+        if (video.readyState >= 2) drawVideoFit(ctx, video, x, y, width, height);
+      });
+      onProgress(30 + Math.round(elapsed / totalDuration * 65), `Gravando slide ${idx + 1}/${images.length}... Mantenha esta aba ativa.`);
+    },
+    onRetry: (type,error) => {
+      console.warn('[VideoExport] Tentativa de gravação:',type||'automático',error.message);
+      onProgress(28, 'Tentando outro codificador de vídeo...');
+    },
   });
+  const ext = /mp4/i.test(blob.type) ? 'mp4' : 'webm';
+  onProgress(97, 'Conferindo a trilha visual do vídeo...');
+  await validateVideoBlob(blob);
+  const safeName = (projectName || 'Curso').replace(/[^\w\s-]/g, '').replace(/\s+/g, '_');
+  const ts = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
+  onProgress(100, 'Vídeo pronto!');
+  return {blob, filename: `${safeName}_${ts}.${ext}`};
+  } finally {
+    recordingCanvas?.remove();
+    slideVideos.flat().forEach(({video}) => { video.pause(); video.removeAttribute('src'); video.load(); });
+    images.forEach(image => { image.width = 0; image.height = 0; });
+    mixDest.stream.getTracks().forEach(track => track.stop());
+    if (audioCtx.state !== 'closed') await audioCtx.close().catch(() => {});
+  }
 }
