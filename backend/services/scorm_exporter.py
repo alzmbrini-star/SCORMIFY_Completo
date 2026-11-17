@@ -269,7 +269,8 @@ html, body {{ background: {canvas}; }}
         html = html.replace("</body>", gamification_block + "\n</body>")
 
     from services.export_navigation import install_navigation_window
-    return install_navigation_window(html)
+    from services.portrait_view import install_portrait_view
+    return install_portrait_view(install_navigation_window(html))
 
 IMS_MANIFEST_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8"?>
 <manifest identifier="{identifier}" version="1.0"

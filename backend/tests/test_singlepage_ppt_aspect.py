@@ -73,11 +73,12 @@ def test_ppt_slide_43_classic_aspect():
     assert "aspect-ratio:960/720" in html
 
 
-def test_ppt_slide_includes_min_height_for_small_viewports():
-    """Below the aspect-ratio rule, a min-height ensures small viewports
-    (mobile-portrait) still show the slide at a usable size."""
+def test_ppt_visual_frame_uses_ratio_without_cropping_min_height():
+    """Keep image and overlays proportional; enlargement handles small screens."""
     html = generate_single_page_html(_ppt_imported_project(1280, 720), "/tmp/no-such-dir", "")
-    assert "min-height:520px" in html
+    assert 'class="sp-visual-canvas"' in html
+    assert 'aspect-ratio:1280/720' in html
+    assert 'min-height:520px' not in html
 
 
 def test_native_editor_slide_NOT_aspect_locked():

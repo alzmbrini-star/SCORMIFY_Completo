@@ -87,14 +87,15 @@ class TestZoomStageStructure:
             f"sp-section-inner should not carry background-image when zoomed: {inner_style}"
         )
 
-    def test_bg_image_stays_on_inner_when_no_zoom(self):
-        """Slides WITHOUT zoomEffect keep the legacy behavior — bg-image
-        painted directly on the inner card (preserves PPT-imported slides)."""
+    def test_bg_image_on_proportional_canvas_when_no_zoom(self):
+        """Image and overlays share a ratio canvas, separate from flowing text."""
         html = _render(_build_zoom_tutorial(with_zoom=False))
         import re
         m = re.search(r'<div class="sp-section-inner" style="([^"]*)"', html)
         assert m is not None
-        assert "background-image" in m.group(1)
+        assert "background-image" not in m.group(1)
+        canvas=re.search(r'<div class="sp-visual-canvas"[^>]*style="([^"]*)"',html)
+        assert canvas and 'background-image' in canvas.group(1)
 
     def test_section_has_sp_has_zoom_class(self):
         html = _render(_build_zoom_tutorial())

@@ -1904,21 +1904,8 @@ def generate_single_page_html(
                 card_styles.append("color:#f1f5f9")
                 section_class += " sp-dark"
         if bg_image_url:
-            # When the slide has a zoom effect, the background-image is moved
-            # into a dedicated `.sp-zoom-stage` wrapper that we can scale
-            # independently of the card chrome. Otherwise paint the bg
-            # directly on the card (legacy behavior, preserves PPT imports).
-            # 2026-05-25: honor `backgroundImageFit` per slide. Modo Fiel
-            # slides set `"contain"` so the WHOLE PDF page is visible
-            # (no cropping of title/sides when aspect ratios differ).
-            fit_mode = slide.get("backgroundImageFit")
-            if not fit_mode:
-                fit_mode = "contain" if slide.get("_pdfFaithful") else "cover"
-            if not has_zoom:
-                card_styles.append(f"background-image:url({_esc(bg_image_url)})")
-                card_styles.append(f"background-size:{fit_mode}")
-                card_styles.append("background-position:center")
-                card_styles.append("background-repeat:no-repeat")
+            # Background and coordinate overlays use a dedicated ratio canvas,
+            # never a tall card that also contains flowing titles and controls.
             section_class += " sp-has-bg-image"
             if has_zoom:
                 section_class += " sp-has-zoom"
@@ -1927,10 +1914,8 @@ def generate_single_page_html(
             # Only set when both dims are sane to avoid math errors.
             if slide_w_for_card > 0 and slide_h_for_card > 0:
                 # Express as integer ratio (CSS prefers `1280/720` style)
-                card_styles.append(f"aspect-ratio:{int(slide_w_for_card)}/{int(slide_h_for_card)}")
-                # Ensure a sensible minimum height on small viewports too
-                card_styles.append("min-height:520px")
                 section_class += " sp-aspect-locked"
+            section_class += " sp-visual-section"
         card_style = f' style="{";".join(card_styles)}"' if card_styles else ''
 
         # Optional darkening/lightening scrim over the background image —
@@ -2000,6 +1985,15 @@ def generate_single_page_html(
                 f'    {absolute_elements_html}\n'
             )
 
+        if bg_image_url:
+            canvas_w=int(slide_w_for_card) if slide_w_for_card>0 else 1920
+            canvas_h=int(slide_h_for_card) if slide_h_for_card>0 else 1080
+            visual_fit='contain' if slide.get('gammaSource') or slide.get('_pdfFaithful') or project_doc.get('source')=='ppt' else (slide.get('backgroundImageFit') or 'cover')
+            stage_block=(f'<div class="sp-visual-canvas" data-course-visual="true" data-image-label="{_esc(slide_title)}" '
+                f'style="aspect-ratio:{canvas_w}/{canvas_h};background-image:url({_esc(bg_image_url)});background-size:{visual_fit}">'
+                f'{stage_block}{bg_avatar_html}</div>')
+            bg_avatar_html=''
+
         module_name = str(slide.get("moduleName") or "Jornada de aprendizagem")
         narrative_beat = str(slide.get("narrativeBeat") or "context")
         journey_meta = (
@@ -2041,7 +2035,7 @@ def generate_single_page_html(
     bg_image = ""
 
     # ---------- HTML
-    return _BUILD_PAGE(
+    document = _BUILD_PAGE(
         title=course_title,
         bg_image=bg_image,
         sections_html="\n".join(sections_html),
@@ -2059,6 +2053,8 @@ def generate_single_page_html(
         enable_vlibras=bool(project_doc.get("enableVlibras", True)),
         backend_url=base_url,
     )
+    from services.portrait_view import install_portrait_view
+    return install_portrait_view(document)
 
 
 _VISUAL_JOURNEY_CSS = r'''

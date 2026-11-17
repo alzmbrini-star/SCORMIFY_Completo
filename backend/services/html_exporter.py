@@ -3834,6 +3834,8 @@ html,body{{background:{canvas}}}
     html = install_navigation_window(html)
     from services.guided_path import install_guided_host
     html = install_guided_host(html, sanitized_data, guided_plan)
+    from services.portrait_view import install_portrait_view
+    html = install_portrait_view(html)
     if output_path:
         return write_html_file(output_path, html, sanitized_data)
     return html

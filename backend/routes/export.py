@@ -1115,7 +1115,7 @@ async def preview_singlepage(project_id: str, user: dict = Depends(require_auth)
             await prepare_company_assets_for_export(project_doc, db, assets_dir)
         except Exception as exc:
             logger.warning(f"company assets pre-extract for preview failed (non-fatal): {exc}")
-        html_content = generate_single_page_html(
+        html_content = await asyncio.to_thread(generate_single_page_html,
             project_doc,
             assets_dir,
             base_url,
@@ -1136,6 +1136,28 @@ async def preview_singlepage(project_id: str, user: dict = Depends(require_auth)
             "X-Frame-Options": "SAMEORIGIN",
         },
     )
+
+
+@router.post('/projects/{project_id}/preview-singlepage')
+async def start_singlepage_preview(project_id:str,request:Request,user:dict=Depends(require_auth)):
+    """Same fully embedded HTML pipeline as export, without a long HTTP request.
+
+    Only creates an expiring artifact/job. No course or question writes, and
+    no generation of AI media. Normal job tenant checks protect status polling.
+    """
+    import copy
+    project=copy.deepcopy(await load_authorized_project(project_id,user))
+    if (project.get('course',{}).get('metadata') or {}).get('guidedPath'):
+        raise HTTPException(400,'Percurso guiado usa o player de slides para preservar as etapas e regras de conclusão.')
+    job_id=str(uuid.uuid4())
+    job={'id':job_id,'type':'singlepage_preview','status':'processing','progress':0,
+         'message':'Preparando prévia em página única...','result':None,'projectId':project_id,
+         'companyId':project.get('companyId'),'userId':user.get('user_id')}
+    jobs[job_id]=job
+    await create_job(job_id,job)
+    task=asyncio.create_task(_run_html_export_job(job_id,project_id,project,True,_get_external_url(request)))
+    _active_export_tasks.add(task);task.add_done_callback(_active_export_tasks.discard)
+    return {'jobId':job_id,'statusUrl':f'/api/job/{job_id}','mode':'single_page'}
 
 
 # Video Export - Client-Side Approach (generates slide images, frontend creates video)

@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
-import { Loader2, RefreshCw, X, Maximize2, Smartphone, Monitor, Tablet, ExternalLink } from 'lucide-react';
-import { toast } from 'sonner';
-import { authHeaders } from '../../../contexts/AuthContext';
+import { Loader2, RefreshCw, X, Smartphone, Monitor, Tablet, ExternalLink } from 'lucide-react';
 import { getApiUrl } from '../../../utils/apiUrl';
+import {prepareSinglePagePreview,previewError} from '../../../utils/singlePagePreview';
 
 const API = getApiUrl();
 
@@ -16,7 +15,7 @@ const VIEWPORTS = {
 
 /**
  * Live preview of the Single Page export. Fetches the generated HTML from
- * `/api/projects/{id}/preview-singlepage`, wraps it in a Blob URL, and
+ * a background preview job, wraps the completed HTML in a Blob URL, and
  * renders it inside a sandboxed iframe with viewport switcher.
  */
 export default function SinglePagePreviewDialog({ open, onOpenChange, projectId, projectName }) {
@@ -24,46 +23,36 @@ export default function SinglePagePreviewDialog({ open, onOpenChange, projectId,
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [viewport, setViewport] = useState('desktop');
+  const [progress,setProgress]=useState({progress:0,message:'Preparando prévia…'});
+  const requestRef=useRef(null);
+  const urlRef=useRef(null);
 
   const loadPreview = useCallback(async () => {
     if (!projectId) return;
+    requestRef.current?.abort();
+    const controller=new AbortController();requestRef.current=controller;
     setLoading(true);
     setError('');
+    setProgress({progress:0,message:'Preparando prévia em segundo plano…'});
     try {
-      const res = await fetch(`${API}/api/projects/${projectId}/preview-singlepage`, {
-        headers: authHeaders(),
-      });
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(`HTTP ${res.status}: ${txt.slice(0, 200)}`);
-      }
-      const html = await res.text();
+      const html=await prepareSinglePagePreview(API,projectId,{signal:controller.signal,onProgress:value=>{if(!controller.signal.aborted)setProgress(value);}});
+      if(controller.signal.aborted)return;
       const blob = new Blob([html], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
-      setBlobUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return url;
-      });
+      if(urlRef.current)URL.revokeObjectURL(urlRef.current);
+      urlRef.current=url;setBlobUrl(url);
     } catch (e) {
-      setError(e.message || 'Erro ao carregar preview');
-      toast.error(e.message || 'Erro ao carregar preview');
+      if(!controller.signal.aborted)setError(previewError(e));
     } finally {
-      setLoading(false);
+      if(!controller.signal.aborted)setLoading(false);
     }
   }, [projectId]);
 
   // Auto-load when dialog opens
   useEffect(() => {
-    if (open && projectId) {
-      loadPreview();
-    } else if (!open && blobUrl) {
-      // Cleanup blob when dialog closes
-      URL.revokeObjectURL(blobUrl);
-      setBlobUrl(null);
-      setError('');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, projectId]);
+    if(open&&projectId)loadPreview();
+    return ()=>{requestRef.current?.abort();if(urlRef.current){URL.revokeObjectURL(urlRef.current);urlRef.current=null;}setBlobUrl(null);setError('');};
+  }, [open, projectId,loadPreview]);
 
   const openInNewTab = () => {
     if (blobUrl) window.open(blobUrl, '_blank', 'noopener,noreferrer');
@@ -77,7 +66,7 @@ export default function SinglePagePreviewDialog({ open, onOpenChange, projectId,
         className="max-w-[95vw] w-[95vw] h-[95vh] p-0 bg-slate-950 border-slate-700 flex flex-col"
         data-testid="singlepage-preview-dialog"
       >
-        <DialogHeader className="px-4 py-3 border-b border-slate-800 bg-slate-900 flex-row items-center justify-between space-y-0">
+        <DialogHeader className="px-4 py-3 border-b border-slate-800 bg-slate-900 flex-row flex-wrap gap-2 items-center justify-between space-y-0 pr-12">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <DialogTitle className="text-amber-400 text-sm font-semibold truncate">
               Preview Página Única — {projectName || 'Curso'}
@@ -141,12 +130,15 @@ export default function SinglePagePreviewDialog({ open, onOpenChange, projectId,
           {loading && (
             <div className="flex flex-col items-center gap-3 text-slate-400" data-testid="preview-loading">
               <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
-              <p className="text-sm">Gerando preview do curso...</p>
+              <p className="text-sm" role="status">{progress.message||'Preparando prévia…'}</p>
+              <progress max="100" value={progress.progress||0} className="w-64" aria-label="Preparação da prévia"/>
+              <p className="text-xs max-w-md text-center">Prévia da versão salva. Imagens e interações estão sendo organizadas; cursos maiores podem levar alguns minutos. Nenhum slide é alterado.</p>
             </div>
           )}
           {error && !loading && (
             <div className="text-center max-w-md" data-testid="preview-error">
-              <p className="text-red-400 text-sm mb-3">⚠ {error}</p>
+              <h3 className="font-semibold text-white mb-2">A prévia não ficou pronta</h3>
+              <p className="text-red-300 text-sm mb-3" role="alert">{error}</p>
               <Button onClick={loadPreview} variant="outline" size="sm">
                 <RefreshCw className="w-4 h-4 mr-1.5" /> Tentar novamente
               </Button>

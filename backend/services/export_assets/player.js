@@ -914,6 +914,7 @@ var CoursePlayer = (function() {
         if (slide.backgroundImage) {
             // Create background image element - must fill entire container
             var bgImg = document.createElement('img');
+            bgImg.className = 'course-slide-image';
             bgImg.src = slide.backgroundImage;
             bgImg.style.position = 'absolute';
             bgImg.style.top = '0';
