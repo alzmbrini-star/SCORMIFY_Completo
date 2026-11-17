@@ -19,12 +19,21 @@
   var button=document.createElement('button');button.type='button';button.className='course-image-enlarge';button.textContent='Ampliar imagem';button.setAttribute('aria-label','Ampliar imagem: '+(label||'slide'));
   button.onclick=function(e){e.preventDefault();e.stopPropagation();openImage(source(),label);};parent.appendChild(button);
  }
+ function currentSlideImage(){
+  var background=document.querySelector('#slide-container .slide-background,#slide-container .course-slide-image');
+  if(background)return background;
+  // Gamma also stores its full-slide visual as a normal image element. Keep
+  // its authored click handlers intact and expose a separate reading control.
+  var images=Array.from(document.querySelectorAll('#slide-container .image-element img,#slide-elements .image-element img'));
+  return images.filter(function(img){var box=img.getBoundingClientRect(),parent=getComputedStyle(img.parentElement);return box.width>80&&box.height>50&&parent.visibility!=='hidden'&&Number(parent.opacity)>.01;})
+   .sort(function(a,b){return b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight;})[0];
+ }
  function scan(){
   document.querySelectorAll('.sp-visual-canvas[data-course-visual]').forEach(function(stage){if(!stage.closest('[data-locked="true"]'))attach(stage.parentElement,function(){var bg=getComputedStyle(stage).backgroundImage;return /^url\(["']?(.*?)["']?\)$/.exec(bg)?.[1];},stage.dataset.imageLabel);});
   document.querySelectorAll('.sp-image:not(.sp-clickable):not(.sp-interactive),.sp-pdf-pages,.sp-evidence').forEach(function(frame){var img=frame.querySelector('img');if(img&&!frame.closest('[data-locked="true"]')){frame.style.flexWrap='wrap';attach(frame,function(){return img.currentSrc||img.src;},img.alt);}});
-  var bg=document.querySelector('#slide-container .slide-background,#slide-container .course-slide-image');
+  var bg=currentSlideImage();
   var wrapper=document.getElementById('slide-wrapper');
-  if(bg){attach(wrapper||bg.parentElement,function(){var current=document.querySelector('#slide-container .slide-background,#slide-container .course-slide-image');return current&&(current.currentSrc||current.src);},'Slide atual');}
+  if(bg){attach(wrapper||bg.parentElement,function(){var current=currentSlideImage();return current&&(current.currentSrc||current.src);},'Slide atual');}
   var control=wrapper&&wrapper.querySelector(':scope > .course-image-enlarge');
   if(control){control.classList.add('course-slide-enlarge');control.hidden=!bg;}
  }

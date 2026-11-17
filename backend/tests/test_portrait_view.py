@@ -52,6 +52,7 @@ def test_viewer_does_not_complete_activities_or_rewrite_data():
     assert 'SP.mark' not in script and 'LMSSetValue' not in script and 'fetch(' not in script
     assert 'showModal()' in script and "viewer.close()" in script and 'lastFocus.focus()' in script
     assert 'stopPropagation' in script and 'data-locked' in script
+    assert '.image-element img' in script and 'currentSlideImage' in script
 
 def test_support_script_is_not_inserted_into_authored_html_json():
     original='<html><head></head><body><script>const course={"htmlContent":"<body>original</body>"};</script></body></html>'
