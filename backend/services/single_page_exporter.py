@@ -40,6 +40,9 @@ def _b64_data_uri(file_path: str) -> Optional[str]:
         p = Path(file_path)
         if not p.exists() or not p.is_file():
             return None
+        from services.export_media_stream import CURRENT
+        if CURRENT.get():
+            return CURRENT.get().file(p)
         ext = p.suffix.lower().lstrip(".")
         mime_map = {
             "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
@@ -1196,7 +1199,8 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
             raw_with_meta = '<meta charset="utf-8">\n' + reset_css + raw
         else:
             raw_with_meta = reset_css + raw
-        b64 = base64.b64encode(raw_with_meta.encode("utf-8")).decode("ascii")
+        from services.export_media_stream import encode_document
+        b64 = encode_document(raw_with_meta)
         sandbox = 'allow-scripts allow-same-origin allow-forms'
         if el.get('assessmentConfig'):
             sandbox += ' allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals'
@@ -1530,7 +1534,8 @@ def _render_simulator_element_inner(el: dict, project_id: str, assets_dir: str, 
     # Inject the contrast safety-net so simulators with white-on-white
     # text become legible without requiring the author to regenerate.
     sim_html = _inject_contrast_safety_net(sim_html)
-    sim_html_b64 = base64.b64encode(sim_html.encode("utf-8")).decode("ascii") if sim_html else ""
+    from services.export_media_stream import encode_document
+    sim_html_b64 = encode_document(sim_html) if sim_html else ""
     return (
         f'<div class="sp-simulator sp-interactive" data-interactive="simulator" data-required="true" '
         f'data-interactive-id="simulator-{slide_idx}-{el_idx}">'
@@ -1550,11 +1555,28 @@ def _render_simulator_element_inner(el: dict, project_id: str, assets_dir: str, 
 # --------------------------------------------------------------------------- main
 
 
-def generate_single_page_html(*args,preview_mode=False,**kwargs):
+def generate_single_page_html(*args,preview_mode=False,output_path=None,document_transform=None,**kwargs):
     """Thread-local preview media policy; normal HTML/SCORM remain self-contained."""
     token=_PREVIEW_MEDIA.set(preview_mode)
-    try:return _generate_single_page_html(*args,**kwargs)
-    finally:_PREVIEW_MEDIA.reset(token)
+    from services.export_media_stream import CURRENT, MediaStream
+    stream = MediaStream() if output_path else None
+    media_token = CURRENT.set(stream)
+    try:
+        if stream:
+            args = tuple(stream.compact(arg) if isinstance(arg, (dict, list)) else arg for arg in args)
+            kwargs = {key: stream.compact(value) for key, value in kwargs.items()}
+        document = _generate_single_page_html(*args,**kwargs)
+        if document_transform:
+            document = document_transform(document)
+        if stream:
+            stream.write(output_path, document)
+            return str(output_path)
+        return document
+    finally:
+        if stream:
+            stream.close()
+        CURRENT.reset(media_token)
+        _PREVIEW_MEDIA.reset(token)
 
 
 def _generate_single_page_html(

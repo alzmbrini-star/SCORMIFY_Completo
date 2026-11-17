@@ -41,6 +41,9 @@ def file_to_base64(file_path: str) -> Optional[str]:
             return None
         
         mime_type = get_mime_type(file_path)
+        from services.export_media_stream import CURRENT
+        if CURRENT.get():
+            return CURRENT.get().file(file_path)
         with io.StringIO() as encoded, open(file_path, 'rb') as source:
             encoded.write(f'data:{mime_type};base64,')
             # Multiple of three: intermediate base64 chunks need no padding.

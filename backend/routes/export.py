@@ -966,7 +966,7 @@ async def _run_html_export_job(
             except Exception as exc:
                 logger.warning(f"prepare_company_assets_for_export failed (non-fatal): {exc}")
 
-            html_content = await asyncio.to_thread(
+            await asyncio.to_thread(
                 generate_single_page_html,
                 project_doc,
                 assets_dir,
@@ -975,6 +975,7 @@ async def _run_html_export_job(
                 tutor_config=tutor_settings,
                 gamification_config=gamification_settings_html,
                 preview_mode=preview_mode,
+                output_path=str(html_path),
             )
         else:
             await generate_standalone_html(
@@ -988,10 +989,6 @@ async def _run_html_export_job(
             )
 
         await update_job(job_id, {"progress": 80, "message": "Salvando arquivo..."})
-
-        if use_single_page:
-            await asyncio.to_thread(_write_html_file, str(html_path), html_content)
-            del html_content
 
         await update_job(job_id, {"progress": 90, "message": "Persistindo..."})
 

@@ -50,7 +50,8 @@ def inline_assessment_assets(document: str, assets_dir: str, inline_media: bool 
                 if not local.is_file():
                     raise ValueError(f'O anexo da avaliação não está disponível: {filename}. Reenvie o arquivo antes de exportar.')
                 mime = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
-                cache[path] = f'data:{mime};base64,' + base64.b64encode(local.read_bytes()).decode('ascii')
+                from services.export_media_stream import CURRENT
+                cache[path] = CURRENT.get().file(local) if CURRENT.get() else f'data:{mime};base64,' + base64.b64encode(local.read_bytes()).decode('ascii')
             result[source_key] = cache[path]
             return result
 

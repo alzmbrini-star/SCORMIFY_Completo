@@ -237,23 +237,19 @@ def export_single_page_scorm_package(
 
     # Generate single-page HTML in SCORM mode (injects scorm-api hooks)
     # The HTML's <script src="scorm-api.js"> reference is rewritten to scripts/scorm-api.js for LMS folder convention
-    html_content = generate_single_page_html(
-        project_doc,
-        assets_dir,
-        base_url=backend_url,
-        questions=questions,
-        tutor_config=tutor_config,
-        scorm_mode=True,
-        gamification_config=gamification_config,
-    ).replace('<script src="scorm-api.js"></script>', '<script src="scripts/scorm-api.js"></script>')
-
     from services.scorm_initial_loading import install_initial_loader
-    html_content = install_initial_loader(html_content)
 
     # Build package in a temp dir
     package_dir = Path(tempfile.mkdtemp(prefix="scorm_sp_"))
     try:
-        (package_dir / "index.html").write_text(html_content, encoding="utf-8")
+        generate_single_page_html(
+            project_doc, assets_dir, base_url=backend_url, questions=questions,
+            tutor_config=tutor_config, scorm_mode=True,
+            gamification_config=gamification_config,
+            output_path=str(package_dir / 'index.html'),
+            document_transform=lambda document: install_initial_loader(document.replace(
+                '<script src="scorm-api.js"></script>', '<script src="scripts/scorm-api.js"></script>')),
+        )
         # SCORM convention: scripts under scripts/ folder
         scripts_dir = package_dir / "scripts"
         scripts_dir.mkdir(exist_ok=True)
