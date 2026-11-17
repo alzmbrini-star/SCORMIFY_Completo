@@ -26,8 +26,9 @@ export default function SinglePagePreviewDialog({ open, onOpenChange, projectId,
   const [progress,setProgress]=useState({progress:0,message:'Preparando prévia…'});
   const requestRef=useRef(null);
   const urlRef=useRef(null);
+  const jobRef=useRef(null);
 
-  const loadPreview = useCallback(async () => {
+  const loadPreview = useCallback(async (resume=false) => {
     if (!projectId) return;
     requestRef.current?.abort();
     const controller=new AbortController();requestRef.current=controller;
@@ -35,14 +36,17 @@ export default function SinglePagePreviewDialog({ open, onOpenChange, projectId,
     setError('');
     setProgress({progress:0,message:'Preparando prévia em segundo plano…'});
     try {
-      const html=await prepareSinglePagePreview(API,projectId,{signal:controller.signal,onProgress:value=>{if(!controller.signal.aborted)setProgress(value);}});
+      const html=await prepareSinglePagePreview(API,projectId,{signal:controller.signal,
+        jobId:resume&&jobRef.current?.projectId===projectId?jobRef.current.id:undefined,
+        onJobStarted:id=>{if(!controller.signal.aborted)jobRef.current={projectId,id};},
+        onProgress:value=>{if(!controller.signal.aborted)setProgress(value);}});
       if(controller.signal.aborted)return;
       const blob = new Blob([html], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
       if(urlRef.current)URL.revokeObjectURL(urlRef.current);
       urlRef.current=url;setBlobUrl(url);
     } catch (e) {
-      if(!controller.signal.aborted)setError(previewError(e));
+      if(!controller.signal.aborted){if(e.recreatePreview)jobRef.current=null;setError(previewError(e));}
     } finally {
       if(!controller.signal.aborted)setLoading(false);
     }
@@ -96,7 +100,7 @@ export default function SinglePagePreviewDialog({ open, onOpenChange, projectId,
             </div>
             <Button
               variant="ghost" size="sm"
-              onClick={loadPreview}
+              onClick={()=>loadPreview(false)}
               disabled={loading}
               className="h-8 text-slate-300 hover:text-white"
               data-testid="preview-refresh-btn"
@@ -139,7 +143,7 @@ export default function SinglePagePreviewDialog({ open, onOpenChange, projectId,
             <div className="text-center max-w-md" data-testid="preview-error">
               <h3 className="font-semibold text-white mb-2">A prévia não ficou pronta</h3>
               <p className="text-red-300 text-sm mb-3" role="alert">{error}</p>
-              <Button onClick={loadPreview} variant="outline" size="sm">
+              <Button onClick={()=>loadPreview(true)} variant="outline" size="sm">
                 <RefreshCw className="w-4 h-4 mr-1.5" /> Tentar novamente
               </Button>
             </div>
