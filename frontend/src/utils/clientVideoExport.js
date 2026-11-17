@@ -7,6 +7,7 @@
 import html2canvas from 'html2canvas';
 import DOMPurify from 'dompurify';
 import { recordCanvasVideo, validateVideoBlob } from './canvasVideoRecorder';
+import { fitVideoRect, fitExportImage } from './videoGeometry';
 
 function absoluteMediaUrl(apiUrl, src) {
   if (!src) return '';
@@ -173,6 +174,7 @@ async function renderSlideToImage(slide, apiUrl, canvasW, canvasH) {
     const bgReady = waitForImage(bgImg);
     bgImg.src = bgUrl;
     await bgReady;
+    fitExportImage(bgImg, slideW, slideH, slide.backgroundImageFit || 'contain');
   }
 
   // Elements (skip video elements — they're overlaid live)
@@ -218,6 +220,7 @@ async function renderSlideToImage(slide, apiUrl, canvasW, canvasH) {
       const imgReady = waitForImage(img);
       img.src = imgSrc;
       await imgReady;
+      fitExportImage(img, w, h, el.objectFit || 'contain');
     } else if (el.type === 'shape') {
       const shapeDiv = document.createElement('div');
       const br = el.shapeType === 'ellipse' || el.shapeType === 'oval' ? '50%'
@@ -286,6 +289,7 @@ async function renderSlideToImage(slide, apiUrl, canvasW, canvasH) {
         const imgReady = waitForImage(img);
         img.src = await embeddableImageUrl(apiUrl, pageSrc);
         await imgReady;
+        fitExportImage(img, w, h);
       } else {
         const book = document.createElement('div');
         book.style.cssText = `
@@ -346,7 +350,10 @@ async function renderSlideToImage(slide, apiUrl, canvasW, canvasH) {
     resultCanvas.width = canvasW;
     resultCanvas.height = canvasH;
     const rCtx = resultCanvas.getContext('2d');
-    rCtx.drawImage(captured, 0, 0, canvasW, canvasH);
+    const frame = fitVideoRect(captured.width, captured.height, canvasW, canvasH);
+    rCtx.fillStyle = bg.includes('gradient') ? '#111827' : bg;
+    rCtx.fillRect(0, 0, canvasW, canvasH);
+    rCtx.drawImage(captured, frame.x, frame.y, frame.width, frame.height);
 
     return resultCanvas;
   } finally {
@@ -393,13 +400,8 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
   }
 
   // Load HeyGen videos via proxy
-  const slideW = slides[0]?.width || 1920;
-  const slideH = slides[0]?.height || 1080;
-  const scaleRatio = Math.min(canvasW / slideW, canvasH / slideH);
-  const offsetX = (canvasW - slideW * scaleRatio) / 2;
-  const offsetY = (canvasH - slideH * scaleRatio) / 2;
-
   for (let i = 0; i < slides.length; i++) {
+    const frame = fitVideoRect(slides[i].width || 1920, slides[i].height || 1080, canvasW, canvasH);
     const vels = slides[i].videoElements || [];
     if (vels.length > 0) {
       onProgress(24 + Math.round((i / slides.length) * 4), `Video slide ${i + 1}...`);
@@ -411,10 +413,10 @@ export async function generateVideoClientSide({ apiUrl, projectId, defaultDurati
           const v = await loadVideo(videoUrl);
           loaded.push({
             video: v,
-            x: vel.x * scaleRatio + offsetX,
-            y: vel.y * scaleRatio + offsetY,
-            width: vel.width * scaleRatio,
-            height: vel.height * scaleRatio,
+            x: vel.x * frame.scale + frame.x,
+            y: vel.y * frame.scale + frame.y,
+            width: vel.width * frame.scale,
+            height: vel.height * frame.scale,
           });
           console.log(`[VideoExport] Slide ${i + 1}: HeyGen ${v.duration.toFixed(1)}s`);
         } catch (e) {

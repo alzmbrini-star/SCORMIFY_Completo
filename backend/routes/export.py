@@ -1211,8 +1211,8 @@ async def get_slides_data(
         # Collect video elements for overlay. Keep both modern `src` and
         # provider/embed fields used by older HeyGen/Kling records.
         video_elements = []
-        slide_w = slide.get('width', 1920)
-        slide_h = slide.get('height', 1080)
+        from services.video_export_geometry import video_slide_dimensions
+        slide_w, slide_h = video_slide_dimensions(slide, course)
         for el in elements:
             if el.get('type') == 'video' and (el.get('src') or el.get('url') or el.get('videoUrl') or el.get('embedUrl')):
                 video_src = el.get('src') or el.get('url') or el.get('videoUrl') or el.get('embedUrl')
@@ -1271,6 +1271,7 @@ async def get_slides_data(
             'background': slide.get('background', '#FFFFFF'),
             'backgroundImage': bg_image,
             'backgroundImageOpacity': slide.get('backgroundImageOpacity', 1),
+            'backgroundImageFit': slide.get('backgroundImageFit') or 'contain',
             'elements': elements,
             'videoElements': video_elements,
             'audioElements': audio_items,
