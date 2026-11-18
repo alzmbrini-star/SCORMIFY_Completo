@@ -56,3 +56,15 @@ test('a local storyboard edit disables approvals and production immediately',asy
  expect(host.textContent).toContain('Alterações locais ainda não salvas');
  expect(fetch.mock.calls.some(([url])=>/approve|generate/.test(url))).toBe(false);
 });
+test('alternative voice catalog notice does not change or save the storyboard',async()=>{
+ await openFilm();const original=fetch.getMockImplementation();
+ fetch.mockImplementation(async(url,options)=>url==='/api/runway/voices'?{ok:true,json:async()=>({voices:[{id:'br1',name:'Voz brasileira',brazilian:true}],fallback:true,notice:'Vozes carregadas pela consulta alternativa da ElevenLabs.'})}:original(url,options));
+ const prior=JSON.stringify(current);
+ await act(async()=>Array.from(host.querySelectorAll('button')).find(b=>b.textContent.includes('Carregar vozes ElevenLabs')).click());
+ expect(host.textContent).toContain('consulta alternativa');
+ expect(host.textContent).toContain('1 vozes carregadas');
+ expect(JSON.stringify(current)).toBe(prior);
+ expect(host.querySelector('[aria-label="ID da voz do narrador"]').value).toBe('voice');
+ expect(fetch.mock.calls.some(([,o])=>o.method!=='GET')).toBe(false);
+ expect(host.querySelector('[data-testid="film-generate"]').disabled).toBe(true);
+});

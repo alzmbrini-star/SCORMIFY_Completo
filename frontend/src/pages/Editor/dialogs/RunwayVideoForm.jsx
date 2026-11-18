@@ -23,6 +23,7 @@ export default function RunwayVideoForm({ onGenerate, onUseVideo, onRefresh, pro
   const [voiceSearch, setVoiceSearch] = useState('');
   const [voicesLoading, setVoicesLoading] = useState(false);
   const [voiceError, setVoiceError] = useState('');
+  const [voiceNotice, setVoiceNotice] = useState('');
   const [allowOtherVoices, setAllowOtherVoices] = useState(false);
   const [moreVoices, setMoreVoices] = useState(false);
   const [musicReady, setMusicReady] = useState(false);
@@ -31,12 +32,13 @@ export default function RunwayVideoForm({ onGenerate, onUseVideo, onRefresh, pro
   const [musicVolume, setMusicVolume] = useState(15);
   const submitting = useRef(false);
   const loadVoices = useCallback(async (search = '') => {
-    setVoicesLoading(true); setVoiceError('');
+    setVoicesLoading(true); setVoiceError(''); setVoiceNotice('');
     try {
       const response = await fetch(`${getApiUrl()}/api/runway/voices?search=${encodeURIComponent(search)}`, {headers:authHeaders()});
       const data = await response.json();
       if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Não foi possível carregar as vozes.');
       setVoices(data.voices || []); setMoreVoices(Boolean(data.hasMore)); setVoiceId('');
+      setVoiceNotice(data.notice || '');
     } catch (err) { setVoiceError(err.message); }
     finally { setVoicesLoading(false); }
   }, []);
@@ -128,6 +130,7 @@ export default function RunwayVideoForm({ onGenerate, onUseVideo, onRefresh, pro
         {moreVoices && <p className="text-xs">Há mais vozes na conta. Refine a busca pelo nome da voz.</p>}
         <label className="flex gap-2 text-xs"><input type="checkbox" checked={allowOtherVoices} onChange={e => {setAllowOtherVoices(e.target.checked);setVoiceId('');}} />Incluir outras vozes multilíngues — o sotaque brasileiro não é garantido.</label>
         {voices.find(v => v.id === voiceId)?.previewUrl && <audio aria-label="Prévia da voz" src={voices.find(v => v.id === voiceId).previewUrl} controls preload="none" className="w-full" />}
+        {voiceNotice && <p role="status" className="text-xs text-cyan-300">{voiceNotice}</p>}
         {voiceError && <p role="alert" className="text-xs text-red-400">{voiceError}</p>}
         <p className="text-xs text-amber-400">A fala consome créditos ElevenLabs além do vídeo Runway. O texto é enviado à ElevenLabs. Se a fala for mais longa, o último quadro será mantido até ela terminar, sem acelerar nem cortar a frase. É voz em off, não sincronização labial.</p>
       </>}

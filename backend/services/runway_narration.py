@@ -54,17 +54,62 @@ def voice_info(row):
             'previewUrl': row.get('preview_url') if str(row.get('preview_url', '')).startswith('https://') else None}
 
 
+def catalog_error(status, source):
+    # Never include provider bodies, headers or credentials in user-facing errors.
+    prefix=f'Consulta de vozes ElevenLabs ({source}, HTTP {status}). '
+    if status==401:return prefix+'Autenticação recusada. Confira a chave configurada no servidor; esta resposta não confirma falta de saldo.'
+    if status==403:return prefix+'Acesso recusado. Confira a permissão de leitura de vozes e o acesso da chave ao catálogo.'
+    if status==429:return prefix+'Limite temporário de consultas atingido. Aguarde antes de atualizar; nenhuma síntese foi solicitada.'
+    if status>=500:return prefix+'Serviço indisponível. Tente carregar as vozes mais tarde; não é uma confirmação de chave inválida ou saldo insuficiente.'
+    return prefix+'O provedor recusou a consulta. Nenhum áudio ou vídeo foi solicitado.'
+
+
+def catalog_data(response):
+    data=response.json()
+    if not isinstance(data,dict) or not isinstance(data.get('voices'),list):
+        raise ValueError('Formato de catálogo inválido.')
+    return data
+
+
 async def catalog(search=''):
     if not api_key():
         raise ValueError('Configure ELEVENLABS_API_KEY no servidor para carregar as vozes.')
-    async with httpx.AsyncClient(timeout=30, follow_redirects=False) as client:
-        response = await client.get('https://api.elevenlabs.io/v2/voices', headers={'xi-api-key': api_key()},
-                                    params={'page_size': 100, 'search': str(search)[:80], 'sort': 'name'})
-    if response.status_code != 200:
-        raise ValueError('Não foi possível listar as vozes ElevenLabs. Confira a chave e a permissão de leitura de vozes.')
-    data = response.json()
-    rows = [voice_info(row) for row in data.get('voices', []) if isinstance(row, dict)]
-    return {'voices': rows, 'hasMore': bool(data.get('has_more'))}
+    search=str(search).strip()[:80]
+    params={'page_size':100,'sort':'name'}
+    if search:params['search']=search
+    headers={'xi-api-key':api_key()}
+    reason=None
+    async with httpx.AsyncClient(timeout=20, follow_redirects=False) as client:
+        try:
+            response=await client.get('https://api.elevenlabs.io/v2/voices',headers=headers,params=params)
+        except httpx.RequestError:
+            reason='falha de conexão ou tempo de resposta na consulta nova'
+        else:
+            status=response.status_code
+            if status==200:
+                try:data=catalog_data(response)
+                except ValueError:reason='resposta inválida na consulta nova'
+                else:
+                    return {'voices':[voice_info(r) for r in data['voices'] if isinstance(r,dict) and r.get('voice_id')],
+                            'hasMore':bool(data.get('has_more')),'source':'v2','fallback':False,'notice':None}
+            elif status>=500 or status in (404,410):reason=f'HTTP {status} na consulta nova'
+            else:raise ValueError(catalog_error(status,'v2'))
+        # Exactly one alternative GET; never bypass authentication/rate limits,
+        # never call TTS and never write projects, storyboards or approvals.
+        try:alternative=await client.get('https://api.elevenlabs.io/v1/voices',headers=headers)
+        except httpx.RequestError:
+            raise ValueError(f'ElevenLabs: {reason}; a consulta alternativa também não respondeu. Tente mais tarde. Nenhuma mídia foi gerada.') from None
+        if alternative.status_code!=200:
+            raise ValueError(f'ElevenLabs: {reason}. '+catalog_error(alternative.status_code,'v1 alternativa'))
+        try:data=catalog_data(alternative)
+        except ValueError:
+            raise ValueError(f'ElevenLabs: {reason}; a consulta alternativa retornou um catálogo inválido. Nenhuma mídia foi gerada.') from None
+    records=[r for r in data['voices'] if isinstance(r,dict) and r.get('voice_id')]
+    if search:
+        records=[r for r in records if search.casefold() in ' '.join(str(r.get(k) or '') for k in ('name','description','labels','category')).casefold()]
+    rows=sorted((voice_info(r) for r in records),key=lambda r:r['name'].casefold())
+    return {'voices':rows,'hasMore':False,'source':'v1','fallback':True,
+            'notice':f'Vozes carregadas pela consulta alternativa da ElevenLabs ({reason}). Somente o catálogo foi consultado: nenhum áudio ou vídeo foi gerado.'}
 
 
 async def speech(narration):
