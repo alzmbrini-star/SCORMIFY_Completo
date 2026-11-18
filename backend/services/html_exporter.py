@@ -799,6 +799,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     video_host_js = (Path(__file__).parent / 'export_assets' / 'video-quiz-host.js').read_text(encoding='utf-8')
     scenario_presentation_js = (Path(__file__).parent / 'export_assets' / 'scenario-presentation.js').read_text(encoding='utf-8')
     image_shadow_js = (Path(__file__).parent / 'export_assets' / 'image-shadow.js').read_text(encoding='utf-8')
+    media_sound_js = (Path(__file__).parent / 'export_assets' / 'media-sound.js').read_text(encoding='utf-8')
     html = f'''<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -809,6 +810,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     <script>{video_host_js}</script>
     <script>{scenario_presentation_js}</script>
     <script>{image_shadow_js}</script>
+    <script>{media_sound_js}</script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lato:wght@300;400;700&family=Merriweather:wght@300;400;700&family=Montserrat:wght@300;400;500;600;700&family=Nunito:wght@300;400;600;700&family=Open+Sans:wght@300;400;600;700&family=Oswald:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&family=PT+Sans:wght@400;700&family=Raleway:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&family=Source+Sans+3:wght@300;400;600;700&family=Ubuntu:wght@300;400;500;700&family=Manrope:wght@400;600;700;800&family=Sora:wght@400;600;700&family=Fraunces:wght@400;600;700&family=Source+Serif+4:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Archivo:wght@400;600;700&display=swap" rel="stylesheet">
@@ -2007,6 +2009,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             var totalSlides = 0;
             var globalAudio = null;
             var slideAudios = [];
+            var mediaSound = window.ScormifyMediaSound.create({{root:'#slide-container',showGate:showStartOverlay}});
             var isMuted = false;
             var volume = 0.7;
             var sidebarOpen = false;
@@ -2030,21 +2033,12 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 renderSlide(0);
                 updateProgress();
                 
-                // Show start overlay if there's any audio
-                var hasAudio = (course.globalAudio && course.globalAudio.src);
-                if (!hasAudio) {{
-                    // Check if any slide has audio
-                    for (var i = 0; i < course.slides.length; i++) {{
-                        if (course.slides[i].audio && course.slides[i].audio.length > 0) {{
-                            hasAudio = true;
-                            break;
-                        }}
-                    }}
-                }}
+                // Video sound is embedded in the MP4, not necessarily slide.audio.
+                var hasAudio = window.ScormifyMediaSound.hasSound(course);
                 
                 if (hasAudio) {{
                     showStartOverlay();
-                }}
+                }} else {{ mediaSound.unlock(); }}
                 
                 // Keyboard navigation
                 document.addEventListener('keydown', function(e) {{
@@ -2061,6 +2055,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             }}
             
             function showStartOverlay() {{
+                if (document.getElementById('start-overlay')) return;
                 var overlay = document.createElement('div');
                 overlay.id = 'start-overlay';
                 overlay.innerHTML = '<div class="start-content">' +
@@ -2082,27 +2077,16 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 var overlay = document.getElementById('start-overlay');
                 if (overlay) {{
                     overlay.remove();
+                    // Calls stay inside the click gesture; do not await metadata first.
+                    mediaSound.unlock();
                     
                     // Start global audio
                     if (globalAudio) {{
-                        globalAudio.play().catch(function() {{
-                            globalAudio.muted = true;
-                            globalAudio.play().catch(function() {{}});
-                        }});
+                        globalAudio.play().catch(mediaSound.blocked);
                     }}
                     
                     // Also try to play current slide audio
-                    var slide = course.slides[currentSlide];
-                    if (slide && slide.audio && slide.audio.length > 0) {{
-                        slide.audio.forEach(function(audioData) {{
-                            if (audioData.src) {{
-                                var audio = new Audio(audioData.src);
-                                audio.volume = isMuted ? 0 : volume;
-                                slideAudios.push(audio);
-                                audio.play().catch(function() {{}});
-                            }}
-                        }});
-                    }}
+                    slideAudios.forEach(function(audio) {{ audio.play().catch(mediaSound.blocked); }});
                 }}
             }}
             
@@ -2402,7 +2386,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                 var isWebM = elem.src && elem.src.toLowerCase().includes('.webm');
                                 var bgStyle = isWebM ? 'background:transparent !important;' : '';
                                 var videoObjectFit = elem.objectFit || 'contain';
-                                html += '<video data-element-id="' + elem.id + '" class="local-video" src="' + elem.src + '" playsinline style="width:100%;height:100%;object-fit:' + videoObjectFit + ';pointer-events:none;' + bgStyle + '"></video>';
+                                html += '<video data-element-id="' + elem.id + '" data-intent-muted="' + (elem.muted === true ? 'true' : 'false') + '" class="local-video" src="' + elem.src + '"' + (elem.controls !== false ? ' controls' : '') + ' playsinline style="width:100%;height:100%;object-fit:' + videoObjectFit + ';pointer-events:auto;' + bgStyle + '"></video>';
                             }}
                         }}
                         else if (elem.type === 'button') {{
@@ -2957,7 +2941,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                             var audio = new Audio(audioData.src);
                             audio.volume = isMuted ? 0 : volume;
                             slideAudios.push(audio);
-                            audio.play().catch(function() {{}});
+                            if (mediaSound.isUnlocked()) audio.play().catch(mediaSound.blocked);
                         }}
                     }});
                 }}
@@ -2967,29 +2951,15 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 localVideos.forEach(function(video) {{
                     // Reset video to beginning
                     video.currentTime = 0;
-                    video.muted = false;
-                    video.volume = isMuted ? 0 : volume;
+                    mediaSound.prepare(video, video.dataset.intentMuted === 'true');
                     
                     // Play video with proper error handling
-                    var playPromise = video.play();
-                    if (playPromise !== undefined) {{
-                        playPromise.catch(function(error) {{
-                            console.log('Autoplay blocked, trying muted:', error);
-                            // If autoplay is blocked, try muted
-                            video.muted = true;
-                            video.play().catch(function(e) {{
-                                console.log('Even muted autoplay failed:', e);
-                            }});
-                        }});
-                    }}
+                    mediaSound.play(video);
                     
                     // Also handle loadedmetadata event for videos that are not yet loaded
                     video.addEventListener('loadedmetadata', function() {{
                         if (video.paused) {{
-                            video.play().catch(function() {{
-                                video.muted = true;
-                                video.play().catch(function() {{}});
-                            }});
+                            mediaSound.play(video);
                         }}
                     }}, {{ once: true }});
                 }});
@@ -3198,6 +3168,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             
             function toggleMute() {{
                 isMuted = !isMuted;
+                mediaSound.setMuted(isMuted);
                 var btn = document.getElementById('mute-btn');
                 btn.textContent = isMuted ? '🔇' : '🔊';
                 
@@ -3211,6 +3182,10 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
             
             function setVolume(val) {{
                 volume = val;
+                isMuted = false;
+                mediaSound.setMuted(false);
+                mediaSound.setVolume(volume);
+                document.getElementById('mute-btn').textContent = volume > 0 ? '🔊' : '🔇';
                 if (globalAudio) {{
                     globalAudio.volume = isMuted ? 0 : (course.globalAudio.volume || 0.5) * volume;
                 }}

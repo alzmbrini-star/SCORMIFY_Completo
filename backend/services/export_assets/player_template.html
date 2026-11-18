@@ -216,7 +216,8 @@ __CSS_CONTENT__
                     <button class="icon-btn" id="volume-btn" onclick="CoursePlayer.toggleVolumeSlider()" title="Volume">
                         🔊
                     </button>
-                    <div id="volume-control">
+                    <div id="volume-control" style="display:none">
+                        <button class="icon-btn" id="mute-audio-btn" onclick="CoursePlayer.toggleMute()" aria-label="Ativar ou silenciar áudio" aria-pressed="false" title="Ativar ou silenciar áudio">🔊</button>
                         <input type="range" id="volume-slider" min="0" max="100" value="100" 
                                oninput="CoursePlayer.setVolume(this.value); document.getElementById('volume-value').textContent = this.value + '%'">
                         <span id="volume-value">100%</span>

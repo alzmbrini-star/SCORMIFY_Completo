@@ -237,6 +237,8 @@ var CoursePlayer = (function() {
     var globalAudio = null;
     var activeSlideAudios = []; // Track active slide audios to stop them on navigation
     var userHasInteracted = false; // Track if user has interacted with the page
+    var mediaSound = window.ScormifyMediaSound.create({root:'#slide-container',showGate:showStartOverlay});
+    mediaSound.setVolume(1);
     // True if ANY slide in the course has a quiz element.
     // When true, SCORM completion must come from QuizController, NOT from navigation.
     var courseHasQuiz = false;
@@ -694,10 +696,7 @@ var CoursePlayer = (function() {
                 video.muted = state.muted;
                 video.volume = state.volume;
                 if (!state.paused) {
-                    video.play().catch(function() {
-                        video.muted = true;
-                        video.play().catch(function() {});
-                    });
+                    mediaSound.play(video);
                 }
             } catch (e) {
                 console.log('Error restoring video state:', e);
@@ -743,14 +742,12 @@ var CoursePlayer = (function() {
     }
     
     function checkAndShowStartOverlay() {
-        // Only show overlay if on first slide and it has audio (or global audio)
-        var firstSlide = course.slides[0];
-        var hasAudio = (firstSlide.audio && firstSlide.audio.length > 0) || 
-                       (course.globalAudio && course.globalAudio.src);
+        // Include embedded MP4 sound and resumed courses, not only first-slide narration.
+        var hasAudio = window.ScormifyMediaSound.hasSound(course);
         
-        if (currentSlide === 0 && hasAudio && !userHasInteracted) {
+        if (hasAudio && !userHasInteracted) {
             showStartOverlay();
-        }
+        } else if (!hasAudio) { mediaSound.unlock(); }
     }
     
     function showStartOverlay() {
@@ -766,16 +763,15 @@ var CoursePlayer = (function() {
             overlay.style.display = 'none';
         }
         userHasInteracted = true;
+        mediaSound.unlock();
         
         // Now play the audio
-        var firstSlide = course.slides[0];
-        if (firstSlide.audio && firstSlide.audio.length > 0) {
+        var firstSlide = course.slides[currentSlide];
+        if (firstSlide && firstSlide.audio && firstSlide.audio.length > 0) {
             playSlideAudio(firstSlide.audio);
         }
         if (globalAudio) {
-            globalAudio.play().catch(function(e) {
-                console.log('Global audio play failed:', e);
-            });
+            globalAudio.play().catch(mediaSound.blocked);
         }
     }
     
@@ -1095,9 +1091,9 @@ var CoursePlayer = (function() {
             });
         }
         
-        // Play slide audio (only if user has interacted or not first slide)
+        // Play slide audio only after an explicit start gesture, including resume.
         if (slide.audio && slide.audio.length > 0) {
-            if (userHasInteracted || index > 0) {
+            if (userHasInteracted) {
                 playSlideAudio(slide.audio, slideDuration, function(actualDuration) {
                     // When audio reveals its real duration, restart progress bar if needed
                     if (actualDuration > slideDuration) {
@@ -1376,13 +1372,15 @@ var CoursePlayer = (function() {
                     el.style.background = 'transparent';
                     var video = document.createElement('video');
                     video.src = element.src;
-                    video.controls = false;  // Hide video controls
+                    video.controls = element.controls !== false;
+                    video.className = 'local-video';
+                    mediaSound.prepare(video, element.muted === true);
                     video.playsInline = true;
                     video.style.width = '100%';
                     video.style.height = '100%';
                     video.style.background = 'transparent';
                     video.style.objectFit = element.objectFit || 'contain';
-                    video.style.pointerEvents = 'none';  // Prevent interaction
+                    video.style.pointerEvents = 'auto';
                     
                     // Store video reference for slide change handling
                     video.dataset.elementId = element.id;
@@ -1398,12 +1396,7 @@ var CoursePlayer = (function() {
                             restoreVideoState(this);
                         } else {
                             // Autoplay only if no saved state
-                            this.play().catch(function() {
-                                video.muted = true;
-                                video.play().catch(function() {
-                                    console.log('Autoplay blocked by browser');
-                                });
-                            });
+                            mediaSound.play(this);
                         }
                     });
                     
@@ -1412,10 +1405,7 @@ var CoursePlayer = (function() {
                         if (hasSavedState) {
                             restoreVideoState(video);
                         } else {
-                            video.play().catch(function() {
-                                video.muted = true;
-                                video.play().catch(function() {});
-                            });
+                            mediaSound.play(video);
                         }
                     }
                 }
@@ -2043,10 +2033,13 @@ var CoursePlayer = (function() {
                     if (!window.audioTimelineTimers || window.audioTimelineTimers.length === 0) return;
                     var audioEl = new Audio(audio.src);
                     audioEl.volume = audio.volume || 1;
+                    audioEl.volume *= mediaSound.volume();
+                    audioEl.muted = mediaSound.isMuted();
                     activeSlideAudios.push(audioEl);
                     reportAudioDuration(audioEl, audio.startTime || 0);
                     console.log('[Audio] Playing audio', idx + 1, 'at', audio.startTime, 's');
                     audioEl.play().catch(function(e) {
+                        mediaSound.blocked(e);
                         console.log('[Audio] Play blocked for audio', idx + 1, ':', e.message);
                     });
                 }, startMs);
@@ -2061,6 +2054,8 @@ var CoursePlayer = (function() {
                 var audio = sortedList[seqIndex];
                 var audioEl = new Audio(audio.src);
                 audioEl.volume = audio.volume || 1;
+                audioEl.volume *= mediaSound.volume();
+                audioEl.muted = mediaSound.isMuted();
                 activeSlideAudios.push(audioEl);
                 audioEl.addEventListener('ended', function() {
                     seqIndex++;
@@ -2068,6 +2063,7 @@ var CoursePlayer = (function() {
                 });
                 console.log('[Audio] Sequential: playing audio', seqIndex + 1);
                 audioEl.play().catch(function(e) {
+                    if (e.name === 'NotAllowedError') { mediaSound.blocked(e); return; }
                     console.log('[Audio] Sequential play blocked:', e.message);
                     seqIndex++;
                     playNextInSequence();
@@ -2080,9 +2076,12 @@ var CoursePlayer = (function() {
             var audio = sortedList[0];
             var audioEl = new Audio(audio.src);
             audioEl.volume = audio.volume || 1;
+            audioEl.volume *= mediaSound.volume();
+            audioEl.muted = mediaSound.isMuted();
             activeSlideAudios.push(audioEl);
             reportAudioDuration(audioEl, 0);
             audioEl.play().catch(function(e) {
+                mediaSound.blocked(e);
                 console.log('[Audio] Single play blocked:', e.message);
             });
         }
@@ -2144,7 +2143,7 @@ var CoursePlayer = (function() {
     }
     
     function pauseAllVideos(resetPosition) {
-        var videos = document.querySelectorAll('#slide-content video');
+        var videos = document.querySelectorAll('#slide-container video.local-video');
         videos.forEach(function(video) {
             video.pause();
             // Only reset position if explicitly requested (slide change)
@@ -2155,18 +2154,13 @@ var CoursePlayer = (function() {
     }
     
     function autoplayVideosOnSlide() {
-        var videos = document.querySelectorAll('#slide-content video');
+        var videos = document.querySelectorAll('#slide-container video.local-video');
         videos.forEach(function(video) {
             var elementId = video.dataset.elementId;
             // Only autoplay if no saved state exists for this video
             if (!videoStates[elementId]) {
                 video.currentTime = 0;
-                video.play().catch(function() {
-                    video.muted = true;
-                    video.play().catch(function() {
-                        console.log('Autoplay blocked');
-                    });
-                });
+                mediaSound.play(video);
             }
         });
     }
@@ -2277,26 +2271,27 @@ var CoursePlayer = (function() {
     function toggleMute() {
         var volumeBtn = document.getElementById('volume-btn');
         var volumeSlider = document.getElementById('volume-slider');
+        var muted = mediaSound.setMuted(!mediaSound.isMuted());
+        if (volumeBtn) volumeBtn.innerHTML = muted ? '🔇' : '🔊';
+        var muteButton = document.getElementById('mute-audio-btn');
+        if (muteButton) { muteButton.innerHTML = muted ? '🔇' : '🔊'; muteButton.setAttribute('aria-pressed', String(muted)); }
         
         if (globalAudio) {
-            if (globalAudio.muted) {
-                globalAudio.muted = false;
-                if (volumeBtn) volumeBtn.innerHTML = '🔊';
-                if (volumeSlider) volumeSlider.value = globalAudio.volume * 100;
-            } else {
-                globalAudio.muted = true;
-                if (volumeBtn) volumeBtn.innerHTML = '🔇';
-            }
+            globalAudio.muted = muted;
         }
         
         // Also mute/unmute active slide audios
         activeSlideAudios.forEach(function(audio) {
-            audio.muted = globalAudio ? globalAudio.muted : !audio.muted;
+            audio.muted = muted;
         });
     }
     
     function setVolume(value) {
         var volume = value / 100;
+        mediaSound.setVolume(volume);
+        mediaSound.setMuted(false);
+        var muteButton = document.getElementById('mute-audio-btn');
+        if (muteButton) { muteButton.innerHTML = volume > 0 ? '🔊' : '🔇'; muteButton.setAttribute('aria-pressed','false'); }
         var volumeBtn = document.getElementById('volume-btn');
         
         if (globalAudio) {
