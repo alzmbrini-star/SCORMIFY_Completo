@@ -7,7 +7,7 @@ import {authHeaders} from '../contexts/AuthContext';
 const API=getApiUrl();
 const labels={draft:'Rascunho',planning:'Preparando storyboard',storyboard_approved:'Storyboard aprovado',budget_approved:'Orçamento aprovado',generating:'Produzindo mídias',failed:'Produção interrompida',unknown:'Envio não confirmado',completed:'Concluído'};
 async function request(path,method='GET',body) {
- const res=await fetch(API+path,{method,headers:authHeaders(body?{'Content-Type':'application/json'}:{}),...(body?{body:JSON.stringify(body)}:{})});
+ const res=await fetch(API+'/api'+path,{method,headers:authHeaders(body?{'Content-Type':'application/json'}:{}),...(body?{body:JSON.stringify(body)}:{})});
  const data=await res.json();if(!res.ok)throw new Error(typeof data.detail==='string'?data.detail:'Revise os campos e tente novamente. Nenhuma mídia foi liberada por esta resposta.');return data;
 }
 

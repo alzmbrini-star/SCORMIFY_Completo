@@ -16,8 +16,9 @@ beforeEach(()=>{
  Object.defineProperty(global.crypto,'randomUUID',{configurable:true,value:()=> '00000000-0000-4000-8000-000000000001'});
  global.fetch=jest.fn(async(path,options={})=>{
   const body=options.body?JSON.parse(options.body):{};
-  if(path==='/films/config')return{ok:true,json:async()=>({runway:true,narration:true,mediaTools:true})};
-  if(path==='/films' || path.startsWith('/films?'))return{ok:true,json:async()=>({films:[{id:'film',board:{title:'História de teste'},status:'draft'}]})};
+  if(!path.startsWith('/api/'))throw new Error('API prefix missing');
+  if(path==='/api/films/config')return{ok:true,json:async()=>({runway:true,narration:true,mediaTools:true})};
+  if(path==='/api/films' || path.startsWith('/api/films?'))return{ok:true,json:async()=>({films:[{id:'film',board:{title:'História de teste'},status:'draft'}]})};
   if(path.includes('/approve-storyboard'))current={...current,status:'storyboard_approved',storyboardApproval:current.revision,quote:priced()};
   if(path.includes('/approve-budget'))current={...current,status:'budget_approved',budgetApproval:{quoteId:body.quoteId}};
   if(path.includes('/generate'))current={...current,status:'generating'};
@@ -30,6 +31,7 @@ test('opening the studio only reads history/configuration and does not generate 
  await act(async()=>root.render(<FilmStudioDialog open onOpenChange={()=>{}} sourceProjectId="original"/>));
  expect(host.textContent).toContain('projeto separado');
  expect(fetch.mock.calls.every(([,options])=>options.method==='GET')).toBe(true);
+ expect(fetch.mock.calls.map(([url])=>url)).toEqual(['/api/films/config','/api/films?sourceProjectId=original']);
  expect(host.querySelector('[data-testid="film-create-draft"]').disabled).toBe(true);
 });
 test('two explicit approvals are required before the media button is enabled',async()=>{
