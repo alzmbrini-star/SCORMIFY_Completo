@@ -15,6 +15,7 @@ import { fetchHtmlDiagnostic } from '../utils/htmlDiagnostic';
 import { getApiUrl } from '../utils/apiUrl';
 import { mergeRunwayProject } from './Editor/utils/runwayJobs';
 import LayoutRecoveryNotice from '../components/editor/LayoutRecoveryNotice';
+import FilmStudioDialog from '../components/FilmStudioDialog';
 import GammaRefreshDialog from '../components/GammaRefreshDialog';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -293,6 +294,7 @@ export default function Editor() {
 
   // ── Local State ──
   const [showMediaDialog, setShowMediaDialog] = useState(false);
+  const [showFilmStudio,setShowFilmStudio]=useState(false);
   // Background opacity slider: local draft + debounced save. Without this
   // every 1% tick fired a PUT and any failure (e.g. project deleted in
   // another tab) surfaced as an uncaught runtime error overlay.
@@ -1413,6 +1415,7 @@ export default function Editor() {
 
   return (
     <TooltipProvider>
+      <FilmStudioDialog open={showFilmStudio} onOpenChange={setShowFilmStudio} sourceProjectId={currentProject?.id} sourceTitle={currentProject?.name}/>
       {/* Course Preview Modal */}
       {showPreview && (
         <CoursePreview
@@ -2008,6 +2011,7 @@ export default function Editor() {
                 </TooltipTrigger>
                 <TooltipContent>🎭 Criar Vídeo com Avatar (HeyGen)</TooltipContent>
               </Tooltip>
+              <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-8 text-xs" onClick={()=>setShowFilmStudio(true)} data-testid="editor-film-studio">Filme educativo</Button></TooltipTrigger><TooltipContent>Filme educativo em desenho animado — storyboard e orçamento aprovados antes das mídias</TooltipContent></Tooltip>
 
               <Tooltip>
                 <TooltipTrigger asChild>

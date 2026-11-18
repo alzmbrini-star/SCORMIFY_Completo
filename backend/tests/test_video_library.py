@@ -44,15 +44,16 @@ class VideoLibraryTests(unittest.IsolatedAsyncioTestCase):
         def coll(name,rows):
             def find(query, *args): queries[name]=query;return Cursor(rows)
             return SimpleNamespace(find=find)
-        db=SimpleNamespace(projects=coll('projects',[project]),
+        db=SimpleNamespace(projects=coll('projects',[project]),educational_films=coll('films',[{'id':'f','projectId':'p','board':{'title':'Filme educativo','topic':'Uma história educativa'},'status':'completed','videoUrl':'/film.mp4'}]),
             kling_generations=coll('kling',[{'taskId':'old','projectId':'p','status':'completed','videoUrl':'/old.mp4'}]),
             heygen_videos=coll('heygen',[{'video_id':'h','project_id':'p','status':'completed'}]),
             heygem_videos=coll('heygem',[{'video_id':'m','status':'completed'}]),
             video_library_hidden=coll('hidden',[]))
         lib=library(db=db)
         result=await lib.catalog('', '', 0, 100, {'companyId':'a','id':'u'})
-        self.assertEqual(len(result['videos']),5)
-        self.assertEqual({r['provider'] for r in result['videos']},{'heygen','heygem','runway','kling'})
+        self.assertEqual(len(result['videos']),6)
+        self.assertEqual({r['provider'] for r in result['videos']},{'heygen','heygem','runway','kling','educational_film'})
+        self.assertEqual(queries['films'],{'projectId':{'$in':['p']}})
         self.assertEqual(queries['heygen'],{'project_id':{'$in':['p']}})
         self.assertEqual(queries['heygem'],{'userId':'u'})
         self.assertEqual((await lib.catalog('runway','narrado',0,100,{'companyId':'a'}))['total'],1)
@@ -72,7 +73,7 @@ class VideoLibraryTests(unittest.IsolatedAsyncioTestCase):
         db.heygem_videos.find_one.assert_awaited_once_with({'video_id':'secret','userId':'other'})
 
     async def test_failed_records_recoverable_for_every_provider_without_job_or_asset_deletion(self):
-        for provider in ('heygen','heygem','runway','kling'):
+        for provider in ('heygen','heygem','runway','kling','educational_film'):
             with self.subTest(provider=provider):
                 hidden=SimpleNamespace(update_one=AsyncMock(), delete_one=AsyncMock())
                 row={'status':'failed'} if provider != 'runway' else {'id':'p','runwayPending':[{'id':'v','status':'failed'}]}

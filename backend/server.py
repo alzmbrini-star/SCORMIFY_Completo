@@ -295,6 +295,8 @@ from routes import kling as kling_routes
 app.include_router(kling_routes.router, prefix="/api")
 from routes import runway as runway_routes
 app.include_router(runway_routes.router, prefix="/api")
+from routes import educational_films as educational_film_routes
+app.include_router(educational_film_routes.router, prefix="/api")
 from routes import gamma as gamma_routes
 app.include_router(gamma_routes.router, prefix="/api")
 from routes import video_library as video_library_routes

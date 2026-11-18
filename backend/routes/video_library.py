@@ -40,7 +40,7 @@ async def accessible_projects(user):
 @router.get('/videos/library')
 async def catalog(provider: str = '', search: str = '', offset: int = Query(0, ge=0),
                   limit: int = Query(100, ge=1, le=100), user=Depends(require_auth)):
-    if provider and provider not in ('heygen', 'heygem', 'kling', 'runway'):
+    if provider and provider not in ('heygen', 'heygem', 'kling', 'runway', 'educational_film'):
         raise HTTPException(400, 'Provedor inválido.')
     projects = await accessible_projects(user)
     by_id = {p['id']: p for p in projects}
@@ -49,6 +49,10 @@ async def catalog(provider: str = '', search: str = '', offset: int = Query(0, g
     def add(p, row, project=None):
         item = normalize(p, row, project)
         rows[item['library_id']] = item
+    async for film in db.educational_films.find({'projectId':{'$in':ids}}):
+        board=film.get('board',{})
+        add('educational_film',{**film,'title':board.get('title'),'script':board.get('topic'),
+            'narration':True,'music':board.get('music',False)},by_id.get(film['projectId']))
     for project in projects:
         for job in project.get('runwayPending', []):
             add('runway', job, project)
@@ -78,6 +82,12 @@ async def catalog(provider: str = '', search: str = '', offset: int = Query(0, g
 
 
 async def authorize_item(provider, video_id, user):
+    if provider == 'educational_film':
+        row=await db.educational_films.find_one({'id':video_id})
+        if row:
+            from routes.projects_common import load_authorized_project
+            await load_authorized_project(row['projectId'],user)
+            return row
     if provider == 'heygem':
         owner = str(user.get('user_id') or user.get('id') or '')
         row = await db.heygem_videos.find_one({'video_id': video_id, 'userId': owner}) if owner else None

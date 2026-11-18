@@ -27,11 +27,11 @@ export function VideoLibraryDialog({
             <Film className="w-5 h-5 text-cyan-500" />
             Biblioteca de Vídeos
           </DialogTitle>
-          <DialogDescription>HeyGen, Runway, Kling e HeyGem dos projetos permitidos. Os vídeos concluídos podem ser reutilizados sem nova geração.</DialogDescription>
+          <DialogDescription>Filmes educativos, HeyGen, Runway, Kling e HeyGem dos projetos permitidos. Os vídeos concluídos podem ser reutilizados sem nova geração.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap gap-2">
           <Input aria-label="Buscar vídeos" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar título, roteiro ou projeto…" className="flex-1 min-w-[180px]" />
-          <select aria-label="Provedor de vídeo" value={provider} onChange={e => setProvider(e.target.value)} className="rounded border bg-background p-2"><option value="all">Todos os provedores</option>{['heygen','runway','kling','heygem'].map(p => <option key={p} value={p}>{({heygen:'HeyGen',runway:'Runway',kling:'Kling',heygem:'HeyGem'})[p]}</option>)}</select>
+          <select aria-label="Provedor de vídeo" value={provider} onChange={e => setProvider(e.target.value)} className="rounded border bg-background p-2"><option value="all">Todos os provedores</option>{['educational_film','heygen','runway','kling','heygem'].map(p => <option key={p} value={p}>{({educational_film:'Filme educativo',heygen:'HeyGen',runway:'Runway',kling:'Kling',heygem:'HeyGem'})[p]}</option>)}</select>
         </div>
 
         <div className="flex-1 overflow-hidden">
@@ -67,7 +67,7 @@ export function VideoLibraryDialog({
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <h4 className="font-medium truncate">{video.title || 'Sem título'}</h4>
-                            <p className="text-xs text-cyan-400">{({heygen:'HeyGen',runway:'Runway',kling:'Kling',heygem:'HeyGem'})[video.provider] || 'HeyGen'}{video.narrated && ' · Narração PT-BR'}{video.music && ' · Trilha sonora'}{video.project_title && ` · ${video.project_title}`}</p>
+                            <p className="text-xs text-cyan-400">{({educational_film:'Filme educativo',heygen:'HeyGen',runway:'Runway',kling:'Kling',heygem:'HeyGem'})[video.provider] || 'HeyGen'}{video.narrated && ' · Narração PT-BR'}{video.music && ' · Trilha sonora'}{video.project_title && ` · ${video.project_title}`}</p>
                             <div className="flex items-center gap-2 mt-1">
                               {getStatusBadge(video.status)}
                               <span className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" />{formatDateTime(video.created_at)}</span>
