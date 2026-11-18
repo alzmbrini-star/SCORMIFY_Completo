@@ -152,6 +152,8 @@ async def list_projects(user: dict = Depends(require_auth)):
             "approvalStatus": 1,
             "course": {
                 "metadata": "$course.metadata",
+                "width": "$course.width",
+                "height": "$course.height",
                 # Only first slide for the thumbnail preview
                 "slides": {"$slice": [{"$ifNull": ["$course.slides", []]}, 1]},
                 # Total slide count for the badge

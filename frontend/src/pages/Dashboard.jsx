@@ -4,7 +4,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiUrl } from '../utils/apiUrl';
-import { slidePreviewText } from '../utils/slidePreviewText';
+import CourseCoverPreview from '../components/CourseCoverPreview';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
@@ -793,25 +793,7 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="aspect-video bg-muted rounded-lg mb-3 flex items-center justify-center overflow-hidden relative">
-                    {project.thumbnail ? (
-                      <img
-                        src={project.thumbnail}
-                        alt=""
-                        className="w-full h-full object-cover"
-                        onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
-                      />
-                    ) : project.course?.slides?.[0]?.backgroundImage ? (
-                      <img
-                        src={`${getApiUrl()}${project.course.slides[0].backgroundImage}`}
-                        alt=""
-                        className="w-full h-full object-cover"
-                        onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
-                      />
-                    ) : project.course?.slides?.[0] ? (
-                      <SlideMinPreview slide={project.course.slides[0]} title={project.title || project.name} />
-                    ) : (
-                      <Presentation className="w-12 h-12 text-muted-foreground" />
-                    )}
+                    <CourseCoverPreview project={project}/>
                     {/* Slide count badge */}
                     <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
                       {project.course?.slidesCount ?? project.course?.slides?.length ?? 0} slides
@@ -839,35 +821,3 @@ export default function Dashboard() {
 }
 
 
-function SlideMinPreview({ slide, title }) {
-  const bg = slide.background || '#1e293b';
-  const isGradient = bg.includes('gradient');
-  const elements = slide.elements || [];
-  const titleEl = elements.find(e => e.htmlContent?.includes('<h1') || e.htmlContent?.includes('font-size:4'));
-  let titleText = title || slide.title || '';
-  if (titleEl?.htmlContent) {
-    titleText = slidePreviewText(titleEl.htmlContent, ['h1','h2','[role="heading"]']) || titleText;
-  }
-  const subtitleEl = elements.find(e => e !== titleEl && (e.htmlContent?.includes('<p') || e.htmlContent?.includes('font-size:1')));
-  let subtitleText = '';
-  if (subtitleEl?.htmlContent) {
-    subtitleText = slidePreviewText(subtitleEl.htmlContent, ['p']);
-  }
-  const textColor = elements[0]?.style?.color || (isGradient || bg < '#888' ? '#e2e8f0' : '#1e293b');
-  const accentEl = elements.find(e => e.htmlContent?.includes('background:') || e.htmlContent?.includes('background-color:'));
-  let accentColor = '';
-  if (accentEl?.htmlContent) {
-    const m = accentEl.htmlContent.match(/background(?:-color)?:\s*(#[0-9a-fA-F]{3,8})/);
-    if (m) accentColor = m[1];
-  }
-
-  return (
-    <div className="w-full h-full relative" style={{ background: bg }} data-testid="slide-min-preview">
-      {accentColor && <div className="absolute top-0 left-0 right-0 h-1" style={{ background: accentColor }} />}
-      <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center gap-1">
-        <span className="font-bold text-[11px] leading-tight line-clamp-2" style={{ color: textColor }}>{titleText}</span>
-        {subtitleText && <span className="text-[8px] leading-tight line-clamp-1 opacity-70" style={{ color: textColor }}>{subtitleText}</span>}
-      </div>
-    </div>
-  );
-}
