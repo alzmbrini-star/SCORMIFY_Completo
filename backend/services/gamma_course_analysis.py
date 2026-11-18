@@ -148,6 +148,7 @@ async def ask(prompt, picture=None):
 
 
 def safe_suggestions(raw, index, slide_id):
+    from services.suggestion_semantics import classify_suggestion
     rows = []
     for item in raw if isinstance(raw, list) else []:
         if not isinstance(item, dict) or item.get('type') not in TYPES:
@@ -158,7 +159,7 @@ def safe_suggestions(raw, index, slide_id):
         rows.append({'slideIndex': index, 'sourceSlideId': slide_id, 'type': item['type'],
             'priority': item.get('priority') if item.get('priority') in ('alta','media','baixa') else 'media',
             'description': description[:1200], 'suggestion': suggestion[:2200]})
-    return rows[:3]
+    return [classify_suggestion(row) for row in rows[:3]]
 
 
 async def analyze(project, database, projects_dir, progress=None, send=ask):
@@ -230,6 +231,7 @@ async def analyze(project, database, projects_dir, progress=None, send=ask):
                     'Não sugira remover ou substituir a imagem-base, nem conteúdo/interações existentes. Os complementos serão novos slides após este slide. '
                     'Tipos permitidos: quiz, interactive_assessment, scenario, simulator, visual_summary, reinforcement, narration. quiz é o Quiz tradicional nativo com alternativas, embaralhamento, nota mínima e feedback, sem exigir ilustração. interactive_assessment é a Avaliação interativa com imagens de apoio obrigatórias. São formatos distintos: sugira o mais adequado ao objetivo e diversifique ambos no curso, sem duplicar os dois no mesmo slide. Descreva o que avaliar; reinforcement pode ser flashcards. '
                     'Se já houver um complemento relevante no inventário abaixo, evite duplicá-lo. '
+                    'scenario é Cenário de decisão com caminhos e consequências: use esse tipo quando a proposta pede ramificações ou desfechos diferentes, nunca interactive_assessment ou quiz. Questões de alternativa sobre uma situação continuam sendo avaliações; contexto narrativo sozinho não é ramificação. '
                     'Seja conciso: visibleText até 2500 caracteres; summary até 700; cada description até 180 e suggestion até 400. Retorne JSON {"readable":true,"visibleText":"texto lido","summary":"conceitos visíveis","score":7,"improvements":[{"type":"quiz","priority":"media","description":"por que aqui","suggestion":"proposta específica"}]}. '
                     'Se ilegível, readable=false e improvements=[]. Quando readingMode=text, avalie SOMENTE o texto disponível; não afirme ter visto imagens. Em PPT editável sem fundo completo, a composição mostra apenas os objetos de imagem; o texto extraído vem separado.\n'
                     +json.dumps({'slideIndex':index,'title':slide.get('title'),'originalSource':context,

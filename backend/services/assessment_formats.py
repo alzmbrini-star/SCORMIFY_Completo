@@ -39,7 +39,8 @@ def migrate_analysis(result):
         for item in [*out.get('improvements',[]),*(i for row in visual.get('slides',[]) for i in row.get('improvements',[]))]:
             if item.get('type')=='quiz':item['type']='interactive_assessment'
         visual['assessmentFormatsVersion']=FORMAT_VERSION
-    return out
+    from services.suggestion_semantics import normalize_analysis
+    return normalize_analysis(out)
 
 def image_counts(result):
     total=ready=failed=0

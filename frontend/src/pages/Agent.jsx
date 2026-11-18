@@ -61,6 +61,7 @@ import MediaConfigPanel from './Agent/components/MediaConfigPanel';
 import GeneratedPanel from './Agent/components/GeneratedPanel';
 import ApprovalQueuePanel from './Agent/components/ApprovalQueuePanel';
 import { CourseReviewPanel, EditResultPanel, PreviewPanel } from './Agent/components/CoursePanels';
+import { analysisMessage, updateAnalysisStatus } from './Agent/courseAnalysisUI';
 import PdfPreviewPanel from './Agent/components/PdfPreviewPanel';
 import CompanySelector from '../components/CompanySelector';
 
@@ -201,6 +202,10 @@ export default function Agent() {
     { role: 'agent', text: 'Olá! Sou seu Agente de Design Instrucional. Escolha se deseja criar um novo curso ou editar um existente.' },
   ]);
   const [chatInput, setChatInput] = useState('');
+  const [courseChatHistory, setCourseChatHistory] = useState([]);
+  const [chatSending, setChatSending] = useState(false);
+  const activeChatCourse = useRef(null);
+  useEffect(() => { activeChatCourse.current = mode === 'edit' ? selectedCourse?.id : null; }, [mode, selectedCourse?.id]);
   const chatEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -1063,7 +1068,12 @@ export default function Agent() {
 
   const handleSelectCourse = (course, cachedOnly = false) => {
     setSelectedCourse({...course,cachedReview:cachedOnly});
-    addChatMsg('user', `Selecionei o curso: ${course.name}`);
+    setCourseChatHistory([]);
+    setChatInput('');
+    setSelectedImprovements([]);
+    setSelectedNewSlides([]);
+    setChatMessages([{role:'user',text:`Selecionei o curso: ${course.name}`},
+      {role:'agent',text:'Vou analisar este curso. Depois podemos conversar sobre o conteúdo e as sugestões; o chat não altera os slides nem gera mídias automaticamente.'}]);
     setCurrentStep(1);
     setCourseAnalysis(null);
     handleAnalyzeCourse(course,cachedOnly);
@@ -1071,7 +1081,8 @@ export default function Agent() {
 
   const handleAnalyzeCourse = async (course,cachedOnly = false) => {
     setLoading(true);
-    addChatMsg('agent', `Analisando o curso "${course.name}"...`);
+    const status = (text, state) => setChatMessages(prev => updateAnalysisStatus(prev, course.id, text, state));
+    status(cachedOnly ? 'Conferindo a análise salva, sem nova leitura de IA...' : `Analisando o curso "${course.name}"...`, 'pending');
     try {
       const res = await fetch(`${API}/api/agent/courses/${course.id}/analyze${cachedOnly?'?cached_only=true':'?resume_partial=true'}`, { method: 'POST', headers: authHeaders() });
       if (!res.ok) {const error=await res.json().catch(()=>({}));throw new Error(error.detail||'Erro ao analisar o curso');}
@@ -1081,9 +1092,9 @@ export default function Agent() {
       if (data.overallScore !== undefined || data.improvements) {
         setCourseAnalysis(data);
         setSelectedImprovements([]);
-        addChatMsg('agent', data.visualAnalysis && data.visualAnalysis.readSlides < data.visualAnalysis.totalSlides ? `Análise incompleta: ${data.visualAnalysis.readSlides} de ${data.visualAnalysis.totalSlides} slides lidos. Leituras válidas preservadas; confira o motivo das falhas por slide.` : `Analise concluida! Nota geral: ${data.overallScore}/10. ${data.improvements?.length || 0} melhorias sugeridas.`);
+        status(analysisMessage(data), 'done');
       } else if (data.status === 'processing') {
-        addChatMsg('agent', 'Analise em andamento... aguarde.');
+        status('Análise em andamento. Aguarde; os conteúdos do curso permanecem preservados.', 'pending');
         // Poll every 2s for faster response
         const maxWait = course.visualAnalysisAvailable || ['gamma','ppt','imported'].includes(course.source) || course.gammaJobId ? 1800000 : 180000;
         const start = Date.now();
@@ -1102,9 +1113,10 @@ export default function Agent() {
         if (!result) throw new Error('Timeout aguardando analise do curso');
         setCourseAnalysis(result);
         setSelectedImprovements([]);
-        addChatMsg('agent', result.visualAnalysis && result.visualAnalysis.readSlides < result.visualAnalysis.totalSlides ? `Análise incompleta: ${result.visualAnalysis.readSlides} de ${result.visualAnalysis.totalSlides} slides lidos. Leituras válidas preservadas; confira o motivo das falhas por slide.` : `Analise concluida! Nota geral: ${result.overallScore}/10. ${result.improvements?.length || 0} melhorias sugeridas.`);
+        status(analysisMessage(result), 'done');
       }
-    } catch (e) { toast.error(e.message || 'Erro na analise'); addChatMsg('agent', 'Erro ao analisar o curso.'); }
+      else if (data.status === 'error') { throw new Error(data.error || 'Erro ao analisar o curso.'); }
+    } catch (e) { toast.error(e.message || 'Erro na analise'); status(`Não foi possível concluir a análise: ${e.message || 'tente novamente'}. O curso não foi alterado.`, 'error'); }
     finally { setLoading(false); }
   };
 
@@ -1339,6 +1351,29 @@ export default function Agent() {
 
   // Chat with agent
   const handleChat = async () => {
+    if (mode === 'edit') {
+      if (!selectedCourse?.id || !chatInput.trim() || loading || chatSending) return;
+      const projectId = selectedCourse.id;
+      const message = chatInput.trim();
+      setChatInput('');
+      setChatSending(true);
+      addChatMsg('user', message);
+      try {
+        const res = await fetch(`${API}/api/agent/courses/${projectId}/analysis-chat`, {
+          method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ message, history: courseChatHistory.slice(-12), suggestions: (courseAnalysis?.improvements || []).slice(0,30).map(({slideIndex,type,description,suggestion}) => ({slideIndex,type,description,suggestion})) }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Não foi possível responder.');
+        if (activeChatCourse.current !== projectId) return;
+        // Analysis replies are text only: never interpret action markers or trigger mutations.
+        addChatMsg('agent', data.response);
+        setCourseChatHistory(prev => [...prev, { role: 'user', text: message }, { role: 'agent', text: data.response.slice(0,4000) }].slice(-12));
+      } catch (error) {
+        if (activeChatCourse.current === projectId) addChatMsg('agent', error.message || 'Erro no chat. O curso não foi alterado.');
+      } finally { setChatSending(false); }
+      return;
+    }
     if (!chatInput.trim() || !sessionId) return;
     const msg = chatInput;
     setChatInput('');
@@ -1542,9 +1577,9 @@ export default function Agent() {
           <ScrollArea className="flex-1 p-3">
             <div className="space-y-3">
               {chatMessages.map((msg, i) => {
-                const isProgress = msg.text?.match(/gerando|criando|salvando|processando|iniciando/i) && msg.role === 'agent';
-                const isSuccess = msg.text?.match(/criado!|completo|configurada!|criada!/i) && msg.role === 'agent';
-                const isError = msg.text?.match(/erro|falha|timeout/i) && msg.role === 'agent';
+                const isProgress = msg.status ? msg.status === 'pending' : mode !== 'edit' && loading && msg.text?.match(/gerando|criando|salvando|processando|iniciando/i) && msg.role === 'agent';
+                const isSuccess = msg.status ? msg.status === 'done' : msg.text?.match(/criado!|completo|configurada!|criada!/i) && msg.role === 'agent';
+                const isError = msg.status ? msg.status === 'error' : msg.text?.match(/erro|falha|timeout/i) && msg.role === 'agent';
                 return (
                   <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm flex items-start gap-2 ${
@@ -1562,7 +1597,7 @@ export default function Agent() {
                   </div>
                 );
               })}
-              {loading && (
+              {(loading || chatSending) && (
                 <div className="flex justify-start">
                   <div className="bg-slate-800 rounded-lg px-3 py-2 text-sm text-slate-400 flex items-center gap-2">
                     <Loader2 className="w-3 h-3 animate-spin" /> Processando...
@@ -1573,17 +1608,19 @@ export default function Agent() {
             </div>
           </ScrollArea>
           <div className="p-3 border-t border-slate-800">
+            {mode === 'edit' && <p className="text-xs text-slate-400 mb-2" role="note">Chat consultivo: esclarece o conteúdo e as sugestões, sem alterar o curso. Usa créditos de IA. Para aplicar mudanças, revise a prévia e confirme.</p>}
             <div className="flex gap-2">
               <Input
                 data-testid="agent-chat-input"
                 value={chatInput}
                 onChange={e => setChatInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleChat()}
-                placeholder="Pergunte ao agente..."
+                placeholder={mode === 'edit' ? (selectedCourse?.id ? 'Pergunte sobre este curso e as sugestões...' : 'Selecione um curso para conversar...') : 'Pergunte ao agente...'}
                 className="bg-slate-800 border-slate-700 text-sm"
-                disabled={loading || !sessionId}
+                maxLength={mode === 'edit' ? 4000 : undefined}
+                disabled={loading || chatSending || (mode === 'edit' ? !selectedCourse?.id : !sessionId)}
               />
-              <Button size="icon" onClick={handleChat} disabled={loading || !sessionId || !chatInput.trim()} data-testid="agent-chat-send">
+              <Button size="icon" onClick={handleChat} disabled={loading || chatSending || (mode === 'edit' ? !selectedCourse?.id : !sessionId) || !chatInput.trim()} data-testid="agent-chat-send">
                 <Send className="w-4 h-4" />
               </Button>
             </div>

@@ -374,6 +374,12 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
   // Filter chips: 'all' or one of the improvement type keys
   const [categoryFilter, setCategoryFilter] = useState('all');
 
+  // Format choices belong to one analysis; never leak index-based overrides to another course/run.
+  useEffect(() => {
+    setTypeOverrides({}); setScriptOverrides({}); setBgOverrides({}); setPositionOverrides({});
+    setKreaModelOverrides({}); setCategoryFilter('all');
+  }, [course?.id, analysis]);
+
   const handleTypeChange = (impIndex, newType) => {
     setTypeOverrides(prev => ({ ...prev, [impIndex]: newType }));
     if (onTypeOverride) onTypeOverride(impIndex, newType);
@@ -848,6 +854,8 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                             </div>
                             <p className="text-sm text-slate-200">{imp.description}</p>
                             <p className="text-xs text-slate-400 mt-1">{imp.suggestion}</p>
+                            {imp.classificationNote && <p className="text-xs text-cyan-200 mt-1" role="note">{imp.classificationNote}</p>}
+                            {wasConverted && !isAvatarScene && <p className="text-xs text-amber-200 mt-1" role="note">Formato escolhido: {typeLabels[effectiveType] || effectiveType}. A proposta acima é a referência original; a prévia será adaptada ao formato escolhido. Nada foi convertido no curso.</p>}
                             {imp.scenarioTheme && (
                               <div className="mt-1.5 flex flex-wrap gap-1.5">
                                 <Badge className="text-[9px] bg-cyan-900/30 text-cyan-300 border-cyan-700/30">{imp.scenarioTheme}</Badge>
@@ -978,7 +986,7 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
                             />
                           </div>
                         )}
-                        {['quiz','interactive_assessment'].includes(imp.type)&&<label className="block text-xs text-teal-200">Formato da avaliação<select aria-label={`Formato da avaliação para o slide ${imp.slideIndex+1}`} value={effectiveType} onChange={e=>handleTypeChange(i,e.target.value)} className="block w-full mt-1 rounded border border-slate-600 bg-slate-900 p-2"><option value="quiz">Quiz tradicional — player original</option><option value="interactive_assessment">Avaliação interativa com imagens — usa créditos de imagem</option></select></label>}
+                        {['quiz','interactive_assessment','scenario'].includes(imp.type)&&<label className="block text-xs text-teal-200">Formato do recurso<select aria-label={`Formato do recurso para o slide ${imp.slideIndex+1}`} value={effectiveType} onChange={e=>handleTypeChange(i,e.target.value)} className="block w-full mt-1 rounded border border-slate-600 bg-slate-900 p-2"><option value="quiz">Quiz tradicional — player original</option><option value="interactive_assessment">Avaliação interativa com imagens — usa créditos de imagem</option><option value="scenario">Cenário de decisão — caminhos e consequências</option></select></label>}
                       </CardContent>
                     </Card>
                   );

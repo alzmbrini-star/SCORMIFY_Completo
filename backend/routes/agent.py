@@ -124,6 +124,24 @@ class AgentChatMessage(BaseModel):
     message: str
 
 
+class CourseChatTurn(BaseModel):
+    role: Literal['user', 'agent']
+    text: str = Field(max_length=4000)
+
+
+class CourseChatSuggestion(BaseModel):
+    slideIndex: int = Field(ge=0)
+    type: str = Field(max_length=50)
+    description: str = Field(default='', max_length=1200)
+    suggestion: str = Field(default='', max_length=2200)
+
+
+class CourseAnalysisChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=4000)
+    history: List[CourseChatTurn] = Field(default_factory=list, max_length=12)
+    suggestions: List[CourseChatSuggestion] = Field(default_factory=list, max_length=30)
+
+
 class GuidedRenderRequest(BaseModel):
     projectId: str = Field(max_length=100)
     elementId: str = Field(max_length=100)
@@ -3404,6 +3422,28 @@ def _apply_ai_result_to_slides(slides: list, result: dict, generate_id_fn, proje
     return new_slides_added
 
 
+@router.post('/agent/courses/{project_id}/analysis-chat')
+async def course_analysis_chat(project_id: str, data: CourseAnalysisChatRequest,
+                               user: dict = Depends(require_agent_access)):
+    project = await load_authorized_project(project_id, user)
+    from services.gamma_course_analysis import fingerprint, is_visual_project
+    from services.suggestion_semantics import normalize_analysis
+    from services.course_analysis_chat import discuss
+    key = f'course_analysis_visual_{fingerprint(project)}' if is_visual_project(project) else f'course_analysis_{project_id}'
+    cached = await db.analysis_cache.find_one({'key': key}, {'result': 1})
+    reading = await db.course_visual_analysis.find_one({'projectId': project_id, 'fingerprint': fingerprint(project)}, {'result': 1}) if is_visual_project(project) else None
+    analysis = normalize_analysis((reading or {}).get('result') or (cached or {}).get('result') or {})
+    if data.suggestions:
+        # The currently displayed shortlist is discussion data only, never executable operations.
+        count = len(project.get('course', {}).get('slides', []))
+        analysis['improvements'] = [s.model_dump() for s in data.suggestions if s.slideIndex < count]
+    try:
+        return await discuss(project, analysis, data.message.strip(), [t.model_dump() for t in data.history])
+    except Exception as exc:
+        logger.warning('Course analysis chat failed (%s)', type(exc).__name__)
+        raise HTTPException(502, 'Não foi possível responder agora. Confira a disponibilidade e os créditos de IA. O curso não foi alterado.') from exc
+
+
 @router.post("/agent/courses/{project_id}/analyze")
 async def agent_analyze_course(project_id: str, request: Request, user: dict = Depends(require_auth)):
     """Analyze an existing course and suggest improvements (async to avoid 504 timeout)."""
@@ -3442,6 +3482,8 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
     # If done, return result and clear cache for next time
     if cached and cached.get("status") == "done":
         result = cached["result"]
+        from services.suggestion_semantics import normalize_analysis
+        result = normalize_analysis(result)
         if gamma:
             from services.course_resource_balance import balanced_result
             result = balanced_result(result,project)
@@ -3482,6 +3524,8 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
                 analysis = loop.run_until_complete(analyze(project, _get_bg_db(), PROJECTS_DIR, report_progress))
             else:
                 analysis = loop.run_until_complete(analyze_existing_course(session_id, project))
+            from services.suggestion_semantics import normalize_analysis
+            analysis = normalize_analysis(analysis)
             _bgdb = _get_bg_db()
             _bgdb.analysis_cache.update_one(
                 {"key": cache_key},

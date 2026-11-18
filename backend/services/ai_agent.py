@@ -4549,6 +4549,10 @@ CAMPOS PARA AMBOS OS TIPOS (imagem_simples e imagem_premium):
 
 IMPORTANTE: o usuário poderá ESCOLHER entre imagem simples e premium para cada sugestão, mas sua sugestão padrão deve seguir as regras acima (simples para text-heavy, premium só em estratégicos).
 
+FORMATOS DISTINTOS: quiz é o Quiz tradicional nativo; interactive_assessment é avaliação com imagem de apoio por questão.
+scenario é cenário de decisão com caminhos e consequências. Se pedir ramificações ou desfechos diferentes, classifique como scenario, não como quiz nem interactive_assessment.
+Uma pergunta sobre uma situação narrativa continua sendo avaliação quando não há ramificação. Não converta nem reescreva recursos existentes.
+
 Retorne JSON:
 ```json
 {{
@@ -4557,7 +4561,7 @@ Retorne JSON:
   "improvements": [
     {{
       "slideIndex": 0,
-      "type": "content|structure|quiz|narration|visual|simulator|avatar_scene|scenario|visual_summary|reinforcement|imagem_simples|imagem_premium|imagem_krea",
+      "type": "content|structure|quiz|interactive_assessment|narration|visual|simulator|avatar_scene|scenario|visual_summary|reinforcement|imagem_simples|imagem_premium|imagem_krea",
       "priority": "alta|media|baixa",
       "description": "descrição da melhoria",
       "suggestion": "sugestão concreta"
