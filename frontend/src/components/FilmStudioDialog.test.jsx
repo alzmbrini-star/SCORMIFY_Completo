@@ -132,3 +132,59 @@ test('five-minute guided film sends the full script and six-character cast witho
  expect(fetch.mock.calls.some(([u])=>u.endsWith('/generate')||u.includes('/approve-'))).toBe(false);
  expect(host.querySelector('[data-testid="film-generate"]').disabled).toBe(true);
 });
+
+test('completed film can create an editable revision without editing or approving the original',async()=>{
+ current={...draft(),status:'completed',videoUrl:'/old.mp4',subtitlesUrl:'/old.srt',storyboardApproval:'rev1',budgetApproval:{quoteId:'old'}};
+ const original=JSON.stringify(current),baseFetch=fetch.getMockImplementation();
+ const copied={...draft(),id:'copy',projectId:'copy-project',revision:'copy-rev',revisionOfFilmId:'film',revisionOfTitle:'História de teste',reusedMediaCount:11,reuseNotice:'11 mídias prontas compatíveis copiadas.',storyboardApproval:null,budgetApproval:null};
+ fetch.mockImplementation(async(url,options={})=>url.endsWith('/revision-copy')?{ok:true,json:async()=>copied}:baseFetch(url,options));
+ await openFilm();expect(host.querySelector('[data-testid="film-create-revision-copy"]').disabled).toBe(false);
+ expect(host.querySelector('[aria-label="Título da cena em revisão"]').matches(':disabled')).toBe(true);
+ await act(async()=>host.querySelector('[data-testid="film-create-revision-copy"]').click());
+ expect(JSON.stringify(current)).toBe(original);
+ expect(host.textContent).toContain('O original permanece intacto');
+ expect(host.textContent).toContain('11 mídias reaproveitadas');
+ expect(host.querySelector('[aria-label="Título da cena em revisão"]').matches(':disabled')).toBe(false);
+ expect(host.querySelector('[data-testid="film-generate"]').disabled).toBe(true);
+ expect(host.querySelector('[data-testid="film-approve-storyboard"]').disabled).toBe(true);
+ expect(fetch.mock.calls.filter(([u,o])=>o.method==='POST').map(([u])=>u)).toEqual(['/api/films/film/revision-copy']);
+});
+
+test('revision copy is disabled for local changes and active or uncertain production',async()=>{
+ await openFilm();field('Título da cena em revisão','Título local ainda não salvo');
+ expect(host.querySelector('[data-testid="film-create-revision-copy"]').disabled).toBe(true);
+ expect(host.textContent).toContain('Salve as alterações antes de copiar');
+ expect(fetch.mock.calls.some(([u])=>u.endsWith('/revision-copy'))).toBe(false);
+});
+
+test('failed copy retries the same request identity without generating media',async()=>{
+ await openFilm();const baseFetch=fetch.getMockImplementation();let attempts=0;
+ fetch.mockImplementation(async(url,options={})=>url.endsWith('/revision-copy')?{ok:++attempts>1,json:async()=>attempts===1?{detail:'Cópia não confirmada; tente novamente.'}:{...draft(),id:'copy',revisionOfFilmId:'film'}}:baseFetch(url,options));
+ await act(async()=>host.querySelector('[data-testid="film-create-revision-copy"]').click());
+ expect(host.textContent).toContain('Cópia não confirmada');
+ await act(async()=>host.querySelector('[data-testid="film-create-revision-copy"]').click());
+ const calls=fetch.mock.calls.filter(([u])=>u.endsWith('/revision-copy'));
+ expect(JSON.parse(calls[0][1].body).requestId).toBe(JSON.parse(calls[1][1].body).requestId);
+ expect(fetch.mock.calls.some(([u])=>u.endsWith('/generate')||u.includes('/approve-'))).toBe(false);
+});
+
+test.each(['planning','generating','unknown'])('revision copy stays disabled while status is %s',async status=>{
+ current={...draft(),status};await openFilm();
+ expect(host.querySelector('[data-testid="film-create-revision-copy"]').disabled).toBe(true);
+ expect(fetch.mock.calls.some(([u])=>u.endsWith('/revision-copy'))).toBe(false);
+});
+
+test('zero-cost reuse still requires explicit new budget approval and displays zero ceiling',async()=>{
+ const baseFetch=fetch.getMockImplementation();
+ fetch.mockImplementation(async(url,options={})=>{
+  const response=await baseFetch(url,options);
+  if(url.endsWith('/approve-storyboard')){current.quote={...priced(),estimatedUsd:0,suggestedCeilingUsd:0};return{ok:true,json:async()=>current};}
+  return response;
+ });
+ await openFilm();act(()=>host.querySelector('[aria-label="Confirmar revisão do storyboard"]').click());
+ await act(async()=>host.querySelector('[data-testid="film-approve-storyboard"]').click());
+ expect(host.querySelector('[aria-label="Limite do orçamento do filme"]').value).toBe('0');
+ expect(host.querySelector('[data-testid="film-approve-budget"]').disabled).toBe(true);
+ expect(host.querySelector('[data-testid="film-generate"]').disabled).toBe(true);
+ expect(fetch.mock.calls.some(([u])=>u.endsWith('/approve-budget')||u.endsWith('/generate'))).toBe(false);
+});

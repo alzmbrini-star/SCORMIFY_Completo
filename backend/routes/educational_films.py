@@ -37,6 +37,9 @@ class Edit(BaseModel):
 class Approval(BaseModel):
     revision:str
 
+class RevisionCopy(Approval):
+    requestId:uuid.UUID
+
 class BudgetApproval(Approval):
     quoteId:str
     ceilingUsd:float=Field(ge=0,le=1000,allow_inf_nan=False)
@@ -53,6 +56,8 @@ async def authorized(film_id,user):
 
 def view(film):
     result={k:v for k,v in film.items() if k not in ('_id','ownerId','runId')}
+    if film.get('revisionOfFilmId'):
+        result['reusedMediaCount']=sum(op.get('status')=='ready' and bool(op.get('reusedFromFilmId')) for op in film.get('operations',{}).values())
     try:result['quote']=quote(film)
     except ValueError:result['quote']=None
     return result
@@ -116,6 +121,25 @@ async def create(body:Create,user=Depends(require_auth)):
 @router.get('/films/{film_id}')
 async def get(film_id:str,user=Depends(require_auth)):
     return view(await authorized(film_id,user))
+
+@router.post('/films/{film_id}/revision-copy')
+async def create_revision_copy(film_id:str,body:RevisionCopy,user=Depends(require_auth)):
+    source=await authorized(film_id,user)
+    owner=str(user.get('user_id') or user.get('id'))
+    ident=str(uuid.uuid5(uuid.NAMESPACE_URL,f'film-review:{owner}:{film_id}:{body.requestId}'))
+    existing=await db.educational_films.find_one({'id':ident},{'_id':0})
+    if existing:return view(await authorized(ident,user))
+    if body.revision!=source['revision']:raise HTTPException(409,'O original mudou. Atualize antes de criar a cópia de revisão.')
+    from services.film_revisions import revision_copy,copy_compatible_media
+    try:copied=revision_copy(source,owner,body.requestId,now())
+    except ValueError as exc:raise HTTPException(409,str(exc)) from None
+    try:await copy_compatible_media(db,source,copied)
+    except Exception:
+        raise HTTPException(503,'Não foi possível preservar as mídias da revisão. O original está intacto. Tente novamente a mesma cópia; não houve geração de mídias.') from None
+    # Only new namespaces receive insert-only writes. Retrying this request reuses the same IDs.
+    await db.projects.update_one({'_id':'film-workspace:'+ident},{'$setOnInsert':project_shell(copied,owner,copied.get('companyId'),copied['createdAt'])},upsert=True)
+    await db.educational_films.update_one({'_id':'film:'+ident},{'$setOnInsert':copied},upsert=True)
+    return view(await authorized(ident,user))
 
 @router.put('/films/{film_id}')
 async def edit(film_id:str,body:Edit,user=Depends(require_auth)):

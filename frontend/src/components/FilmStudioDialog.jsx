@@ -20,8 +20,8 @@ export default function FilmStudioDialog({open,onOpenChange,sourceProjectId=null
  const [voiceNotice,setVoiceNotice]=useState('');
  const [mode,setMode]=useState('guided');
  const [storyConsent,setStoryConsent]=useState(false),[budgetConsent,setBudgetConsent]=useState(false),[ceiling,setCeiling]=useState('');
- const inFlight=useRef(false),createId=useRef(null);
- const accept=data=>{setFilm(data);setDirty(false);setStoryConsent(false);setBudgetConsent(false);setCeiling(String(data.quote?.suggestedCeilingUsd || ''));};
+ const inFlight=useRef(false),createId=useRef(null),copyId=useRef(null);
+ const accept=data=>{setFilm(data);setDirty(false);setStoryConsent(false);setBudgetConsent(false);setCeiling(String(data.quote?data.quote.suggestedCeilingUsd:''));};
  const act=async action=>{
   if(inFlight.current)return;inFlight.current=true;setBusy(true);setError('');
   try {const data=await action();if(data?.board)accept(data);return data;}
@@ -50,6 +50,11 @@ export default function FilmStudioDialog({open,onOpenChange,sourceProjectId=null
  const charChange=(index,values)=>change({characters:board.characters.map((c,i)=>i===index?{...c,...values}:c)});
  const save=()=>act(()=>request('/films/'+film.id,'PUT',{revision:film.revision,board}));
  const suggest=()=>act(()=>request('/films/'+film.id+'/suggest-storyboard','POST',{revision:film.revision}));
+ const createRevisionCopy=()=>act(async()=>{
+  copyId.current=copyId.current || crypto.randomUUID();
+  const result=await request('/films/'+film.id+'/revision-copy','POST',{revision:film.revision,requestId:copyId.current});
+  copyId.current=null;return result;
+ });
  const loadVoices=()=>act(async()=>{setVoiceNotice('');const data=await request('/runway/voices');setVoices(data.voices || []);setVoiceNotice([data.notice,`${(data.voices || []).length} vozes carregadas · ${(data.voices || []).filter(v=>v.brazilian).length} identificadas como brasileiras.`,!(data.voices || []).some(v=>v.brazilian)?'Nenhuma voz está identificada como brasileira neste catálogo. Você pode informar o ID de uma voz PT-BR da sua conta no modo avançado ou revisar outra voz multilíngue com confirmação explícita.':''].filter(Boolean).join(' '));});
  const prepareGuided=data=>act(async()=>{
   createId.current=createId.current || crypto.randomUUID();
@@ -86,6 +91,13 @@ export default function FilmStudioDialog({open,onOpenChange,sourceProjectId=null
    <div className="flex justify-between gap-2 items-center flex-wrap"><p role="status" className="text-cyan-200">{labels[film.status] || film.status}{dirty?' · Alterações locais ainda não salvas':''}{film.progress?' · '+film.progress:''}</p>
     <div className="flex gap-2"><Button variant="outline" disabled={busy || dirty} onClick={refresh}>Atualizar status</Button><Button variant="outline" disabled={busy || dirty} onClick={()=>{setFilm(null);loadHistory().catch(e=>setError(e.message));}}>Meus filmes</Button></div>
    </div>
+   <section className="rounded border border-indigo-700 bg-indigo-950/30 p-3 space-y-2" aria-label="Versões do filme">
+    <div className="flex items-center justify-between gap-3 flex-wrap"><div><h3 className="font-semibold text-indigo-200">Revisão para o cliente</h3><p className="text-xs text-slate-300">Crie um rascunho independente, preservando esta versão. Copia mídias prontas compatíveis, sem IA ou produção. Exige novas aprovações de storyboard e orçamento.</p></div>
+     <Button data-testid="film-create-revision-copy" disabled={busy||dirty||['planning','generating','unknown'].includes(film.status)} onClick={createRevisionCopy}>Criar cópia de revisão — sem gerar mídias</Button></div>
+    {dirty&&<p className="text-xs text-amber-200">Salve as alterações antes de copiar; a cópia usa somente a versão salva.</p>}
+    {film.revisionOfFilmId&&<div className="text-sm text-indigo-100"><p>Cópia de: {film.revisionOfTitle || 'filme original'}. O original permanece intacto.</p><p>{film.reuseNotice}</p><p>{film.reusedMediaCount || 0} mídias reaproveitadas ainda compatíveis com a versão salva. Ao editar e salvar, somente mídias compatíveis são mantidas. O orçamento será recalculado após a aprovação deste storyboard.</p>
+     <Button variant="outline" disabled={busy||dirty} onClick={()=>act(()=>request('/films/'+film.revisionOfFilmId))}>Consultar filme original</Button></div>}
+   </section>
    {film.error&&<p role="alert" className="p-3 rounded bg-amber-950 text-amber-100">{film.error}</p>}
    {['generating','planning'].includes(film.status)&&<Button variant="outline" disabled={busy} onClick={()=>act(()=>request('/films/'+film.id+'/recover-interrupted','POST',{}))}>Conferir execução interrompida (após 10 min sem atividade)</Button>}
    <div className="grid lg:grid-cols-[1fr_330px] gap-5"><section className="space-y-4 min-w-0">
