@@ -138,30 +138,39 @@ async def suggest(film_id:str,body:Approval,user=Depends(require_auth)):
     if film.get('operations'):raise HTTPException(409,'Edite as cenas manualmente para preservar as mídias já produzidas.')
     claim=await db.educational_films.update_one({'id':film_id,'revision':body.revision,'status':film['status']},{'$set':{'status':'planning','updatedAt':now()}})
     if not claim.modified_count:raise HTTPException(409,'Já existe uma preparação em andamento.')
+    raw=None
     try:
         from openai import AsyncOpenAI
         from services.llm_config import require_openai_api_key,openai_text_model
         import json
-        from services.film_guided import STORYBOARD_SYSTEM,coverage_review
+        from services.film_guided import STORYBOARD_SYSTEM,coverage_review,storyboard_format
         board=film['board']
         async with AsyncOpenAI(api_key=require_openai_api_key(),timeout=120,max_retries=0) as client:
             response=await client.chat.completions.create(model=openai_text_model('OPENAI_FILM_STORYBOARD_MODEL'),
                 messages=[{'role':'system','content':STORYBOARD_SYSTEM},
                           {'role':'user','content':json.dumps({'topic':board['topic'],'title':board['title'],'style':board['style'],'durations':[s['duration'] for s in board['scenes']],
-                            'characterCount':len(board['characters']),'document':film.get('sourceText',''),'documentName':film.get('sourceName',''),'extractionWarning':film.get('sourceWarning','')},ensure_ascii=False)}],response_format={'type':'json_object'},max_tokens=15000)
+                            'characterCount':len(board['characters']),'document':film.get('sourceText',''),'documentName':film.get('sourceName',''),'extractionWarning':film.get('sourceWarning','')},ensure_ascii=False)}],response_format=storyboard_format(board),max_tokens=15000)
         raw=json.loads(response.choices[0].message.content)
         if len(raw.get('scenes',[]))!=len(board['scenes']):raise ValueError('A IA não devolveu todas as cenas. Revise manualmente ou solicite outra sugestão.')
         if len(raw.get('characters',[]))!=len(board['characters']):raise ValueError('A IA não devolveu o elenco solicitado. O rascunho foi preservado.')
-        for old,new in zip(board['scenes'],raw['scenes']):new['duration']=old['duration']
+        for old,new in zip(board['scenes'],raw['scenes']):
+            new['duration']=old['duration']
+            if isinstance(new.get('visibleCharacters'),list):new['visibleCharacters']=list(dict.fromkeys(new['visibleCharacters']))
         characters=[{**c,'voiceId':board['characters'][i].get('voiceId','') if i<len(board['characters']) else ''} for i,c in enumerate(raw['characters'])]
         board=normalized_board({**board,'characters':characters,'scenes':raw['scenes'],'musicPrompt':raw.get('musicPrompt',board['musicPrompt'])},True)
-        values={'board':board,'revision':revision(board),'status':'draft','storyboardApproval':None,'budgetApproval':None,'updatedAt':now(),
+        values={'board':board,'revision':revision(board),'status':'draft','storyboardApproval':None,'budgetApproval':None,'error':None,'planningCandidate':None,'planningDiagnostic':None,'updatedAt':now(),
                 'planningReview':coverage_review(raw,board,revision)}
         await db.educational_films.update_one({'id':film_id,'status':'planning'},{'$set':values})
         return view({**film,**values})
     except Exception as exc:
-        await db.educational_films.update_one({'id':film_id,'status':'planning'},{'$set':{'status':'draft','error':'Não foi possível preparar um storyboard completo. O rascunho foi preservado; não houve geração de mídias.','updatedAt':now()}})
-        raise HTTPException(502,'Não foi possível preparar o storyboard. O rascunho foi preservado; a chamada de texto pode ter sido cobrada. Nenhuma mídia foi gerada.') from exc
+        from services.film_guided import planning_diagnostic
+        diagnostic=planning_diagnostic(exc)
+        import logging
+        logging.getLogger(__name__).warning('Film storyboard validation: %s',diagnostic)
+        candidate=raw if isinstance(raw,dict) and len(json.dumps(raw,ensure_ascii=False))<=100000 else None
+        await db.educational_films.update_one({'id':film_id,'status':'planning'},{'$set':{'status':'draft','storyboardApproval':None,'budgetApproval':None,'error':'Não foi possível preparar um storyboard completo. '+diagnostic+' O rascunho foi preservado; não houve geração de mídias.',
+            'planningCandidate':candidate,'planningDiagnostic':diagnostic,'updatedAt':now()}})
+        raise HTTPException(502,'Não foi possível preparar o storyboard. '+diagnostic+' O rascunho foi preservado; a chamada de texto pode ter sido cobrada. Nenhuma mídia foi gerada.') from None
 
 @router.post('/films/{film_id}/approve-storyboard')
 async def approve_storyboard(film_id:str,body:Approval,user=Depends(require_auth)):

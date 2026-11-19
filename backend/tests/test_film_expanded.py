@@ -1,10 +1,12 @@
 """Five-minute multi-character films: no live AI/media calls."""
-import copy,uuid
+import copy,uuid,json,sys
+from types import SimpleNamespace
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock,MagicMock,patch
 from services.educational_film import normalized_board,revision,quote,require_ready
 from services.film_worker import scene_references,operation_signature
 from services.creator_guide import GUIDE
+from services.film_guided import storyboard_format,planning_diagnostic
 from tests.test_educational_films import board,film,scope
 
 def expanded():
@@ -69,3 +71,26 @@ def test_tutor_documents_new_limits_and_both_gates():
     t=str(next(t for t in GUIDE if t['id']=='guided-educational-film'))
     for term in ('300 segundos','6 personagens','três personagens','9.000','aprovações','não gera imagens'):
         assert term in t
+
+def test_strict_schema_requires_exact_scene_and_cast_counts_and_bounded_fields():
+    schema=storyboard_format(expanded())['json_schema']
+    assert schema['strict'] and schema['schema']['additionalProperties'] is False
+    props=schema['schema']['properties']
+    assert props['scenes']['minItems']==props['scenes']['maxItems']==30
+    assert props['characters']['minItems']==props['characters']['maxItems']==6
+    assert props['scenes']['items']['properties']['narration']['maxLength']==110
+    assert props['scenes']['items']['properties']['visibleCharacters']['maxItems']==3
+
+@pytest.mark.asyncio
+async def test_invalid_paid_text_is_preserved_with_safe_diagnostics_no_retry_or_media():
+    f=film();s=scope(f);bad={'characters':f['board']['characters'],'scenes':copy.deepcopy(f['board']['scenes'])}
+    bad['scenes'][0]['narration']='PRIVATE_TEXT_'*20
+    create=AsyncMock(return_value=SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(bad)))]))
+    manager=AsyncMock();manager.__aenter__.return_value=SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    with patch.dict(sys.modules,{'openai':SimpleNamespace(AsyncOpenAI=MagicMock(return_value=manager))}),patch('services.llm_config.require_openai_api_key',return_value='test'),patch('services.llm_config.openai_text_model',return_value='test'):
+        with pytest.raises(Exception) as error:await s.suggest(f['id'],s.Approval(revision=f['revision']),{'id':'u','companyId':'c'})
+    saved=s.db.educational_films.update_one.call_args.args[1]['$set']
+    assert saved['planningCandidate']==bad and saved['storyboardApproval'] is None and saved['budgetApproval'] is None
+    assert 'scenes.0.narration' in saved['planningDiagnostic'] and 'PRIVATE_TEXT' not in str(error.value)
+    assert create.call_args.kwargs['response_format']['type']=='json_schema'
+    create.assert_awaited_once();s.run.assert_not_awaited();s.db.projects.update_one.assert_not_awaited()

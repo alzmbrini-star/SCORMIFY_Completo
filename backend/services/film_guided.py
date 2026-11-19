@@ -1,6 +1,33 @@
 """Guided film inputs and bounded, reviewable coverage. Never generates media."""
 from pydantic import BaseModel,Field,ConfigDict
 
+def storyboard_format(board):
+    """Constrain the paid text response before validation; never retry a paid call."""
+    def obj(props):return {'type':'object','properties':props,'required':list(props),'additionalProperties':False}
+    def string(lo,hi):return {'type':'string','minLength':lo,'maxLength':hi}
+    def array(items,lo,hi):return {'type':'array','items':items,'minItems':lo,'maxItems':hi}
+    count=len(board['characters']);scenes=len(board['scenes'])
+    scene=obj({'title':string(1,100),'visual':string(15,600),'narration':string(1,min(55 if s['duration']==5 else 110 for s in board['scenes'])),
+        'speaker':{'type':'string','enum':['narrator']+[f'character{i+1}' for i in range(count)]},
+        'duration':{'type':'integer','enum':[5,10]},
+        'visibleCharacters':array({'type':'integer','enum':list(range(1,count+1))},1,min(count,3))})
+    schema=obj({'characters':array(obj({'name':string(1,80),'description':string(8,400)}),count,count),
+        'scenes':array(scene,scenes,scenes),'musicPrompt':string(10,800),
+        'review':obj({'summary':string(10,1200),'coveredTopics':array(string(1,600),0,30),
+            'notCoveredTopics':array(string(1,600),0,30),'warnings':array(string(1,600),0,20)})})
+    return {'type':'json_schema','json_schema':{'name':'educational_film_storyboard','strict':True,'schema':schema}}
+
+
+def planning_diagnostic(exc):
+    """Safe field paths only: never provider bodies, keys or course text in logs/errors."""
+    from pydantic import ValidationError
+    if isinstance(exc,ValidationError):
+        return 'Validação: '+', '.join('.'.join(map(str,e['loc']))+' ('+e['type']+')' for e in exc.errors(include_input=False,include_url=False,include_context=False)[:5])
+    return {'JSONDecodeError':'Resposta textual incompleta ou JSON inválido.',
+        'APITimeoutError':'Tempo de resposta da IA excedido.',
+        'RateLimitError':'Limite ou saldo da API de texto; confira o provedor.',
+        'AuthenticationError':'Credencial da API de texto recusada.'}.get(type(exc).__name__,'Resposta não validada ('+type(exc).__name__+').')
+
 class Coverage(BaseModel):
     model_config=ConfigDict(extra='forbid')
     summary:str=Field(min_length=10,max_length=1200)
