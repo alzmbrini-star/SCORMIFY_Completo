@@ -3,6 +3,8 @@ import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription} from '.
 import {Button} from './ui/button';
 import {getApiUrl} from '../utils/apiUrl';
 import {authHeaders} from '../contexts/AuthContext';
+import FilmGuidedSetup from './FilmGuidedSetup';
+import FilmGuidedReview from './FilmGuidedReview';
 
 const API=getApiUrl();
 const labels={draft:'Rascunho',planning:'Preparando storyboard',storyboard_approved:'Storyboard aprovado',budget_approved:'Orçamento aprovado',generating:'Produzindo mídias',failed:'Produção interrompida',unknown:'Envio não confirmado',completed:'Concluído'};
@@ -16,6 +18,7 @@ export default function FilmStudioDialog({open,onOpenChange,sourceProjectId=null
  const [title,setTitle]=useState(''),[topic,setTopic]=useState(''),[count,setCount]=useState(6);
  const [dirty,setDirty]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const [voiceNotice,setVoiceNotice]=useState('');
+ const [mode,setMode]=useState('guided');
  const [storyConsent,setStoryConsent]=useState(false),[budgetConsent,setBudgetConsent]=useState(false),[ceiling,setCeiling]=useState('');
  const inFlight=useRef(false),createId=useRef(null);
  const accept=data=>{setFilm(data);setDirty(false);setStoryConsent(false);setBudgetConsent(false);setCeiling(String(data.quote?.suggestedCeilingUsd || ''));};
@@ -46,15 +49,27 @@ export default function FilmStudioDialog({open,onOpenChange,sourceProjectId=null
  const sceneChange=(index,values)=>change({scenes:board.scenes.map((s,i)=>i===index?{...s,...values}:s)});
  const charChange=(index,values)=>change({characters:board.characters.map((c,i)=>i===index?{...c,...values}:c)});
  const save=()=>act(()=>request('/films/'+film.id,'PUT',{revision:film.revision,board}));
+ const suggest=()=>act(()=>request('/films/'+film.id+'/suggest-storyboard','POST',{revision:film.revision}));
+ const loadVoices=()=>act(async()=>{setVoiceNotice('');const data=await request('/runway/voices');setVoices(data.voices || []);setVoiceNotice([data.notice,`${(data.voices || []).length} vozes carregadas · ${(data.voices || []).filter(v=>v.brazilian).length} identificadas como brasileiras.`,!(data.voices || []).some(v=>v.brazilian)?'Nenhuma voz está identificada como brasileira neste catálogo. Você pode informar o ID de uma voz PT-BR da sua conta no modo avançado ou revisar outra voz multilíngue com confirmação explícita.':''].filter(Boolean).join(' '));});
+ const prepareGuided=data=>act(async()=>{
+  createId.current=createId.current || crypto.randomUUID();
+  const created=await request('/films','POST',{...data,sourceProjectId,requestId:createId.current});
+  createId.current=null;accept(created);
+  if(created.status!=='draft' || created.board.scenes.every(s=>s.visual&&s.narration))return created;
+  try{return await request('/films/'+created.id+'/suggest-storyboard','POST',{revision:created.revision});}
+  catch(error){try{accept(await request('/films/'+created.id));}catch(_){}throw error;}
+ });
  const voiceOptions=<><option value="">Selecione uma voz brasileira</option>{voices.filter(v=>v.brazilian || board?.allowOtherVoices).map(v=><option key={v.id} value={v.id}>{v.name}{v.brazilian?' · PT-BR':''}</option>)}</>;
  const inputClass='w-full rounded border border-slate-600 bg-slate-950 text-slate-100 px-3 py-2 text-sm mt-1';
  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-6xl max-h-[92vh] overflow-y-auto bg-slate-900 text-slate-100 border-slate-700" data-testid="film-studio">
   <DialogHeader><DialogTitle>Filme educativo em desenho animado</DialogTitle><DialogDescription className="text-slate-300">História com personagens, narração PT-BR e trilha instrumental. Produção em projeto separado: slides, perguntas e interações do curso de origem não são alterados.</DialogDescription></DialogHeader>
   <div className="flex gap-2 text-xs flex-wrap" aria-label="Etapas do filme">{['1 · Storyboard','2 · Aprovar roteiro','3 · Aprovar orçamento','4 · Gerar mídias'].map(s=><span key={s} className="px-3 py-2 bg-cyan-950 border border-cyan-800 rounded">{s}</span>)}</div>
+  <div className="flex gap-2" aria-label="Modo de criação do filme"><Button aria-pressed={mode==='guided'} variant={mode==='guided'?'default':'outline'} disabled={busy} onClick={()=>setMode('guided')}>Modo guiado com IA</Button><Button aria-pressed={mode==='advanced'} variant={mode==='advanced'?'default':'outline'} disabled={busy} onClick={()=>setMode('advanced')}>Modo avançado</Button></div>
   {error&&<p role="alert" className="rounded border border-amber-700 bg-amber-950 p-3 text-amber-100">{error}</p>}
   {config&&(!config.runway || !config.narration || !config.mediaTools)&&<p className="text-sm text-amber-200">Você pode preparar e revisar o roteiro. Para gerar mídias, é necessário Runway, ElevenLabs, vozes PT-BR, FFmpeg/FFprobe e permissão de narração da empresa configurados no servidor.</p>}
   {!film ? <div className="grid md:grid-cols-2 gap-5"><section className="rounded border border-slate-700 p-4 space-y-3">
-   <h3 className="font-semibold">Novo filme{sourceTitle?' para '+sourceTitle:''}</h3>
+   {mode==='guided'&&<FilmGuidedSetup busy={busy} onPrepare={prepareGuided} inputClass={inputClass}/>}
+   <div hidden={mode!=='advanced'}><h3 className="font-semibold">Novo filme{sourceTitle?' para '+sourceTitle:''}</h3>
    <label className="block text-sm">Título<input aria-label="Título do filme" className={inputClass} value={title} maxLength={160} onChange={e=>setTitle(e.target.value)}/></label>
    <label className="block text-sm">Conteúdo, público e objetivo educativo<textarea aria-label="Conteúdo do filme" className={inputClass+' min-h-[160px]'} value={topic} maxLength={12000} onChange={e=>setTopic(e.target.value)} placeholder="Cole o conteúdo que a história deve ensinar. Os slides em imagem não são relidos automaticamente."/></label>
    <label className="block text-sm">Quantidade de cenas de 10 segundos<input type="number" aria-label="Quantidade de cenas do filme" className={inputClass} min={3} max={18} value={count} onChange={e=>setCount(Number(e.target.value))}/></label>
@@ -62,7 +77,7 @@ export default function FilmStudioDialog({open,onOpenChange,sourceProjectId=null
    <Button data-testid="film-create-draft" disabled={busy || title.trim().length<3 || topic.trim().length<20 || count<3 || count>18} onClick={()=>act(async()=>{
     createId.current=createId.current || crypto.randomUUID();
     const data=await request('/films','POST',{title,topic,scenes:count,sourceProjectId,requestId:createId.current});createId.current=null;return data;
-   })}>Criar rascunho vazio — sem geração de mídias</Button>
+   })}>Criar rascunho vazio — sem geração de mídias</Button></div>
   </section><section className="rounded border border-slate-700 p-4"><h3 className="font-semibold mb-3">Meus filmes e rascunhos</h3>
    <Button variant="outline" disabled={busy} onClick={()=>act(loadHistory)}>Atualizar lista</Button>
    {!history.length&&<p className="text-sm text-slate-400 mt-3">Nenhum filme neste contexto.</p>}
@@ -74,7 +89,8 @@ export default function FilmStudioDialog({open,onOpenChange,sourceProjectId=null
    {film.error&&<p role="alert" className="p-3 rounded bg-amber-950 text-amber-100">{film.error}</p>}
    {['generating','planning'].includes(film.status)&&<Button variant="outline" disabled={busy} onClick={()=>act(()=>request('/films/'+film.id+'/recover-interrupted','POST',{}))}>Conferir execução interrompida (após 10 min sem atividade)</Button>}
    <div className="grid lg:grid-cols-[1fr_330px] gap-5"><section className="space-y-4 min-w-0">
-    <fieldset disabled={locked} className="rounded border border-slate-700 p-4 space-y-3">
+    {mode==='guided'&&<FilmGuidedReview film={film} board={board} locked={locked} busy={busy} dirty={dirty} change={change} sceneChange={sceneChange} save={save} voices={voices} voiceNotice={voiceNotice} loadVoices={loadVoices} suggest={suggest} inputClass={inputClass}/>}
+    <fieldset hidden={mode!=='advanced'} disabled={locked} className="rounded border border-slate-700 p-4 space-y-3">
      <legend className="px-2 text-cyan-200 font-semibold">Storyboard editável</legend>
      <label className="block text-sm">Título<input aria-label="Editar título do filme" className={inputClass} value={board.title} maxLength={160} onChange={e=>change({title:e.target.value})}/></label>
      <label className="block text-sm">Conteúdo de referência<textarea aria-label="Editar conteúdo do filme" className={inputClass} value={board.topic} maxLength={12000} onChange={e=>change({topic:e.target.value})}/></label>
@@ -83,7 +99,7 @@ export default function FilmStudioDialog({open,onOpenChange,sourceProjectId=null
      <p className="text-xs text-slate-300">Personagens e quadros usam referências para reduzir variações, mas a continuidade exige revisão. As vozes são sobrepostas; não há sincronização labial automática.</p>
      <Button variant="outline" disabled={locked || dirty || Object.keys(film.operations || {}).length>0} onClick={()=>act(()=>request('/films/'+film.id+'/suggest-storyboard','POST',{revision:film.revision}))}>Sugerir storyboard com IA — usa créditos de texto</Button>
      <div className="grid sm:grid-cols-2 gap-3">{board.characters.map((c,i)=><div key={i} className="border border-slate-700 rounded p-3"><label className="text-xs">Personagem {i+1}<input aria-label={`Nome do personagem ${i+1}`} className={inputClass} value={c.name} maxLength={80} onChange={e=>charChange(i,{name:e.target.value})}/></label><textarea aria-label={`Descrição do personagem ${i+1}`} className={inputClass} value={c.description} maxLength={400} onChange={e=>charChange(i,{description:e.target.value})}/><label className="text-xs">Voz própria (opcional; vazia usa narrador)<input aria-label={`Voz do personagem ${i+1}`} className={inputClass} value={c.voiceId} maxLength={100} onChange={e=>charChange(i,{voiceId:e.target.value})}/></label></div>)}</div>
-     <Button variant="outline" disabled={busy} onClick={()=>act(async()=>{setVoiceNotice('');const data=await request('/runway/voices');setVoices(data.voices || []);setVoiceNotice([data.notice,`${(data.voices || []).length} vozes carregadas · ${(data.voices || []).filter(v=>v.brazilian).length} identificadas como brasileiras.`,!(data.voices || []).some(v=>v.brazilian)?'Nenhuma voz está identificada como brasileira neste catálogo. Você pode informar o ID de uma voz PT-BR da sua conta ou revisar outra voz multilíngue com confirmação explícita.':''].filter(Boolean).join(' '));})}>Carregar vozes ElevenLabs — sem síntese</Button>
+     <Button variant="outline" disabled={busy} onClick={loadVoices}>Carregar vozes ElevenLabs — sem síntese</Button>
      {voiceNotice&&<p role="status" className="text-xs rounded border border-cyan-800 bg-cyan-950 p-3 text-cyan-100">{voiceNotice}</p>}
      <label className="block text-sm">Voz do narrador<select aria-label="Selecionar voz do narrador" className={inputClass} value={board.narratorVoice} onChange={e=>change({narratorVoice:e.target.value})}>{voiceOptions}</select></label>
      <label className="block text-sm">ID da voz (para narrador ou para copiar nos personagens)<input aria-label="ID da voz do narrador" className={inputClass} value={board.narratorVoice} maxLength={100} onChange={e=>change({narratorVoice:e.target.value})}/></label>

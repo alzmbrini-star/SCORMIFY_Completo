@@ -68,3 +68,53 @@ test('alternative voice catalog notice does not change or save the storyboard',a
  expect(fetch.mock.calls.some(([,o])=>o.method!=='GET')).toBe(false);
  expect(host.querySelector('[data-testid="film-generate"]').disabled).toBe(true);
 });
+function field(label,value){act(()=>{const el=host.querySelector('[aria-label="'+label+'"]');Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el),'value').set.call(el,value);el.dispatchEvent(new Event('input',{bubbles:true}));});}
+async function upload(file){await act(async()=>{const el=host.querySelector('[aria-label="Documento do filme"]');Object.defineProperty(el,'files',{configurable:true,value:[file]});el.dispatchEvent(new Event('change',{bubbles:true}));});}
+function guidedMock(){
+ const original=fetch.getMockImplementation();
+ fetch.mockImplementation(async(url,options={})=>{
+  if(url==='/api/films/extract-document')return{ok:true,json:async()=>({text:'[Página 1] Conteúdo completo sobre trabalho em equipe.',units:1,warning:'Extração de texto, sem imagens originais.'})};
+  if(url==='/api/films'&&options.method==='POST'){
+   const data=JSON.parse(options.body);current={...draft(),sourceName:data.sourceName,sourceText:data.sourceText,sourceWarning:data.sourceWarning,board:{...draft().board,title:data.title,topic:data.topic,style:data.style,scenes:Array.from({length:data.scenes},(_,i)=>({title:'Cena '+i,visual:'',narration:'',speaker:'narrator',duration:10}))}};
+   return{ok:true,json:async()=>current};
+  }
+  if(url.endsWith('/suggest-storyboard')){current={...current,board:{...current.board,scenes:current.board.scenes.map(s=>({...s,visual:'Ana e Bruno dividem tarefas na mesa.',narration:'Vamos combinar as tarefas.'}))},planningReview:{summary:'Uma história sobre colaboração.',coveredTopics:['Divisão de tarefas'],notCoveredTopics:['Avaliação de desempenho'],warnings:[],revision:current.revision}};return{ok:true,json:async()=>current};}
+  return original(url,options);
+ });
+}
+test('guided theme prepares text only and keeps advanced mode and both approval gates',async()=>{
+ guidedMock();await act(async()=>root.render(<FilmStudioDialog open onOpenChange={()=>{}} sourceProjectId="original"/>));
+ expect(host.querySelector('[data-testid="film-guided-prepare"]').disabled).toBe(true);
+ field('Tema do filme guiado','Trabalho em Equipe');field('Objetivo do filme','Dividir tarefas e pedir ajuda');
+ await act(async()=>host.querySelector('[data-testid="film-guided-prepare"]').click());
+ expect(host.textContent).toContain('Ficou fora deste filme:');expect(host.textContent).toContain('Avaliação de desempenho');
+ expect(fetch.mock.calls.filter(([u,o])=>u==='/api/films'&&o.method==='POST')).toHaveLength(1);
+ const body=JSON.parse(fetch.mock.calls.find(([u,o])=>u==='/api/films'&&o.method==='POST')[1].body);
+ expect(body).toMatchObject({scenes:6,style:'3d',sourceProjectId:'original'});
+ expect(fetch.mock.calls.some(([u])=>u.endsWith('/generate')||u.includes('/approve-'))).toBe(false);
+ const before=JSON.stringify(current);act(()=>Array.from(host.querySelectorAll('button')).find(b=>b.textContent==='Modo avançado').click());
+ expect(host.querySelector('fieldset[hidden]')).toBeNull();expect(JSON.stringify(current)).toBe(before);
+ expect(host.querySelector('[data-testid="film-generate"]').disabled).toBe(true);
+});
+test('document extraction must be reviewed before the full source is sent for storyboard planning',async()=>{
+ guidedMock();await act(async()=>root.render(<FilmStudioDialog open onOpenChange={()=>{}}/>));
+ act(()=>Array.from(host.querySelectorAll('button')).find(b=>b.textContent==='Por documento').click());
+ await upload(new File(['pdf'],'Equipe.pdf',{type:'application/pdf'}));
+ field('Objetivo do filme','Colaborar em equipe');
+ expect(host.querySelector('[data-testid="film-guided-prepare"]').disabled).toBe(true);
+ expect(fetch.mock.calls.some(([u])=>u.endsWith('/suggest-storyboard'))).toBe(false);
+ act(()=>host.querySelector('[aria-label="Confirmar revisão do documento"]').click());
+ await act(async()=>host.querySelector('[data-testid="film-guided-prepare"]').click());
+ const body=JSON.parse(fetch.mock.calls.find(([u,o])=>u==='/api/films'&&o.method==='POST')[1].body);
+ expect(body.sourceText).toBe('[Página 1] Conteúdo completo sobre trabalho em equipe.');
+ expect(body.sourceName).toBe('Equipe.pdf');expect(fetch.mock.calls.some(([u])=>u.endsWith('/generate'))).toBe(false);
+});
+test('legacy and oversize uploads are refused without a network or paid call',async()=>{
+ await act(async()=>root.render(<FilmStudioDialog open onOpenChange={()=>{}}/>));
+ act(()=>Array.from(host.querySelectorAll('button')).find(b=>b.textContent==='Por documento').click());
+ const count=fetch.mock.calls.length;
+ await upload({name:'antigo.ppt',size:20});
+ expect(host.textContent).toContain('PPT/DOC antigos');
+ await upload({name:'grande.pdf',size:21*1024*1024});
+ expect(host.textContent).toContain('limite é 20 MB');expect(fetch.mock.calls.length).toBe(count);
+});

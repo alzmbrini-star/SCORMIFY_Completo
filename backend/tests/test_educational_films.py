@@ -11,7 +11,7 @@ import uuid
 import pytest
 from PIL import Image
 from pydantic import BaseModel,Field
-from fastapi import APIRouter,Depends,HTTPException
+from fastapi import APIRouter,Depends,HTTPException,UploadFile,File
 from services.educational_film import Board,normalized_board,revision,quote,require_ready,project_shell,media_keys
 from services.film_worker import operation_signature
 
@@ -81,7 +81,7 @@ def scope(f):
  db=SimpleNamespace(educational_films=SimpleNamespace(find_one=AsyncMock(side_effect=lambda *a,**k:copy.deepcopy(f)),
      update_one=AsyncMock(return_value=SimpleNamespace(modified_count=1,matched_count=1))),projects=SimpleNamespace(update_one=AsyncMock()))
  env=dict(router=APIRouter(),BaseModel=BaseModel,Field=Field,Optional=Optional,uuid=uuid,Board=Board,
-  Depends=Depends,require_auth=lambda:None,HTTPException=HTTPException,db=db,TASKS=set(),PROJECTS_DIR='unused',
+      Depends=Depends,UploadFile=UploadFile,File=File,require_auth=lambda:None,HTTPException=HTTPException,db=db,TASKS=set(),PROJECTS_DIR='unused',
   can_edit=MagicMock(),has_role=lambda u,r:r in u.get('roles',[]),load_authorized_project=AsyncMock(return_value={'id':'workspace'}),
   normalized_board=normalized_board,revision=revision,quote=quote,require_ready=require_ready,project_shell=project_shell,media_keys=media_keys,
   operation_signature=operation_signature,runway_ai=SimpleNamespace(configured=lambda:True),
