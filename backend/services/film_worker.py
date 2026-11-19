@@ -20,6 +20,14 @@ class UncertainSubmission(ValueError):pass
 def now():return datetime.now(timezone.utc).isoformat()
 
 
+def scene_references(board,scene,characters):
+    """At most three provider references; old one/two-character films stay compatible."""
+    indices=scene.get('visibleCharacters') or list(range(1,len(board['characters'])+1))
+    if not indices or len(indices)>3 or len(set(indices))!=len(indices) or any(i<1 or i>len(characters) for i in indices):
+        raise KnownFailure('Revise os personagens visíveis desta cena antes da produção.')
+    return [characters[i-1] for i in indices]
+
+
 def operation_signature(board,key):
     from services.educational_film import revision
     if key=='music':data=[board['musicPrompt'],sum(s['duration'] for s in board['scenes'])]
@@ -29,6 +37,7 @@ def operation_signature(board,key):
         if kind=='voice':data=[scene['narration'],voice_for(board,scene),board['allowOtherVoices']]
         else:
             data=[board['style'],[(c['name'],c['description']) for c in board['characters']],scene['visual']]
+            if scene.get('visibleCharacters'):data.append(scene['visibleCharacters'])
             if kind=='video':data += [board['model'],scene['duration']]
     return revision(data)
 
@@ -120,9 +129,10 @@ async def run(film_id,run_id,database,projects_dir):
                 spoken=await runway_narration.duration(audio)
                 if spoken+.15>scene['duration']:
                     raise KnownFailure(f'Cena {i+1}: a fala dura {spoken:.1f}s, excedendo {scene["duration"]}s. Reduza a fala e aprove novamente; áudio preservado, vídeo desta cena não foi gerado.')
-                prompt=(f"Educational {board['style']} cartoon scene. Keep the exact appearance and clothes of "+' and '.join('@'+c['tag'] for c in characters)+'. '+scene['visual']+'. No written text, subtitles or logos.')[:1000]
+                refs=scene_references(board,scene,characters)
+                prompt=(f"Educational {board['style']} cartoon scene. Keep the exact appearance and clothes of "+' and '.join('@'+c['tag'] for c in refs)+'. '+scene['visual']+'. No written text, subtitles or logos.')[:1000]
                 frame=await operation(f'frame_{i}',lambda p=prompt:runway_ai.request('POST','text_to_image',{
-                    'model':'gen4_image','ratio':'1280:720','promptText':p,'referenceImages':characters}),'image')
+                    'model':'gen4_image','ratio':'1280:720','promptText':p,'referenceImages':refs}),'image')
                 _,payload=runway_ai.build_payload({'model':board['model'],'duration':scene['duration'],'aspectRatio':'16:9',
                     'image':image_input(frame),'prompt':(f"{board['style']} cartoon animation. "+scene['visual']+'. Natural character movements, consistent faces and clothes, stable camera. No text.')[:1000]})
                 video=await operation(f'video_{i}',lambda p=payload:runway_ai.request('POST','image_to_video',p),'video')

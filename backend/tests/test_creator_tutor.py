@@ -42,7 +42,7 @@ class TutorAnswers(unittest.IsolatedAsyncioTestCase):
         generate=AsyncMock(return_value=json.dumps({'answer':'Confira https://evil.invalid.','topicIds':['users','costs','https://evil.invalid','export']}))
         result=await answer_question('Como exportar SCORM?',EDITOR,'/editor/project_123',generate=generate)
         self.assertEqual(result['mode'],'ai');self.assertNotIn('evil.invalid',result['answer'])
-        self.assertEqual(result['links'],[{'label':'Abrir Exportar HTML ou SCORM','href':'/editor/project_123?help=export'}])
+        self.assertEqual(result['links'],[{'label':'Abrir Exportar HTML, SCORM ou vídeo','href':'/editor/project_123?help=export'}])
         payload=generate.call_args.args[0]
         self.assertFalse(payload['simulatorCreationAllowed']);self.assertNotIn('user_id',payload)
         self.assertTrue(all(t['id'] not in ('costs','users') for t in payload['guide']))

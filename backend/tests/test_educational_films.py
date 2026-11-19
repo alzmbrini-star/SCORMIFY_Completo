@@ -82,7 +82,7 @@ def scope(f):
      update_one=AsyncMock(return_value=SimpleNamespace(modified_count=1,matched_count=1))),projects=SimpleNamespace(update_one=AsyncMock()))
  env=dict(router=APIRouter(),BaseModel=BaseModel,Field=Field,Optional=Optional,uuid=uuid,Board=Board,
       Depends=Depends,UploadFile=UploadFile,File=File,require_auth=lambda:None,HTTPException=HTTPException,db=db,TASKS=set(),PROJECTS_DIR='unused',
-  can_edit=MagicMock(),has_role=lambda u,r:r in u.get('roles',[]),load_authorized_project=AsyncMock(return_value={'id':'workspace'}),
+  can_edit=MagicMock(),has_role=lambda u,r:r in u.get('roles',[]),load_authorized_project=AsyncMock(return_value={'id':'workspace'}),resolve_company_id_for_creation=AsyncMock(return_value='c'),
   normalized_board=normalized_board,revision=revision,quote=quote,require_ready=require_ready,project_shell=project_shell,media_keys=media_keys,
   operation_signature=operation_signature,runway_ai=SimpleNamespace(configured=lambda:True),
   runway_narration=SimpleNamespace(available=lambda:True,media_tools=lambda:('ffmpeg','ffprobe')),
@@ -131,10 +131,13 @@ async def test_api_edit_revokes_both_approvals_without_project_writes():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('real_media',[False,True])
-async def test_full_worker_with_stubbed_providers_is_serial_persistent_and_source_safe(tmp_path,monkeypatch,real_media):
+@pytest.mark.parametrize('real_media,extended',[(False,False),(True,False),(False,True)])
+async def test_full_worker_with_stubbed_providers_is_serial_persistent_and_source_safe(tmp_path,monkeypatch,real_media,extended):
  from services import film_worker as w
  f=film(True);f.update(status='generating',runId='run');updates=[];paid=[]
+ if extended:
+  f['board']['characters']=[{**f['board']['characters'][0],'name':f'Pessoa {i+1}'} for i in range(6)]
+  f['board']['scenes']=[{**f['board']['scenes'][0],'duration':10,'visibleCharacters':[2,4,6]} for _ in range(30)]
  async def update(query,change,**kw):
   updates.append((query,change))
   for path,value in change['$set'].items():
@@ -144,6 +147,9 @@ async def test_full_worker_with_stubbed_providers_is_serial_persistent_and_sourc
  db=SimpleNamespace(educational_films=SimpleNamespace(find_one=AsyncMock(return_value=f),update_one=update),
   projects=SimpleNamespace(update_one=AsyncMock()),image_gallery=SimpleNamespace(update_one=AsyncMock()))
  async def submit(method,path,payload):
+  if 'referenceImages' in payload:
+   assert len(payload['referenceImages'])<=3
+   if extended:assert [r['tag'] for r in payload['referenceImages']]==['character2','character4','character6']
   paid.append(path);return {'id':str(uuid.uuid4())}
  audio_bytes=b'audio';ffmpeg='ffmpeg';original_media=w.runway_narration.run_media
  if real_media:
@@ -164,9 +170,9 @@ async def test_full_worker_with_stubbed_providers_is_serial_persistent_and_sourc
  monkeypatch.setattr(w.runway_narration,'duration',AsyncMock(return_value=2));monkeypatch.setattr(w.runway_narration,'media_tools',lambda:(ffmpeg,'ffprobe'))
  monkeypatch.setattr(w.runway_narration,'run_media',original_media if real_media else media);monkeypatch.setattr(w,'store_asset_async',AsyncMock(return_value=True))
  await w.run(f['id'],'run',db,tmp_path)
- assert f['status']=='completed' and f['duration']==15
- assert paid.count('text_to_image')==4 and paid.count('image_to_video')==3 and paid.count('text_to_music')==1
- assert len(f['operations'])==11 and all(o['status']=='ready' for o in f['operations'].values())
+ assert f['status']=='completed' and f['duration']==(300 if extended else 15)
+ assert paid.count('text_to_image')==(36 if extended else 4) and paid.count('image_to_video')==(30 if extended else 3) and paid.count('text_to_music')==1
+ assert len(f['operations'])==(97 if extended else 11) and all(o['status']=='ready' for o in f['operations'].values())
  assert f['videoUrl'].startswith('/api/projects/'+f['projectId']) and f['subtitlesUrl'].endswith('.srt')
  query=db.projects.update_one.call_args.args[0]
  assert query['id']==f['projectId'] and query['id']!='original' and query['course.slides.0.elements']==[]

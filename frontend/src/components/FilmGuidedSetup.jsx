@@ -5,6 +5,7 @@ import {getApiUrl} from '../utils/apiUrl';
 
 export default function FilmGuidedSetup({busy,onPrepare,inputClass}){
  const [source,setSource]=useState('theme'),[theme,setTheme]=useState(''),[audience,setAudience]=useState('Adultos em treinamento'),[goal,setGoal]=useState('');
+ const [castCount,setCastCount]=useState(2),[details,setDetails]=useState('');
  const [duration,setDuration]=useState(60),[style,setStyle]=useState('3d'),[doc,setDoc]=useState(null),[reviewed,setReviewed]=useState(false),[reading,setReading]=useState(false),[error,setError]=useState('');
  async function upload(file){
   setDoc(null);setReviewed(false);setError('');if(!file)return;
@@ -21,8 +22,8 @@ export default function FilmGuidedSetup({busy,onPrepare,inputClass}){
  const valid=audience.trim().length>=3&&goal.trim().length>=3&&(source==='theme'?theme.trim().length>=3:doc?.text?.trim().length>=20&&reviewed);
  function prepare(){
   const base=theme.trim() || doc.name.replace(/\.[^.]+$/,'');const title=base.length>=3?base:'Filme educativo: '+base;
-  onPrepare({title:title.slice(0,160),topic:`Tema: ${title}\nPúblico: ${audience}\nObjetivo de aprendizagem: ${goal}\nDuração: ${duration} segundos. História educativa em PT-BR com até dois personagens originais e narração externa. Declare tópicos que não couberem.`,
-   scenes:duration/10,style,sourceText:source==='document'?doc.text:'',sourceName:source==='document'?doc.name.slice(0,180):'',sourceWarning:source==='document'?doc.warning:''});
+  onPrepare({title:title.slice(0,160),topic:`Tema: ${title}\nPúblico: ${audience}\nObjetivo de aprendizagem: ${goal}\nDuração: ${duration} segundos. História educativa em PT-BR com ${castCount} personagens originais e narração externa. Declare tópicos que não couberem.\nRoteiro e orientações: ${details}`,
+   characterCount:castCount,scenes:duration/10,style,sourceText:source==='document'?doc.text:'',sourceName:source==='document'?doc.name.slice(0,180):'',sourceWarning:source==='document'?doc.warning:''});
  }
  return <section className="rounded-xl border border-cyan-800 bg-cyan-950/20 p-4 space-y-4" aria-label="Preparação guiada do filme">
   <div><h3 className="font-semibold text-cyan-200">1. O que o filme vai ensinar?</h3><p className="text-sm text-slate-300 mt-1">A IA transforma o conteúdo em uma história. Você revisa as cenas e o orçamento antes das mídias.</p></div>
@@ -38,7 +39,10 @@ export default function FilmGuidedSetup({busy,onPrepare,inputClass}){
   </div>}
   {error&&<p role="alert" className="text-sm text-amber-200">{error}</p>}
   <div className="grid sm:grid-cols-2 gap-3"><label className="text-sm">Público<input aria-label="Público do filme" className={inputClass} value={audience} maxLength={300} disabled={busy} onChange={e=>setAudience(e.target.value)}/></label><label className="text-sm">O aluno deve aprender a…<input aria-label="Objetivo do filme" className={inputClass} value={goal} maxLength={1000} disabled={busy} onChange={e=>setGoal(e.target.value)} placeholder="Ex.: dividir tarefas e pedir ajuda"/></label>
-   <label className="text-sm">Duração<select aria-label="Duração do filme guiado" className={inputClass} value={duration} disabled={busy} onChange={e=>setDuration(Number(e.target.value))}>{[30,60,90,120,180].map(s=><option key={s} value={s}>{s<60?s+' segundos':s/60+' minuto(s)'}</option>)}</select></label><label className="text-sm">Visual<select aria-label="Estilo do filme guiado" className={inputClass} value={style} disabled={busy} onChange={e=>setStyle(e.target.value)}><option value="3d">Animação 3D</option><option value="2d">Desenho 2D</option></select></label></div>
+   <label className="text-sm">Duração<select aria-label="Duração do filme guiado" className={inputClass} value={duration} disabled={busy} onChange={e=>setDuration(Number(e.target.value))}>{[30,60,90,120,180,240,300].map(s=><option key={s} value={s}>{s<60?s+' segundos':s/60+' minuto(s)'}</option>)}</select></label><label className="text-sm">Visual<select aria-label="Estilo do filme guiado" className={inputClass} value={style} disabled={busy} onChange={e=>setStyle(e.target.value)}><option value="3d">Animação 3D</option><option value="2d">Desenho 2D</option></select></label>
+   <label className="text-sm">Elenco<select aria-label="Quantidade de personagens do filme" className={inputClass} value={castCount} disabled={busy} onChange={e=>setCastCount(Number(e.target.value))}>{[1,2,3,4,5,6].map(n=><option key={n} value={n}>{n} personagem(ns)</option>)}</select></label></div>
+  <label className="block text-sm">Roteiro e orientações (opcional)<textarea aria-label="Roteiro do filme guiado" className={inputClass} rows={5} maxLength={9000} value={details} disabled={busy} onChange={e=>setDetails(e.target.value)} placeholder="Cole suas cenas, nomes dos personagens e orientações de visual, narração e trilha."/></label>
+  <p className="text-xs text-slate-300">Até 5 minutos e 6 personagens recorrentes. Planos de 10 segundos com até 3 personagens visíveis; grupos maiores são distribuídos entre planos. Mais duração e elenco aumentam o orçamento das mídias, que exige aprovação separada.</p>
   <p className="text-xs text-amber-200">Preparar o storyboard usa créditos de texto OpenAI. Não gera imagens, voz, vídeo ou música. Material extenso será priorizado conforme o objetivo; confira a cobertura e as omissões na revisão. Não envie material sem autorização.</p>
   <Button data-testid="film-guided-prepare" disabled={busy||reading||!valid} onClick={prepare}>{busy?'Preparando…':'Preparar storyboard com IA — créditos de texto'}</Button>
  </section>;

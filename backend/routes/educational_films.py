@@ -20,7 +20,8 @@ def now():return datetime.now(timezone.utc).isoformat()
 class Create(BaseModel):
     title:str=Field(min_length=3,max_length=160)
     topic:str=Field(min_length=20,max_length=12000)
-    scenes:int=Field(default=6,ge=3,le=18)
+    scenes:int=Field(default=6,ge=3,le=30)
+    characterCount:int=Field(default=2,ge=1,le=6)
     sourceProjectId:Optional[str]=None
     companyId:Optional[str]=None
     requestId:uuid.UUID
@@ -100,8 +101,7 @@ async def create(body:Create,user=Depends(require_auth)):
     existing=await db.educational_films.find_one({'id':ident},{'_id':0})
     if existing:return view(await authorized(ident,user))
     board=normalized_board({'title':body.title,'topic':body.topic,'style':body.style,'characters':[
-        {'name':'Personagem 1','description':'Defina aparência, roupa e personalidade do protagonista.'},
-        {'name':'Personagem 2','description':'Defina aparência, roupa e personalidade do segundo personagem.'}],
+        {'name':f'Personagem {i+1}','description':'Defina aparência, roupa e personalidade deste personagem.'} for i in range(body.characterCount)],
         'scenes':[{'title':f'Cena {i+1}','visual':'','narration':''} for i in range(body.scenes)]})
     created=now();film={'id':ident,'projectId':str(uuid.uuid5(uuid.NAMESPACE_URL,'workspace:'+ident)),
         'slideId':str(uuid.uuid5(uuid.NAMESPACE_URL,'slide:'+ident)),'sourceProjectId':body.sourceProjectId,
@@ -148,12 +148,13 @@ async def suggest(film_id:str,body:Approval,user=Depends(require_auth)):
             response=await client.chat.completions.create(model=openai_text_model('OPENAI_FILM_STORYBOARD_MODEL'),
                 messages=[{'role':'system','content':STORYBOARD_SYSTEM},
                           {'role':'user','content':json.dumps({'topic':board['topic'],'title':board['title'],'style':board['style'],'durations':[s['duration'] for s in board['scenes']],
-                            'document':film.get('sourceText',''),'documentName':film.get('sourceName',''),'extractionWarning':film.get('sourceWarning','')},ensure_ascii=False)}],response_format={'type':'json_object'},max_tokens=9000)
+                            'characterCount':len(board['characters']),'document':film.get('sourceText',''),'documentName':film.get('sourceName',''),'extractionWarning':film.get('sourceWarning','')},ensure_ascii=False)}],response_format={'type':'json_object'},max_tokens=15000)
         raw=json.loads(response.choices[0].message.content)
         if len(raw.get('scenes',[]))!=len(board['scenes']):raise ValueError('A IA não devolveu todas as cenas. Revise manualmente ou solicite outra sugestão.')
+        if len(raw.get('characters',[]))!=len(board['characters']):raise ValueError('A IA não devolveu o elenco solicitado. O rascunho foi preservado.')
         for old,new in zip(board['scenes'],raw['scenes']):new['duration']=old['duration']
         characters=[{**c,'voiceId':board['characters'][i].get('voiceId','') if i<len(board['characters']) else ''} for i,c in enumerate(raw['characters'])]
-        board=normalized_board({**board,'characters':characters,'scenes':raw['scenes']},True)
+        board=normalized_board({**board,'characters':characters,'scenes':raw['scenes'],'musicPrompt':raw.get('musicPrompt',board['musicPrompt'])},True)
         values={'board':board,'revision':revision(board),'status':'draft','storyboardApproval':None,'budgetApproval':None,'updatedAt':now(),
                 'planningReview':coverage_review(raw,board,revision)}
         await db.educational_films.update_one({'id':film_id,'status':'planning'},{'$set':values})

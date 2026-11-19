@@ -118,3 +118,17 @@ test('legacy and oversize uploads are refused without a network or paid call',as
  await upload({name:'grande.pdf',size:21*1024*1024});
  expect(host.textContent).toContain('limite é 20 MB');expect(fetch.mock.calls.length).toBe(count);
 });
+
+test('five-minute guided film sends the full script and six-character cast without approving media',async()=>{
+ guidedMock();await act(async()=>root.render(<FilmStudioDialog open onOpenChange={()=>{}}/>));
+ field('Tema do filme guiado','NR-01: Ambientes saudáveis');field('Objetivo do filme','Identificar e prevenir riscos no trabalho');
+ const script='João, Ana, Carlos e Mariana recebem apoio da gestora e da psicóloga. '+('Texto completo da cena. '.repeat(250))+'FIM DO ROTEIRO';
+ field('Roteiro do filme guiado',script);
+ act(()=>{for(const [label,value] of [['Duração do filme guiado','300'],['Quantidade de personagens do filme','6']]){const el=host.querySelector('[aria-label="'+label+'"]');el.value=value;el.dispatchEvent(new Event('change',{bubbles:true}));}});
+ await act(async()=>host.querySelector('[data-testid="film-guided-prepare"]').click());
+ const body=JSON.parse(fetch.mock.calls.find(([u,o])=>u==='/api/films'&&o.method==='POST')[1].body);
+ expect(body).toMatchObject({scenes:30,characterCount:6,style:'3d'});
+ expect(body.topic).toContain(script);expect(body.topic).toContain('300 segundos');
+ expect(fetch.mock.calls.some(([u])=>u.endsWith('/generate')||u.includes('/approve-'))).toBe(false);
+ expect(host.querySelector('[data-testid="film-generate"]').disabled).toBe(true);
+});

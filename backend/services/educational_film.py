@@ -23,7 +23,8 @@ class Scene(BaseModel):
     title: str = Field(min_length=1, max_length=100)
     visual: str = Field(max_length=600)
     narration: str = Field(max_length=110)
-    speaker: Literal['narrator','character1','character2'] = 'narrator'
+    speaker: Literal['narrator','character1','character2','character3','character4','character5','character6'] = 'narrator'
+    visibleCharacters: List[int] = Field(default_factory=list, max_length=3)
     duration: Literal[5,10] = 10
 
 
@@ -33,8 +34,8 @@ class Board(BaseModel):
     topic: str = Field(min_length=20, max_length=12000)
     style: Literal['2d','3d'] = '2d'
     model: Literal['gen4_turbo','gen4.5'] = 'gen4_turbo'
-    characters: List[Character] = Field(min_length=1, max_length=2)
-    scenes: List[Scene] = Field(min_length=3, max_length=18)
+    characters: List[Character] = Field(min_length=1, max_length=6)
+    scenes: List[Scene] = Field(min_length=3, max_length=30)
     narratorVoice: str = Field(default='', max_length=100)
     allowOtherVoices: bool = False
     music: bool = True
@@ -49,8 +50,15 @@ def normalized_board(value, complete=False):
             raise ValueError(f'Complete a ação visual e a fala da cena {i+1}.')
         if len(scene['narration']) > (55 if scene['duration']==5 else 110):
             raise ValueError(f'Cena {i+1}: reduza a fala para caber na duração; não será congelado o último quadro.')
-        if scene['speaker']=='character2' and len(board['characters'])<2:
-            raise ValueError('A cena pede um segundo personagem que não foi definido.')
+        if scene['speaker']!='narrator' and int(scene['speaker'].removeprefix('character'))>len(board['characters']):
+            raise ValueError('A cena pede um personagem que não foi definido.')
+        cast=scene['visibleCharacters']
+        if len(set(cast))!=len(cast) or any(n<1 or n>len(board['characters']) for n in cast):
+            raise ValueError(f'Cena {i+1}: selecione personagens válidos, sem repetição.')
+        if complete and len(board['characters'])>3 and not cast:
+            raise ValueError(f'Cena {i+1}: informe até três personagens visíveis; divida cenas de grupo em planos.')
+        # Preserve revisions and approvals of saved films created before cast selection existed.
+        if not cast:scene.pop('visibleCharacters',None)
     if complete and board['music'] and len(board['musicPrompt'].strip())<10:
         raise ValueError('Descreva uma trilha instrumental original, sem citar artistas.')
     return board

@@ -72,9 +72,9 @@ export default function FilmStudioDialog({open,onOpenChange,sourceProjectId=null
    <div hidden={mode!=='advanced'}><h3 className="font-semibold">Novo filme{sourceTitle?' para '+sourceTitle:''}</h3>
    <label className="block text-sm">Título<input aria-label="Título do filme" className={inputClass} value={title} maxLength={160} onChange={e=>setTitle(e.target.value)}/></label>
    <label className="block text-sm">Conteúdo, público e objetivo educativo<textarea aria-label="Conteúdo do filme" className={inputClass+' min-h-[160px]'} value={topic} maxLength={12000} onChange={e=>setTopic(e.target.value)} placeholder="Cole o conteúdo que a história deve ensinar. Os slides em imagem não são relidos automaticamente."/></label>
-   <label className="block text-sm">Quantidade de cenas de 10 segundos<input type="number" aria-label="Quantidade de cenas do filme" className={inputClass} min={3} max={18} value={count} onChange={e=>setCount(Number(e.target.value))}/></label>
-   <p className="text-xs text-slate-300">De 30 segundos a 3 minutos. Criar rascunho não usa IA nem gera mídias; a sugestão de roteiro com IA é opcional e usa créditos de texto.</p>
-   <Button data-testid="film-create-draft" disabled={busy || title.trim().length<3 || topic.trim().length<20 || count<3 || count>18} onClick={()=>act(async()=>{
+   <label className="block text-sm">Quantidade de cenas de 10 segundos<input type="number" aria-label="Quantidade de cenas do filme" className={inputClass} min={3} max={30} value={count} onChange={e=>setCount(Number(e.target.value))}/></label>
+   <p className="text-xs text-slate-300">De 30 segundos a 5 minutos. Para escolher até 6 personagens ao criar, use o Modo guiado. Criar rascunho não usa IA nem gera mídias; a sugestão de roteiro com IA é opcional e usa créditos de texto.</p>
+   <Button data-testid="film-create-draft" disabled={busy || title.trim().length<3 || topic.trim().length<20 || count<3 || count>30} onClick={()=>act(async()=>{
     createId.current=createId.current || crypto.randomUUID();
     const data=await request('/films','POST',{title,topic,scenes:count,sourceProjectId,requestId:createId.current});createId.current=null;return data;
    })}>Criar rascunho vazio — sem geração de mídias</Button></div>
