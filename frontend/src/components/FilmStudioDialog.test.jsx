@@ -18,6 +18,7 @@ beforeEach(()=>{
   const body=options.body?JSON.parse(options.body):{};
   if(!path.startsWith('/api/'))throw new Error('API prefix missing');
   if(path==='/api/films/config')return{ok:true,json:async()=>({runway:true,narration:true,mediaTools:true})};
+  if(path==='/api/films/exchange-rate')return{ok:true,json:async()=>({available:true,rate:5.8102,asOfDate:'2026-11-18',stale:false})};
   if(path==='/api/films' || path.startsWith('/api/films?'))return{ok:true,json:async()=>({films:[{id:'film',board:{title:'História de teste'},status:'draft'}]})};
   if(path.includes('/approve-storyboard'))current={...current,status:'storyboard_approved',storyboardApproval:current.revision,quote:priced()};
   if(path.includes('/approve-budget'))current={...current,status:'budget_approved',budgetApproval:{quoteId:body.quoteId}};
@@ -183,7 +184,7 @@ test('zero-cost reuse still requires explicit new budget approval and displays z
  });
  await openFilm();act(()=>host.querySelector('[aria-label="Confirmar revisão do storyboard"]').click());
  await act(async()=>host.querySelector('[data-testid="film-approve-storyboard"]').click());
- expect(host.querySelector('[aria-label="Limite do orçamento do filme"]').value).toBe('0');
+ expect(host.querySelector('[aria-label="Limite do orçamento do filme"]').value).toBe('0.00');
  expect(host.querySelector('[data-testid="film-approve-budget"]').disabled).toBe(true);
  expect(host.querySelector('[data-testid="film-generate"]').disabled).toBe(true);
  expect(fetch.mock.calls.some(([u])=>u.endsWith('/approve-budget')||u.endsWith('/generate'))).toBe(false);

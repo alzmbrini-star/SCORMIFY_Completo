@@ -73,6 +73,12 @@ async def config(user=Depends(require_auth)):
     return {'runway':runway_ai.configured(),'narration':runway_narration.available() and narration_allowed(user),
             'mediaTools':bool(all(runway_narration.media_tools())),'ratesVersion':'2026-11-18-v1'}
 
+@router.get('/films/exchange-rate')
+async def exchange_rate(user=Depends(require_auth)):
+    can_edit(user)
+    from services.film_exchange import usd_brl_reference
+    return await usd_brl_reference()
+
 @router.post('/films/extract-document')
 async def extract_document(file:UploadFile=File(...),user=Depends(require_auth)):
     can_edit(user)

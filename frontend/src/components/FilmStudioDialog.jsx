@@ -5,6 +5,7 @@ import {getApiUrl} from '../utils/apiUrl';
 import {authHeaders} from '../contexts/AuthContext';
 import FilmGuidedSetup from './FilmGuidedSetup';
 import FilmGuidedReview from './FilmGuidedReview';
+import FilmBudget from './FilmBudget';
 
 const API=getApiUrl();
 const labels={draft:'Rascunho',planning:'Preparando storyboard',storyboard_approved:'Storyboard aprovado',budget_approved:'Orçamento aprovado',generating:'Produzindo mídias',failed:'Produção interrompida',unknown:'Envio não confirmado',completed:'Concluído'};
@@ -19,9 +20,9 @@ export default function FilmStudioDialog({open,onOpenChange,sourceProjectId=null
  const [dirty,setDirty]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const [voiceNotice,setVoiceNotice]=useState('');
  const [mode,setMode]=useState('guided');
- const [storyConsent,setStoryConsent]=useState(false),[budgetConsent,setBudgetConsent]=useState(false),[ceiling,setCeiling]=useState('');
+ const [storyConsent,setStoryConsent]=useState(false),[budgetConsent,setBudgetConsent]=useState(false);
  const inFlight=useRef(false),createId=useRef(null),copyId=useRef(null);
- const accept=data=>{setFilm(data);setDirty(false);setStoryConsent(false);setBudgetConsent(false);setCeiling(String(data.quote?data.quote.suggestedCeilingUsd:''));};
+ const accept=data=>{setFilm(data);setDirty(false);setStoryConsent(false);setBudgetConsent(false);};
  const act=async action=>{
   if(inFlight.current)return;inFlight.current=true;setBusy(true);setError('');
   try {const data=await action();if(data?.board)accept(data);return data;}
@@ -136,13 +137,7 @@ export default function FilmStudioDialog({open,onOpenChange,sourceProjectId=null
      {film.storyboardApproval===film.revision&&!dirty&&<p className="text-xs text-teal-200">Versão salva aprovada.</p>}
     </section>
     <section className="rounded border border-amber-700 bg-amber-950/30 p-4 space-y-3"><h3 className="font-semibold text-amber-200">2. Orçamento antes das mídias</h3>
-     {film.quote&&!dirty?<><p className="text-sm">{film.quote.duration}s · tabela {film.quote.ratesVersion}</p>
-      {film.quote.items.map(item=><div key={item.label} className="text-xs flex justify-between gap-2"><span>{item.label}<small className="block text-slate-400">{item.quantity} {item.unit}</small></span><strong>US$ {item.usd.toFixed(2)}</strong></div>)}
-      <p className="font-bold">Estimativa restante: US$ {film.quote.estimatedUsd.toFixed(2)}</p><p className="text-xs text-slate-300">{film.quote.disclaimer}</p>
-      <label className="block text-sm">Limite autorizado (USD)<input aria-label="Limite do orçamento do filme" className={inputClass} type="number" min={film.quote.estimatedUsd} max={1000} step="0.01" value={ceiling} onChange={e=>setCeiling(e.target.value)}/></label>
-      <label className="flex gap-2 text-xs"><input aria-label="Confirmar orçamento do filme" type="checkbox" checked={budgetConsent} disabled={locked} onChange={e=>setBudgetConsent(e.target.checked)}/>Li a estimativa e autorizo as chamadas planejadas desta versão, até o limite estimado informado.</label>
-      <Button data-testid="film-approve-budget" disabled={locked || !budgetConsent || !Number.isFinite(Number(ceiling)) || Number(ceiling)<film.quote.estimatedUsd} onClick={()=>act(()=>request('/films/'+film.id+'/approve-budget','POST',{revision:film.revision,quoteId:film.quote.id,ceilingUsd:Number(ceiling),consent:budgetConsent}))}>Aprovar orçamento — ainda não gera mídias</Button>
-     </>:<p className="text-sm text-slate-300">Salve as alterações e aprove o storyboard para calcular o orçamento. Mídias prontas compatíveis serão reaproveitadas.</p>}
+     {film.quote&&!dirty?<FilmBudget key={film.quote.id} quote={film.quote} locked={locked} request={request} budgetConsent={budgetConsent} setBudgetConsent={setBudgetConsent} inputClass={inputClass} onApprove={usd=>act(()=>request('/films/'+film.id+'/approve-budget','POST',{revision:film.revision,quoteId:film.quote.id,ceilingUsd:usd,consent:budgetConsent}))}/>:<p className="text-sm text-slate-300">Salve as alterações e aprove o storyboard para calcular o orçamento. Mídias prontas compatíveis serão reaproveitadas.</p>}
     </section>
     <section className="rounded border border-cyan-700 p-4 space-y-3"><h3 className="font-semibold">3. Produção autorizada</h3><p className="text-xs text-slate-300">As duas aprovações são exigidas no servidor. Editar o roteiro invalida ambas. Não há novas tentativas pagas automáticas. Fechar esta janela não cancela a produção: acompanhe pelo histórico de filmes.</p>
      <Button data-testid="film-generate" disabled={locked || dirty || film.status!=='budget_approved' || !config?.runway || !config?.narration || !config?.mediaTools} onClick={()=>act(()=>request('/films/'+film.id+'/generate','POST',{revision:film.revision}))}>Gerar mídias e montar filme</Button>
