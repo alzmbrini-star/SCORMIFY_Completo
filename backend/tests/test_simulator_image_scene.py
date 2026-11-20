@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from test_process_visual_refinement import pump_model, pump_scene
 from test_simulator_object_images import png
-from services.simulator_image_scene import prepare_scene, check_image_slots, existing_slots, apply_existing_slots
+from services.simulator_image_scene import prepare_scene, check_image_slots, existing_slots, apply_existing_slots, separate_rigid_backings
 from services.simulator_object_images import enrich, image_scope, storyboard_status, illustrate_existing
 
 
@@ -17,6 +17,42 @@ def scene():
 
 
 class ImageSceneTests(unittest.TestCase):
+    def test_rigid_backing_keeps_dynamic_children_and_caption_separate(self):
+        from services.rule_visuals import validate_visual,visual_state
+        from services.simulator_object_images import candidates
+        model=pump_model()
+        raw={'version':1,'title':'Painel','description':'Painel com destaques variáveis.',
+            'background':'#FFFFFF','nodes':[
+            {'id':'object','type':'group','label':'Objeto','attrs':{'x':100,'y':50},
+             'artwork':{'bounds':[0,0,600,350],'description':'Estrutura do painel'}},
+            {'id':'cell','type':'rect','parent':'object','label':'Destaque',
+             'attrs':{'x':0,'y':0,'width':100,'height':50,'fill':'#112233'},
+             'states':[{'when':{'op':'eq','args':[{'var':'etapa'},1]},'set':{'fill':'#FFD700'}}]},
+            {'id':'caption','type':'text','label':'Legenda','attrs':{'x':100,'y':420,'text':'Legenda preservada','fill':'#000000'}}]}
+        original=validate_visual(raw,model);before=copy.deepcopy(original)
+        self.assertEqual(candidates(original),[])
+        separated=validate_visual(separate_rigid_backings(original),model)
+        self.assertEqual(original,before)
+        self.assertEqual([p['id'] for p in check_image_slots(separated,model)],['art_base'])
+        old={n['id']:n for n in before['nodes']};new={n['id']:n for n in separated['nodes']}
+        for ident in old:
+            self.assertEqual({k:v for k,v in old[ident].items() if k!='artwork'},
+                             {k:v for k,v in new[ident].items() if k!='artwork'})
+        self.assertEqual(new['art_base']['parent'],'object')
+        for stage in (0,1,2):
+            state={v['id']:v['initial'] for v in model['variables']};state['etapa']=stage
+            old_state={n['id']:n for n in visual_state(before,state)}
+            new_state={n['id']:n for n in visual_state(separated,state)}
+            self.assertEqual(old_state['cell'],new_state['cell'])
+        # Idempotent and available for metadata-only planning as well.
+        self.assertEqual(separate_rigid_backings(separated),separated)
+        model['visual']=before
+        base,slots=existing_slots(model)
+        self.assertIn('art_base',[p['id'] for p in slots])
+        apply_existing_slots(base,slots,{'pieces':[{'node':'art_base','description':'Suporte fixo'}]},model)
+        raw['nodes'][0]['artwork']['bounds']=[0,0,800,450]
+        self.assertNotIn('art_base',[n['id'] for n in separate_rigid_backings(validate_visual(raw,model))['nodes']])
+
     def test_oversized_background_artwork_does_not_require_rebuilding_valid_scene(self):
         model=pump_model()
         from services.rule_visuals import validate_visual

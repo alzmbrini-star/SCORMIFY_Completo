@@ -9,13 +9,53 @@ import json
 import re
 
 
+def separate_rigid_backings(scene):
+    """Keep an object's bitmap below independent vector children, not over them.
+
+    A whole-canvas background is never made eligible. All original nodes,
+    bindings and states retain their geometry and relative paint order.
+    """
+    from services.simulator_object_images import candidates
+    result = copy.deepcopy(scene)
+    nodes = result.get('nodes', [])
+    eligible = {piece['id'] for piece in candidates(result)}
+    used = {node['id'] for node in nodes}
+    def has_drawing(ident):
+        return any(child['type'] not in {'group','text'} or has_drawing(child['id'])
+                   for child in nodes if child.get('parent') == ident)
+    for index in range(len(nodes)-1, -1, -1):
+        node = nodes[index]; art = node.get('artwork')
+        if node.get('type') != 'group' or not art or node['id'] in eligible:
+            continue
+        x,y,width,height = art['bounds']
+        if min(width,height) < 18 or max(width,height) < 72 or width*height > 800*450*.8:
+            continue
+        if not has_drawing(node['id']):
+            continue  # An empty group still needs a real composition repair.
+        ident = 'art_base'
+        suffix = 1
+        while ident in used:
+            ident = 'art_base_'+str(suffix);suffix += 1
+        used.add(ident)
+        node.pop('artwork')
+        description = 'Ilustre somente a estrutura fixa de apoio deste objeto. Células, destaques, textos, fluxos e partes móveis são camadas vetoriais separadas; não os repita nem os incorpore à imagem. Objeto: ' + art['description']
+        nodes.insert(index+1, {'id':ident,'type':'rect','label':node.get('label',ident),
+            'parent':node['id'],'attrs':{'x':x,'y':y,'width':width,'height':height,
+                'fill':result.get('background','#FFFFFF'),'stroke':'#64748B','strokeWidth':1},
+            'bindings':[],'states':[],
+            'artwork':{'bounds':[x,y,width,height],'description':description[:1200]}})
+    return result
+
+
 def existing_slots(data):
     """Offer only existing rigid shapes, never an animated whole-scene group."""
     from services.simulator_object_images import candidates
-    scene = copy.deepcopy(data.get('visual') or {})
+    scene = separate_rigid_backings(data.get('visual') or {})
+    preserved_slots = candidates(scene)
     for node in scene.get('nodes', []):
         node.pop('artwork', None)
-    slots = [piece for piece in candidates(scene) if max(piece['bounds'][2:]) >= 72]
+    by_id = {piece['id']:piece for piece in candidates(scene)+preserved_slots}
+    slots = [piece for piece in by_id.values() if max(piece['bounds'][2:]) >= 72]
     return scene, slots
 
 
@@ -147,7 +187,8 @@ pelo servidor; fluxos e partes deformáveis permanecem vetoriais. Não repita o 
                         isinstance(b, dict) and isinstance(b.get('output'), list) and len(b['output'])==2
                         and type(b['output'][0]) in (int,float) and b['output'][0]==b['output'][1]
                         and node.get('attrs',{}).get(b.get('property'))==b['output'][0])]
-            scene = validate_visual(raw, data)
+            scene = separate_rigid_backings(validate_visual(raw, data))
+            scene = validate_visual(scene, data)
             check_image_slots(scene, data)
             # Eligibility and typed state execution are verified here. Image
             # silhouettes cannot be judged before those images actually exist.
