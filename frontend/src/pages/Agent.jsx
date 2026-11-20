@@ -401,7 +401,7 @@ export default function Agent() {
       .then(r => r.json())
       .then(setTemplates)
       .catch(() => {});
-    fetchRetry(`${API}/api/agent/design-templates`, { headers: authHeaders() })
+    fetchRetry(`${API}/api/agent/design-templates?scope=creation`, { headers: authHeaders() })
       .then(r => r.json())
       .then(setDesignTemplates)
       .catch(() => {});

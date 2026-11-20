@@ -602,6 +602,10 @@ def _is_content_slide(slide: dict) -> bool:
 def _insert_image_on_slide(slide: dict, project_id: str, fname: str, caption: str,
                            slot_idx: int = 0) -> None:
     """Insert an extracted image + optional caption into a slide."""
+    if any(e.get('astryxDesign') for e in slide.get('elements', [])):
+        from services.astryx_agent import append_source_image
+        if append_source_image(slide, project_id, fname, caption):
+            return
     existing_srcs = {
         (el.get("src") or "") for el in slide.get("elements", [])
         if el.get("type") == "image"

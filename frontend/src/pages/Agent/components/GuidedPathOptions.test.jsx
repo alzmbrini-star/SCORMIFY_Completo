@@ -27,3 +27,14 @@ test('standard mode exposes independent interactive assessment options alongside
  expect(html).toContain('Os Quizzes continuam independentes');
  expect(html).toContain('Questões e imagens usam créditos');
 });
+
+test.each(['standard','illustrated_journey','guided_practice_project'])('Astryx is an additive visual design in %s without replacing learning modes',mode=>{
+ const astryx={id:'astryx',name:'Astryx',creationOnly:true,description:'Novo design responsivo',palette:{primary:'#172744',accent:'#315ad1',contentBg:'#f4f7fc',text:'#172744'},fonts:{heading:'Arial'}};
+ const old={id:'clean-light',name:'Minimal Claro',palette:{},fonts:{}};
+ const html=renderToStaticMarkup(<ConfigPanel config={{title:'Outro assunto',visualCourseMode:mode,enabledResources:{quiz:true,interactive_assessment:true}}} setConfig={()=>{}} loading={false} templates={[]} designTemplates={[old,astryx]} selectedDesignTemplate={astryx}/>);
+ expect(html).toContain('data-testid="design-template-astryx"');
+ expect(html).toContain('data-testid="design-template-clean-light"');
+ expect(html).toContain('qualquer tema');expect(html).toContain('Sem créditos adicionais pelo design');
+ expect(html).toContain('Slides premium variados');expect(html).toContain('Jornada Visual Ilustrada');
+ expect(html).toContain('Percurso guiado com prática e projeto');
+});

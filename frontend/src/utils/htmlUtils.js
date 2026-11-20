@@ -27,7 +27,7 @@ export const sanitizeHtmlForDisplay = (htmlContent) => {
   // Preserve complete Astryx CSS: artifact regexes are not CSS parsers and
   // consume closing braces in its layered stylesheet. Security remains the
   // responsibility of the isolated iframe, not this cosmetic cleanup.
-  if (htmlContent.includes('data-astryx-slide=')) return htmlContent;
+  if (htmlContent.includes('data-astryx-slide=') || htmlContent.includes('data-astryx-lesson=')) return htmlContent;
   
   // Remove --tw-* CSS custom properties from inline styles
   let cleaned = htmlContent.replace(/--tw-[^;:]+:[^;]*;?\s*/g, '');

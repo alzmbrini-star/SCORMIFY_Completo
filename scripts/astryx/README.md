@@ -29,3 +29,24 @@ for traditional Quiz or interactive image assessment; it does not send scores to
 the LMS. Validate the final package in the customer's LMS before distributing.
 
 Upstream: https://github.com/meta/astryx (MIT; see LICENSE.astryx.txt).
+
+## New-course Agent design
+
+Creation-scoped design templates (`?scope=creation`) additionally expose Astryx;
+the default existing-course palette list remains the original six themes. The
+Agent adapter (`services/astryx_agent.py`) renders approved semantic teaching
+copy, not the laboratory's example text/questions. Protected activities, media
+players and source-image slides retain their own builders. No existing course
+is migrated on read or by applying a creation-only palette.
+
+`lesson.css` is a parser-pruned Theme/Card stylesheet retaining the transitive
+token dependencies. The full laboratory stylesheet is unchanged. This avoids
+repeating all 150+ component styles in every lesson (which would exceed MongoDB's
+document ceiling for long courses). The builder enforces a 45 KB stylesheet
+budget; tests also bound the design overhead for 200 simple lessons.
+
+`build-astryx-agent-qa.py` creates local fixtures for three subjects with classic
+Quiz, an illustrated assessment and an original source-image slide. Run
+`check-astryx-agent-browser.py` with the backend QA environment to check 390px and
+desktop widths in an isolated headless Chrome, blocking all non-local requests.
+No user browser profile, database, saved course or paid generation is used.

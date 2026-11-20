@@ -1204,6 +1204,8 @@ async def apply_design_template_to_project(project_id: str, data: dict, user: di
     design_token = get_design_template_by_id(design_template_id)
     if not design_token:
         raise HTTPException(404, "Design template not found")
+    if design_token.get('creationOnly'):
+        raise HTTPException(422, 'Astryx está disponível na criação de novos cursos pelo Agente; não converte cursos existentes.')
 
     slides = project.get("course", {}).get("slides", [])
     updated = 0

@@ -699,11 +699,11 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
 
   // Load design templates
   useEffect(() => {
-    fetch(`${API}/api/agent/design-templates`, { headers: authHeaders() })
+    fetch(`${API}/api/agent/design-templates${isEditMode ? '' : '?scope=creation'}`, { headers: authHeaders() })
       .then(r => r.json())
       .then(setDesignTemplates)
       .catch(() => {});
-  }, []);
+  }, [isEditMode]);
 
   // Apply design template: sets backgrounds for all slides based on template colors
   const applyDesignTemplate = (dt) => {
@@ -1385,7 +1385,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
               <div className="p-2 rounded-lg border border-amber-500/20 bg-amber-900/10 flex items-center gap-2">
                 <div className="w-4 h-4 rounded shrink-0" style={{ background: selectedDesignTemplate.preview }} />
                 <p className="text-[10px] text-amber-400/80">
-                  Tema <span className="font-semibold">"{selectedDesignTemplate.name}"</span> — fundos, fontes e headers serão aplicados ao clicar "Aplicar Alterações"
+                  Tema <span className="font-semibold">"{selectedDesignTemplate.name}"</span> — {selectedDesignTemplate.id === 'astryx' ? 'layout das telas explicativas na geração do novo curso; recursos interativos e capturas originais são preservados.' : 'fundos, fontes e headers serão aplicados ao clicar "Aplicar Alterações"'}
                 </p>
               </div>
             )}

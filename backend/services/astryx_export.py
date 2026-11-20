@@ -9,8 +9,14 @@ def is_astryx_course(course):
                                s['elements'][0].get('astryxPrototype') is True for s in slides)
 
 
-def install_astryx_host(document, enabled):
-    if not enabled:
+def is_astryx_agent_course(course):
+    if hasattr(course, 'model_dump'):
+        course = course.model_dump()
+    return any(e.get('astryxDesign') is True for s in course.get('slides',[]) for e in s.get('elements',[]))
+
+
+def install_astryx_host(document, enabled, agent=False):
+    if not enabled and not agent:
         return document
     # Existing players fit a fixed landscape canvas. These responsive HTML
     # documents instead need the real mobile width; they own internal scrolling.
@@ -24,7 +30,22 @@ def install_astryx_host(document, enabled):
       #main-content{padding:0!important;min-width:0!important}
       #slide-container iframe{width:100%!important;height:100%!important}
       #course-title{font-size:13px!important;line-height:1.3!important}
-      #mobile-nav-prev,#mobile-nav-next{top:auto!important;bottom:42px!important;transform:none!important}
+      #slide-wrapper .swipe-zone{display:none!important}
+      #mobile-nav-prev,#mobile-nav-next{top:auto!important;bottom:42px!important;transform:none!important;z-index:2001!important}
       #mobile-nav-menu{top:auto!important;bottom:86px!important;left:calc(50% - 20px)!important}
     }</style>'''
+    if agent and not enabled:
+        # Mixed courses keep native quizzes/scenarios on their original stage.
+        # Only a currently visible Astryx lesson gets the real mobile viewport.
+        css = css.replace('#slide-container', '#slide-container.astryx-mobile-stage').replace('#slide-wrapper', '#slide-wrapper.astryx-mobile-wrapper')
+        css = css.replace('#main-content{', '#main-content:has(.astryx-mobile-stage){')
+        css += '''<script id="astryx-agent-host">(function(){function start(){
+        var stage=document.getElementById('slide-container');if(!stage)return;
+        function sync(){var frames=stage.querySelectorAll('iframe'),on=false;
+          for(var i=0;i<frames.length;i++){var raw=frames[i].getAttribute('srcdoc')||'';
+            if(raw.indexOf('data-astryx-lesson=')>=0){on=true;break;}}
+          stage.classList.toggle('astryx-mobile-stage',on);
+          var wrap=document.getElementById('slide-wrapper');if(wrap)wrap.classList.toggle('astryx-mobile-wrapper',on);
+        }new MutationObserver(sync).observe(stage,{childList:true,subtree:true,attributes:true,attributeFilter:['srcdoc']});sync();
+        }if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();})();</script>'''
     return document.replace('</head>', css + '</head>', 1)

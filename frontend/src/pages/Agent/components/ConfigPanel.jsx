@@ -159,7 +159,7 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
             <div className="p-2 rounded-lg border border-emerald-500/20 bg-emerald-900/10 flex items-center gap-2">
               <div className="w-5 h-5 rounded shrink-0" style={{ background: selectedDesignTemplate.preview }} />
               <p className="text-xs text-emerald-400/80">
-                Tema <span className="font-semibold" style={{ fontFamily: selectedDesignTemplate.fonts?.heading }}>"{selectedDesignTemplate.name}"</span> será aplicado a todos os slides
+                Tema <span className="font-semibold" style={{ fontFamily: selectedDesignTemplate.fonts?.heading }}>"{selectedDesignTemplate.name}"</span> {selectedDesignTemplate.id === 'astryx' ? '— para novos cursos, em qualquer tema. Capas, explicações e resumos responsivos; quizzes, avaliações com imagens, simuladores e capturas originais mantêm seus motores. Sem créditos adicionais pelo design; conteúdo e mídias seguem os custos configurados.' : 'será aplicado a todos os slides'}
               </p>
             </div>
           )}

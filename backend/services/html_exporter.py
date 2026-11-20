@@ -121,7 +121,7 @@ async def process_html_content_images(
     # Sanitize: remove Tailwind CSS variables and editor artifacts
     # Astryx ships a complete stylesheet. These legacy whole-document regexes
     # can consume closing CSS braces and corrupt @layer scopes, not just outlines.
-    if 'data-astryx-slide=' not in html_content:
+    if 'data-astryx-slide=' not in html_content and 'data-astryx-lesson=' not in html_content:
         html_content = re.sub(r'--tw-[^;:]+:[^;]*;?\s*', '', html_content)
         html_content = re.sub(r'outline-style:\s*dashed\s*;?\s*', '', html_content)
         html_content = re.sub(r'outline-width:\s*[^;]+;?\s*', '', html_content)
@@ -688,9 +688,11 @@ async def _generate_standalone_html(
         logger.info(f"Added {len(questions)} questions to HTML export")
     
     # Generate HTML
-    from services.astryx_export import is_astryx_course
+    from services.astryx_export import is_astryx_course, is_astryx_agent_course
     if is_astryx_course({'slides': slides}):
         course_data['_astryxResponsive'] = True
+    if is_astryx_agent_course({'slides': slides}):
+        course_data['_astryxAgent'] = True
     html = generate_html_template(
         title,
         course_data,
@@ -3821,7 +3823,7 @@ html,body{{background:{canvas}}}
     from services.portrait_view import install_portrait_view
     html = install_portrait_view(html)
     from services.astryx_export import install_astryx_host
-    html = install_astryx_host(html, course_data.get('_astryxResponsive') is True)
+    html = install_astryx_host(html, course_data.get('_astryxResponsive') is True, course_data.get('_astryxAgent') is True)
     if output_path:
         return write_html_file(output_path, html, sanitized_data)
     return html

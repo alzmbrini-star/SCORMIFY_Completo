@@ -45,6 +45,15 @@ def build_cover(slide,palette,course_title,modules,image_url=None):
 
 def build_journey(modules,palette):
     from models import generate_id
+    if palette.get('astryxDesign'):
+        from services.astryx_agent import build_elements
+        content = '<ol>' + ''.join(f'<li>{html.escape(str(name))}</li>' for name in modules) + '</ol>'
+        return {'id':generate_id(),'title':'Sua jornada de aprendizagem','contentType':'content',
+                'background':'#f4f7fc','width':1920,'height':820,'duration':5,
+                'notes':'Visão geral dos módulos do curso.','audio':[],
+                'transition':{'type':'fade','duration':.5},
+                'elements':build_elements({'title':'Sua jornada de aprendizagem','type':'content',
+                    'elements':[{'type':'text','content':content}]},palette)}
     from services.ai_agent import _tokens
     tk=_tokens(palette)
     entries=''.join(f'<li style="display:flex;gap:20px;align-items:baseline;padding:22px;background:{tk["card_bg"]};border:1px solid {tk["card_border"]};border-radius:16px;color:{tk["text"]};font-size:23px;line-height:1.4"><strong style="color:{tk["accent"]};font-size:24px">{i+1:02d}</strong><span>{html.escape(str(name))}</span></li>' for i,name in enumerate(modules))

@@ -1783,9 +1783,13 @@ DESIGN_TEMPLATES = [
     },
 ]
 
-def get_design_templates():
+from services.astryx_agent import TEMPLATE as ASTRYX_TEMPLATE
+DESIGN_TEMPLATES.append(ASTRYX_TEMPLATE)
+
+
+def get_design_templates(include_creation_only=False):
     """Return available design templates for the frontend."""
-    return DESIGN_TEMPLATES
+    return [t for t in DESIGN_TEMPLATES if include_creation_only or not t.get('creationOnly')]
 
 def get_design_template_by_id(template_id: str) -> dict:
     """Get a specific design template, or return default (educacional)."""
@@ -1795,7 +1799,7 @@ def get_design_template_by_id(template_id: str) -> dict:
     return DESIGN_TEMPLATES[0]  # default: clean-light
 
 # Legacy palettes (kept for backward compatibility, mapped from design templates)
-_COURSE_PALETTES = [t["palette"] for t in DESIGN_TEMPLATES]
+_COURSE_PALETTES = [t["palette"] for t in DESIGN_TEMPLATES if not t.get('creationOnly')]
 
 
 def _slide_plain_text(slide_context: Optional[dict]) -> str:
@@ -2080,6 +2084,11 @@ def _tokens(palette: dict) -> dict:
 
 def _build_title_slide(sb_slide: dict, palette: dict, course_title: str, module_names: list, image_url=None) -> list:
     """Course-owned title, contextual media and editable split cover."""
+    if palette.get('astryxDesign'):
+        from services.astryx_agent import build_elements
+        result = build_elements(sb_slide, palette, image_url=image_url, course_title=course_title, modules=module_names)
+        if result is not None:
+            return result
     from services.course_cover import build_cover
     return build_cover(sb_slide, palette, course_title, module_names, image_url)
 
@@ -2100,6 +2109,11 @@ def _build_header_bar(palette: dict, left_text: str, right_text: str = "") -> st
 
 def _build_content_slide(sb_slide: dict, palette: dict, module_name: str, image_url: Optional[str]) -> dict:
     """Build a visually rich content slide with header bar, text, and image."""
+    if palette.get('astryxDesign'):
+        from services.astryx_agent import build_elements
+        result = build_elements(sb_slide, palette, module_name, image_url)
+        if result is not None:
+            return result
     from models import generate_id
     accent = palette["accent"]
     corner_radius = palette.get("cornerRadius", "12px")
@@ -2238,6 +2252,11 @@ def _build_scenario_slide(sb_slide: dict, palette: dict, module_name: str, scena
 
 def _build_summary_slide(sb_slide: dict, palette: dict, module_name: str) -> dict:
     """Build a visually rich summary slide."""
+    if palette.get('astryxDesign'):
+        from services.astryx_agent import build_elements
+        result = build_elements(sb_slide, palette, module_name)
+        if result is not None:
+            return result
     from models import generate_id
     accent = palette["accent"]
     font_body = palette.get("fontBody", "'Inter', sans-serif")
@@ -2414,6 +2433,11 @@ def _build_content_slide_with_kling(sb_slide: dict, palette: dict, module_name: 
 
 def _build_content_slide_no_media(sb_slide: dict, palette: dict, module_name: str) -> list:
     """Build content slide without any media - full width text."""
+    if palette.get('astryxDesign'):
+        from services.astryx_agent import build_elements
+        result = build_elements(sb_slide, palette, module_name)
+        if result is not None:
+            return result
     from models import generate_id
     elements = []
 
@@ -3577,6 +3601,8 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
     palette["headerStyle"] = design_token.get("headerStyle", "clean") if design_token else "clean"
     palette["cornerRadius"] = design_token.get("cornerRadius", "14px") if design_token else "14px"
     palette["mode"] = design_token.get("mode", "light") if design_token else "light"
+    if design_token and design_token.get('id') == 'astryx':
+        palette['astryxDesign'] = True
 
     # Brand Kit: when the project opts into the company's brand library AND
     # the company has a configured BrandKit, override the palette colors and
@@ -3611,6 +3637,8 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
 
     # Font size scale factor
     font_scale = int(global_font_size) / 100.0 if global_font_size else 1.0
+    if palette.get('astryxDesign'):
+        palette['astryxFontScale'] = font_scale
 
     # Collect module names for title slide
     module_names = []
@@ -4366,6 +4394,8 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             return f"font-size:{round(float(m.group(1)) * font_scale)}px"
         for slide in project_slides:
             for el in slide.get("elements", []):
+                if el.get('astryxDesign'):
+                    continue  # responsive type scale owns minimum 17px; never rewrite vendor CSS
                 if el.get("type") in ("html", "text") and el.get("htmlContent"):
                     el["htmlContent"] = _re.sub(r'font-size:\s*(\d+(?:\.\d+)?)px', _scale_font, el["htmlContent"])
 
@@ -4380,6 +4410,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             "title": config.get("title", "Curso Gerado por IA"),
             "description": config.get("description", ""),
             "visualCourseMode": config.get("visualCourseMode", "standard"),
+            **({'designTemplateId': 'astryx', 'astryxDesignVersion': '0.7.16-agent-v1'} if design_template_id == 'astryx' else {}),
             "playerTemplate": "visual_journey" if config.get("visualCourseMode") == "illustrated_journey" else "traditional",
             "visualStoryBible": storyboard.get("visualStoryBible", {}),
             "sourceCoverage": storyboard.get('sourceCoverage', {}),
@@ -4426,7 +4457,11 @@ async def analyze_existing_course(session_id: str, project: dict) -> dict:
         texts = []
         has_image_element = False
         for el in s.get("elements", []):
-            c = el.get("htmlContent") or el.get("content") or ""
+            if el.get('astryxDesign'):
+                from services.astryx_agent import teaching_text
+                c = teaching_text(el)
+            else:
+                c = el.get("htmlContent") or el.get("content") or ""
             if c and isinstance(c, str):
                 texts.append(c[:200])
             if el.get("type") == "video":

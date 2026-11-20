@@ -205,6 +205,9 @@ def _apply_design_token_to_slide(
     HTML, quizzes, simulators or manually edited content.
     """
     import re as _re
+    # A creation-only layout is not a palette migration of arbitrary saved HTML.
+    if design_token.get('creationOnly'):
+        return
     palette = design_token["palette"]
     font_heading = design_token["fonts"]["heading"]
     font_body = design_token["fonts"]["body"]
@@ -1552,6 +1555,9 @@ async def apply_media_changes(session_id: str, data: dict, user: dict = Depends(
         from services.ai_agent import get_design_template_by_id
         design_token = get_design_template_by_id(design_template_id)
 
+    if design_token and design_token.get('creationOnly') and (project.get('course',{}).get('metadata',{}).get('designTemplateId') != design_template_id):
+        raise HTTPException(422, 'Astryx é uma opção para novos cursos; não converte o curso existente.')
+
     for i, slide in enumerate(slides):
         # Skip slides that were not changed (if changedSlides is specified)
         if changed_slides is not None and i not in changed_slides:
@@ -2386,6 +2392,7 @@ async def agent_generate_course(session_id: str, request: Request):
                 {"$set": {
                     "course.slides": course_data["slides"],
                     "course.metadata": course_data.get("metadata", {}),
+                    **({'designTemplateId':'astryx'} if config.get('designTemplateId') == 'astryx' else {}),
                     "singlePageMode": bool(config.get("visualCourseMode") == "illustrated_journey"),
                     "playerTemplate": "visual_journey" if config.get("visualCourseMode") == "illustrated_journey" else "traditional",
                     "course.updatedAt": datetime.now(timezone.utc).isoformat(),
@@ -2427,6 +2434,10 @@ async def agent_generate_course(session_id: str, request: Request):
                             continue
                     texts = []
                     for el in slide_data.get("elements", []):
+                        if el.get('astryxDesign'):
+                            from services.astryx_agent import teaching_text
+                            texts.append(teaching_text(el))
+                            continue
                         html_content = el.get("htmlContent", "")
                         if html_content:
                             clean = _re.sub(r'<[^>]+>', '', html_content)
@@ -3197,10 +3208,10 @@ async def agent_list_templates():
 
 
 @router.get("/agent/design-templates")
-async def agent_list_design_templates():
+async def agent_list_design_templates(scope: str = ''):
     """List available visual/design templates for course styling."""
     from services.ai_agent import get_design_templates
-    return get_design_templates()
+    return get_design_templates(include_creation_only=scope == 'creation')
 
 
 
