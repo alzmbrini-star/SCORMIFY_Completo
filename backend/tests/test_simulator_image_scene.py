@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from test_process_visual_refinement import pump_model, pump_scene
 from test_simulator_object_images import png
-from services.simulator_image_scene import prepare_scene, check_image_slots
+from services.simulator_image_scene import prepare_scene, check_image_slots, existing_slots, apply_existing_slots
 from services.simulator_object_images import enrich, image_scope, storyboard_status, illustrate_existing
 
 
@@ -17,6 +17,41 @@ def scene():
 
 
 class ImageSceneTests(unittest.TestCase):
+    def test_oversized_background_artwork_does_not_require_rebuilding_valid_scene(self):
+        model=pump_model()
+        from services.rule_visuals import validate_visual
+        visual=scene()
+        # Reproduces the diagnostic: artwork incorrectly covers the whole
+        # scene and its moving descendants must not become one bitmap.
+        visual['nodes'][1]['artwork']['bounds']=[0,0,800,450]
+        visual['nodes'].append({'id':'report','type':'rect','label':'Relatório',
+                               'attrs':{'x':430,'y':70,'width':220,'height':130,'fill':'#FFFFFF'}})
+        model['visual']=validate_visual(visual,model);before=copy.deepcopy(model)
+        base,slots=existing_slots(model)
+        self.assertIn('report',[p['id'] for p in slots])
+        result=apply_existing_slots(base,slots,{'pieces':[{'node':'report','description':'Relatório de treinamento individual'}]},model)
+        self.assertEqual(model,before)
+        for old,new in zip(before['visual']['nodes'],result['nodes']):
+            self.assertEqual({k:v for k,v in old.items() if k!='artwork'},
+                             {k:v for k,v in new.items() if k!='artwork'})
+        self.assertEqual(result['nodes'][-1]['artwork']['bounds'],[430,70,220,130])
+        with self.assertRaises(ValueError):apply_existing_slots(base,slots,{'pieces':[{'node':'unknown','description':'x'}]},model)
+        with self.assertRaises(ValueError):apply_existing_slots(base,slots,{'pieces':[{'node':'report','description':'x','attrs':{}}]},model)
+
+    def test_existing_scene_annotation_is_used_before_generating_a_replacement_scene(self):
+        model=pump_model()
+        model['visual']={'version':1,'title':'Relatório','background':'#FFFFFF','nodes':[
+            {'id':'report','type':'rect','label':'Relatório','attrs':{'x':100,'y':70,'width':220,'height':130,'fill':'#FFFFFF'}}]}
+        chat=SimpleNamespace(send_message=AsyncMock(return_value=json.dumps({'pieces':[{'node':'report','description':'Documento de treinamento'}]})))
+        chat.with_model=lambda *a:chat
+        chat.with_params=lambda **kw:chat
+        before=copy.deepcopy(model)
+        with patch('emergentintegrations.llm.chat.LlmChat',return_value=chat),patch('services.llm_config.simulator_generation_config',return_value=('openai','fake','gpt-4o')):
+            result=asyncio.run(prepare_scene(model,'planejamento','{}','qa'))
+        self.assertEqual(model,before)
+        self.assertEqual(result['nodes'][0]['attrs'],before['visual']['nodes'][0]['attrs'])
+        chat.send_message.assert_awaited_once()
+
     def test_group_paint_defaults_do_not_block_actual_image_opacity_changes(self):
         from services.simulator_object_images import candidates
         node={'id':'team','type':'group','label':'Equipe','attrs':{'x':100,'y':100,'opacity':1,'fill':'none'},

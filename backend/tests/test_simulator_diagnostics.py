@@ -12,6 +12,50 @@ from services.simulator_diagnostics import (capture_generation, diagnostic_scope
 
 
 class DiagnosticTests(unittest.IsolatedAsyncioTestCase):
+    async def test_image_failure_is_not_accepted_and_keeps_proven_logic(self):
+        from test_process_demo import process_demo
+        from services.rule_simulators import validate_rules
+        raw=validate_rules(process_demo());raw['mechanic']='finite-rules-v1'
+        generated={'html':'validated rules','spec':raw}
+        generate=AsyncMock(return_value=generated);saved=[]
+        async def fail_images(*args):
+            record_attempt('{"imageStage":"slots"}',{'mechanic':'image-ready-scene-v1'},[],error='Objeto sem espaço válido')
+            raise ValueError('Objeto sem espaço válido')
+        with diagnostic_scope(saved.append):
+            with self.assertRaisesRegex(ValueError,'Objeto sem espaço válido'):
+                await capture_generation(generate,'request','context','session',['p','m'],finalize=fail_images)
+        self.assertNotIn('accepted',[r['status'] for r in saved])
+        self.assertEqual(saved[-1]['status'],'failed')
+        self.assertEqual(saved[-1]['result']['spec']['actions'],raw['actions'])
+        self.assertEqual(saved[-1]['attempts'][-1]['error'],'Objeto sem espaço válido')
+        previous=saved[-1];fresh=AsyncMock(side_effect=AssertionError('Do not regenerate proven rules'))
+        finalize=AsyncMock(side_effect=lambda result,*args:result)
+        with diagnostic_scope(saved.append,[previous]):
+            await capture_generation(fresh,'request','context','session',['p','m'],finalize=finalize)
+        fresh.assert_not_awaited();finalize.assert_awaited_once()
+        self.assertEqual(saved[-1]['status'],'accepted')
+
+    async def test_accepted_legacy_cache_still_completes_image_stage(self):
+        generated={'html':'rules','spec':{'title':'Existing'}}
+        prior={'version':VERSION,'status':'accepted','generationKey':generation_key('request','context',['p','m']),
+               'result':generated}
+        generate=AsyncMock(side_effect=AssertionError('Do not regenerate'))
+        async def images(result,*args):
+            result['spec']['imagesComplete']=True
+            return result
+        saved=[]
+        with diagnostic_scope(saved.append,[prior]):
+            result=await capture_generation(generate,'request','context','session',['p','m'],finalize=images)
+        self.assertTrue(result['spec']['imagesComplete']);generate.assert_not_awaited()
+        self.assertNotIn('imagesComplete',prior['result']['spec'])
+        self.assertTrue(saved[-1]['result']['spec']['imagesComplete'])
+
+    async def test_finalization_without_diagnostics_is_not_skipped(self):
+        generate=AsyncMock(return_value={'spec':{},'html':'base'})
+        final=AsyncMock(return_value={'spec':{},'html':'illustrated'})
+        result=await capture_generation(generate,'p','c','s',[],finalize=final)
+        self.assertEqual(result['html'],'illustrated');final.assert_awaited_once()
+
     async def test_failed_current_guided_art_is_not_promoted_by_structural_recovery(self):
         from test_process_demo import process_demo
         from test_visual_thresholds import threshold_scene
@@ -165,6 +209,20 @@ class DiagnosticTests(unittest.IsolatedAsyncioTestCase):
 
 
 class DiagnosticRouteTests(unittest.IsolatedAsyncioTestCase):
+    def test_isolated_retry_includes_image_scope_and_storyboard_source_excerpt(self):
+        source=Path(__file__).resolve().parents[1]/'routes/agent.py'
+        tree=ast.parse(source.read_text(encoding='utf-8'))
+        route=next(n for n in tree.body if isinstance(n,ast.AsyncFunctionDef) and n.name=='retry_simulator_diagnostic')
+        work=next(n for n in route.body if isinstance(n,ast.FunctionDef) and n.name=='work')
+        calls=[n for n in ast.walk(work) if isinstance(n,ast.Call) and isinstance(n.func,ast.Name)]
+        request=next(n for n in calls if n.func.id=='simulator_request')
+        self.assertEqual(request.args[1].func.id,'batch_source')
+        context=next(n for n in ast.walk(work) if isinstance(n,ast.With))
+        names=[item.context_expr.func.id for item in context.items]
+        self.assertIn('diagnostic_scope',names);self.assertIn('image_scope',names)
+        image=next(item.context_expr for item in context.items if item.context_expr.func.id=='image_scope')
+        self.assertTrue(next(k.value.value for k in image.keywords if k.arg=='synchronous'))
+
     def namespace(self):
         source=Path(__file__).resolve().parents[1]/'routes/agent.py'
         tree=ast.parse(source.read_text(encoding='utf-8'))

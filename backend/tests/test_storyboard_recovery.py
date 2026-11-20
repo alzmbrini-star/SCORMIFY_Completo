@@ -144,7 +144,7 @@ async def test_generator_restarts_from_last_complete_batch_without_rebilling(mon
     async def game(*args):calls.append('game');raise RuntimeError('reinício simulado')
     monkeypatch.setattr(storyboard_game_plan,'plan_game',game)
     class Chat:
-        async def send_message(self,message):calls.append('content');return '{"slides":[{"id":"a","type":"content","title":"A","elements":[{"type":"html","htmlContent":"<h1>Conceito</h1><p>Texto explicativo do curso para estudo e aplicação.</p>"}]}]}'
+        async def send_message(self,message):calls.append('content');return '{"slides":[{"id":"a","type":"content","title":"A","elements":[{"type":"html","htmlContent":"<h1>Conceito</h1><p>Texto explicativo do curso para estudo e aplicação. Antes de decidir, compare as evidências disponíveis e justifique a escolha com base no conteúdo estudado.</p>"}]}]}'
     monkeypatch.setattr(ai_agent,'_new_chat',lambda *a,**k:Chat())
     db=Database();run=jobs.acquire_run(db,'s','f');store=jobs.BatchStore(db,'s',run)
     with pytest.raises(RuntimeError,match='reinício'):await ai_agent.generate_storyboard('s','Referência',source,{},checkpoint_store=store)

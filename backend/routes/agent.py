@@ -1207,8 +1207,10 @@ async def retry_simulator_diagnostic(session_id: str, body: SimulatorDiagnosticR
         try:
             cached = list(database.simulator_diagnostics.find({'sessionId': session_id, 'ownerId': user['user_id'],
                 'status': {'$in': ['accepted','failed']}, 'expiresAt': {'$gt': datetime.now(timezone.utc)}}))
-            prompt, context = simulator_request(source, session.get('contentText', ''), session.get('config', {}))
-            with diagnostic_scope(_simulator_diagnostic_sink(database, session), cached):
+            from services.source_coverage import batch_source
+            from services.simulator_object_images import image_scope
+            prompt, context = simulator_request(source, batch_source(session.get('contentText', ''), [source]), session.get('config', {}))
+            with diagnostic_scope(_simulator_diagnostic_sink(database, session), cached), image_scope(database, {'user_id':session.get('userId'),'companyId':session.get('companyId')}, synchronous=True):
                 loop.run_until_complete(generate_visual_simulator(prompt, context, f'{session_id}_visual_simulator_{body.slideIndex}'))
             update = {'status': 'accepted', 'error': None}
         except Exception as exc:

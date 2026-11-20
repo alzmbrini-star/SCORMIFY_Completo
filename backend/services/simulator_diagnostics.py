@@ -65,14 +65,16 @@ def diagnostic_scope(sink, cached=()):
         _scope.reset(token)
 
 
-async def capture_generation(generate, prompt, context, session_id, config, enrich=None):
+async def capture_generation(generate, prompt, context, session_id, config, enrich=None, finalize=None):
     scope = _scope.get()
     if scope is None:
-        return await generate(prompt, context, session_id)
+        result = await generate(prompt, context, session_id)
+        return await finalize(result,prompt,context,session_id) if finalize else result
     key = generation_key(prompt, context, config)
     cached = scope[1].get(key)
-    if cached and not (enrich is not None and (cached.get('result',{}).get('spec') or {}).get('mechanic')=='finite-rules-v1'
-                       and not (cached.get('result',{}).get('spec') or {}).get('visual')):
+    reusable = cached and not (enrich is not None and (cached.get('result',{}).get('spec') or {}).get('mechanic')=='finite-rules-v1'
+                              and not (cached.get('result',{}).get('spec') or {}).get('visual'))
+    if reusable and finalize is None:
         return copy.deepcopy(cached['result'])
     record = {'version': VERSION, 'generationKey': key, 'generatorSessionId': session_id,
               'status': 'running', 'attempts': [], 'error': ''}
@@ -84,12 +86,19 @@ async def capture_generation(generate, prompt, context, session_id, config, enri
     token = _record.set(record)
     try:
         _publish()
-        result = _revalidate_rule_data(scope[2],prompt,context,config)
+        result = copy.deepcopy(cached['result']) if reusable else _revalidate_rule_data(scope[2],prompt,context,config)
         if result is None:
             result = await generate(prompt, context, session_id)
-        else:
+        elif not reusable:
             if enrich is not None:result=await enrich(result,prompt,context,session_id)
             record_attempt(result['html'],result['spec'],[],review='Regras anteriores revalidadas sem gerar outra lógica; solução e teste contra atalhos comprovados novamente. A ilustração ausente é tratada separadamente quando solicitado pelo gerador. HTML anterior não foi executado.')
+        # Keep proven logic even when artwork fails. Never mark a partial
+        # pipeline accepted or lose its concrete image-stage diagnostic.
+        record.update(plan=result.get('spec'))
+        if len(json.dumps(result, ensure_ascii=True)) <= MAX_DOCUMENT:
+            record['result'] = copy.deepcopy(result)
+        if finalize is not None:
+            result = await finalize(result,prompt,context,session_id)
         record.update(status='accepted', plan=result.get('spec'), result=result)
         if len(json.dumps(result, ensure_ascii=True)) > MAX_DOCUMENT:
             record.pop('result', None)
@@ -120,7 +129,7 @@ an earlier approval: all JSON passes the current proof and quality policy again.
             continue
         if previous.get('generationKey') != generation_key(prompt,context,config,version):
             continue
-        if (previous.get('plan') or {}).get('mechanic') != ENGINE:
+        if (previous.get('plan') or {}).get('mechanic') != ENGINE and ((previous.get('result') or {}).get('spec') or {}).get('mechanic') != ENGINE:
             continue
         candidates=[]
         saved=(previous.get('result') or {}).get('spec')
