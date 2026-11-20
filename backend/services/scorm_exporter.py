@@ -816,9 +816,10 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                         })
 
                     # Sanitize: remove Tailwind CSS variables and editor artifacts
-                    html_content = re.sub(r'--tw-[^;:]+:[^;]*;?\s*', '', html_content)
-                    html_content = re.sub(r'outline-style:\s*dashed\s*;?\s*', '', html_content)
-                    html_content = re.sub(r'outline-width:\s*[^;]+;?\s*', '', html_content)
+                    if 'data-astryx-slide=' not in html_content:
+                        html_content = re.sub(r'--tw-[^;:]+:[^;]*;?\s*', '', html_content)
+                        html_content = re.sub(r'outline-style:\s*dashed\s*;?\s*', '', html_content)
+                        html_content = re.sub(r'outline-width:\s*[^;]+;?\s*', '', html_content)
                     html_content = re.sub(r'style="\s*;?\s*"', '', html_content)
                     html_content = re.sub(r"style='\s*;?\s*'", '', html_content)
 
@@ -1081,6 +1082,8 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
     
     from services.guided_path import install_guided_host
     html_content = install_guided_host(html_content, course_data)
+    from services.astryx_export import is_astryx_course, install_astryx_host
+    html_content = install_astryx_host(html_content, is_astryx_course(course))
     with open(package_dir / "index.html", 'w', encoding='utf-8') as f:
         f.write(html_content)
     

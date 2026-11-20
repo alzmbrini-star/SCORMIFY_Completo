@@ -1174,7 +1174,7 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
             'height:100%;overflow:hidden;box-sizing:border-box}'
             '*{box-sizing:border-box}</style>'
         )
-        if 'video-quiz-data' in raw or 'data-sim-engine="finite-rules-v1"' in raw or 'data-sim-engine="entity-planning-v1"' in raw or 'data-sim-engine="didactic-visualization-v1"' in raw:
+        if 'data-astryx-slide=' in raw or 'video-quiz-data' in raw or 'data-sim-engine="finite-rules-v1"' in raw or 'data-sim-engine="entity-planning-v1"' in raw or 'data-sim-engine="didactic-visualization-v1"' in raw:
             # This responsive workspace owns its scrolling viewport. Hiding body
             # overflow would strand actions/history below the exported frame.
             reset_css = ''

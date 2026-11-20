@@ -1,0 +1,22 @@
+// Build-time only: real Astryx components -> static HTML, no React/CDN in courses.
+import React from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+import {Card} from '@astryxdesign/core/Card';
+import {Button} from '@astryxdesign/core/Button';
+import {Theme} from '@astryxdesign/core/theme';
+import {neutralTheme} from '@astryxdesign/theme-neutral/built';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+const target=new URL('../../backend/services/astryx_assets/',import.meta.url);
+await mkdir(target,{recursive:true});
+const read=path=>readFile(new URL(`node_modules/${path}`,import.meta.url),'utf8');
+const card=renderToStaticMarkup(React.createElement(Card,{elevation:'med',padding:6},'@@CONTENT@@'));
+const confirm=renderToStaticMarkup(React.createElement(Button,{label:'Verificar resposta',variant:'primary',id:'ax-confirm',type:'button'}));
+const reset=renderToStaticMarkup(React.createElement(Button,{label:'Tentar novamente',variant:'secondary',id:'ax-reset',type:'button'}));
+const root=renderToStaticMarkup(React.createElement(Theme,{theme:neutralTheme,mode:'light'},'@@CONTENT@@'));
+const license=await readFile(new URL('LICENSE.astryx.txt',import.meta.url),'utf8');
+const css=[await read('@astryxdesign/core/src/reset.css'),await read('@astryxdesign/core/dist/astryx.css'),await read('@astryxdesign/theme-neutral/dist/theme.css')].join('\n');
+if(/@import\s|url\((?!['"]?data:)/i.test(css))throw Error('Styles must be offline: review external references.');
+await writeFile(new URL('components.json',target),JSON.stringify({version:'0.7.16',root,card,confirm,reset}));
+await writeFile(new URL('astryx.css',target),`/* Astryx 0.7.16, Meta Platforms, MIT; see LICENSE.txt */\n${css}`);
+await writeFile(new URL('LICENSE.txt',target),license);
+console.log('Astryx 0.7.16: static Theme, Card, Button and offline CSS generated.');

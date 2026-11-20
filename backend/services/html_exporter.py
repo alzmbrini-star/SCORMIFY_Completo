@@ -119,9 +119,12 @@ async def process_html_content_images(
     html_content = inline_assessment_assets(html_content, assets_dir)
     
     # Sanitize: remove Tailwind CSS variables and editor artifacts
-    html_content = re.sub(r'--tw-[^;:]+:[^;]*;?\s*', '', html_content)
-    html_content = re.sub(r'outline-style:\s*dashed\s*;?\s*', '', html_content)
-    html_content = re.sub(r'outline-width:\s*[^;]+;?\s*', '', html_content)
+    # Astryx ships a complete stylesheet. These legacy whole-document regexes
+    # can consume closing CSS braces and corrupt @layer scopes, not just outlines.
+    if 'data-astryx-slide=' not in html_content:
+        html_content = re.sub(r'--tw-[^;:]+:[^;]*;?\s*', '', html_content)
+        html_content = re.sub(r'outline-style:\s*dashed\s*;?\s*', '', html_content)
+        html_content = re.sub(r'outline-width:\s*[^;]+;?\s*', '', html_content)
     html_content = re.sub(r'style="\s*;?\s*"', '', html_content)
     html_content = re.sub(r"style='\s*;?\s*'", '', html_content)
     
@@ -685,6 +688,9 @@ async def _generate_standalone_html(
         logger.info(f"Added {len(questions)} questions to HTML export")
     
     # Generate HTML
+    from services.astryx_export import is_astryx_course
+    if is_astryx_course({'slides': slides}):
+        course_data['_astryxResponsive'] = True
     html = generate_html_template(
         title,
         course_data,
@@ -3814,6 +3820,8 @@ html,body{{background:{canvas}}}
     html = install_guided_host(html, sanitized_data, guided_plan)
     from services.portrait_view import install_portrait_view
     html = install_portrait_view(html)
+    from services.astryx_export import install_astryx_host
+    html = install_astryx_host(html, course_data.get('_astryxResponsive') is True)
     if output_path:
         return write_html_file(output_path, html, sanitized_data)
     return html

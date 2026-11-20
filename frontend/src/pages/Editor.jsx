@@ -16,6 +16,7 @@ import { getApiUrl } from '../utils/apiUrl';
 import { mergeRunwayProject } from './Editor/utils/runwayJobs';
 import LayoutRecoveryNotice from '../components/editor/LayoutRecoveryNotice';
 import FilmStudioDialog from '../components/FilmStudioDialog';
+import AstryxPrototypeDialog from '../components/AstryxPrototypeDialog';
 import GammaRefreshDialog from '../components/GammaRefreshDialog';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -168,7 +169,8 @@ import {
 } from './Editor/dialogs';
 
 export default function Editor() {
-  const { canCreateSimulators } = useAuth();
+  const { canCreateSimulators, user: editorUser } = useAuth();
+  const canUseAstryx = [...(editorUser?.roles || []), editorUser?.role].some(r => ['editor','company_admin','super_admin'].includes(r));
   const { projectId } = useParams();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
@@ -295,6 +297,7 @@ export default function Editor() {
   // ── Local State ──
   const [showMediaDialog, setShowMediaDialog] = useState(false);
   const [showFilmStudio,setShowFilmStudio]=useState(false);
+  const [showAstryxPrototype,setShowAstryxPrototype]=useState(false);
   // Background opacity slider: local draft + debounced save. Without this
   // every 1% tick fired a PUT and any failure (e.g. project deleted in
   // another tab) surfaced as an uncaught runtime error overlay.
@@ -1401,6 +1404,7 @@ export default function Editor() {
     assessment:()=>setShowAssessmentDialog(true), games:()=>setShowEducationalGameDialog(true),
     html:()=>{setSimulatorEditTarget(null);setShowHtmlDialog(true);}, 'text-colors':()=>setShowBulkTextColorDialog(true),
     template:()=>setShowDesignTemplateDialog(true), preview:()=>setShowSplitPreview(true),
+    astryx:()=>{if(canUseAstryx)setShowAstryxPrototype(true);},
     tts:()=>setShowTTSDialog(true),
     scenario:()=>setShowScenarioDialog(true), whiteboard:()=>setShowWhiteboardDialog(true),pdf:()=>setShowPdfDialog(true),
   },!loading&&!!currentSlide);
@@ -1416,6 +1420,7 @@ export default function Editor() {
   return (
     <TooltipProvider>
       <FilmStudioDialog open={showFilmStudio} onOpenChange={setShowFilmStudio} sourceProjectId={currentProject?.id} sourceTitle={currentProject?.name}/>
+      {canUseAstryx&&<AstryxPrototypeDialog open={showAstryxPrototype} onOpenChange={setShowAstryxPrototype} sourceProjectId={currentProject?.id}/>}
       {/* Course Preview Modal */}
       {showPreview && (
         <CoursePreview
@@ -1513,6 +1518,7 @@ export default function Editor() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {canUseAstryx&&<DropdownMenuItem onClick={()=>setShowAstryxPrototype(true)} data-testid="editor-astryx-prototype">Astryx — laboratório de slides</DropdownMenuItem>}
                 <DropdownMenuItem
                   onClick={handleRepairPdfImages}
                   disabled={repairingPdfImages}

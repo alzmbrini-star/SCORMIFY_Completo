@@ -109,6 +109,84 @@ async def delete_project_owned_records(project_id: str) -> dict:
 # Project CRUD
 # ---------------------------------------------------------------------------
 
+from services.astryx_prototype import AstryxContent
+
+
+def _astryx_editor(user):
+    from routes.auth import has_any_role
+    if not has_any_role(user, 'editor', 'company_admin'):
+        raise HTTPException(403, 'O protótipo Astryx requer permissão de edição.')
+
+
+@router.get('/design-prototypes/astryx/defaults')
+async def astryx_defaults(user: dict = Depends(require_auth)):
+    _astryx_editor(user)
+    return AstryxContent().model_dump()
+
+
+@router.post('/design-prototypes/astryx/preview')
+async def astryx_preview(data: AstryxContent, user: dict = Depends(require_auth)):
+    _astryx_editor(user)
+    from services.astryx_prototype import prototype_project
+    return prototype_project(data)
+
+
+@router.post('/design-prototypes/astryx/export/{kind}')
+async def astryx_export(kind: str, data: AstryxContent, user: dict = Depends(require_auth)):
+    """Export an unsaved snapshot with the same production exporters, no DB writes."""
+    _astryx_editor(user)
+    if kind not in ('html', 'scorm'):
+        raise HTTPException(400, 'Escolha HTML ou SCORM.')
+    import asyncio
+    import tempfile
+    from fastapi.responses import Response
+    from services.astryx_prototype import prototype_project
+    from services.html_exporter import generate_standalone_html
+    from services.scorm_exporter import export_scorm_package
+    snapshot = prototype_project(data)
+    with tempfile.TemporaryDirectory(prefix='astryx-preview-') as scratch:
+        if kind == 'html':
+            result = await generate_standalone_html(snapshot, scratch)
+            payload = result.encode('utf-8')
+        else:
+            path = await asyncio.to_thread(export_scorm_package, Project(**snapshot), scratch, scratch)
+            payload = Path(path).read_bytes()
+    ext, media = ('html', 'text/html') if kind == 'html' else ('zip', 'application/zip')
+    return Response(payload, media_type=media, headers={
+        'Content-Disposition': f'attachment; filename="Prototipo_Astryx.{ext}"', 'Cache-Control': 'no-store'})
+
+
+class AstryxCreate(BaseModel):
+    content: AstryxContent
+    requestId: uuid.UUID
+    sourceProjectId: Optional[str] = None
+
+
+@router.post('/design-prototypes/astryx/create')
+async def astryx_create(data: AstryxCreate, user: dict = Depends(require_auth)):
+    """Explicit creation only: a separate three-slide project, never an update."""
+    _astryx_editor(user)
+    import hashlib
+    import json
+    from services.astryx_prototype import prototype_project, creation_id
+    company_id = await resolve_company_id_for_creation(user)
+    if data.sourceProjectId:
+        original = await load_authorized_project(data.sourceProjectId, user)
+        company_id = original.get('companyId')
+    project_id = creation_id(user.get('user_id'), data.requestId)
+    fingerprint = hashlib.sha256(json.dumps([data.content.model_dump(), company_id, data.sourceProjectId], sort_keys=True).encode()).hexdigest()
+    snapshot = prototype_project(data.content, project_id)
+    timestamp = now_utc().isoformat()
+    snapshot.update(userId=user.get('user_id'), companyId=company_id, createdAt=timestamp,
+                    updatedAt=timestamp, astryxContentHash=fingerprint)
+    # _id namespace is deterministic and cannot match regular course IDs.
+    key = 'astryx-prototype:' + project_id
+    await db.projects.update_one({'_id': key}, {'$setOnInsert': snapshot}, upsert=True)
+    stored = await db.projects.find_one({'_id': key}, {'_id': 0})
+    if stored.get('astryxContentHash') != fingerprint or stored.get('userId') != user.get('user_id'):
+        raise HTTPException(409, 'Esta solicitação já criou outra versão. Abra o protótipo novamente.')
+    return {'projectId': project_id, 'slidesCount': 3, 'message': 'Novo protótipo criado; cursos existentes preservados.'}
+
 @router.get("/projects", response_model=List[dict])
 async def list_projects(user: dict = Depends(require_auth)):
     """List projects visible to the current user.
