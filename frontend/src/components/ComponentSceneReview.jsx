@@ -41,11 +41,49 @@ export function syncLinks(project) {
 export default function ComponentSceneReview({ html, onApply, disabled = false, sessionId, slideIndex, elementIndex }) {
   const model = useMemo(() => sceneModel(html), [html]);
   const [open, setOpen] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
+  const hasLegend = model?.visual?.nodes?.some(n => n.type === 'group' && /^(legenda|legend)(\b|_)/i.test(n.id));
   return model ? <>
     <Button variant="outline" disabled={disabled} onClick={() => setOpen(true)}>Revisar projeto visual</Button>
+    {hasLegend && <Button variant="outline" disabled={disabled} onClick={() => setLegendOpen(true)}>Ajustar legenda</Button>}
+    {legendOpen && <LegendReview html={html} onClose={() => setLegendOpen(false)} onApply={onApply}
+      sessionId={sessionId} slideIndex={slideIndex} elementIndex={elementIndex} />}
     {open && <Review key={html} model={model} onClose={() => setOpen(false)} onApply={onApply}
       sessionId={sessionId} slideIndex={slideIndex} elementIndex={elementIndex} />}
   </> : null;
+}
+
+function LegendReview({ html, onClose, onApply, sessionId, slideIndex, elementIndex }) {
+  const [preview, setPreview] = useState(''), [error, setError] = useState(''), [busy, setBusy] = useState(false);
+  const request = async save => {
+    setBusy(true); setError('');
+    try {
+      const target = save && sessionId ? '/legend/sessions/' + encodeURIComponent(sessionId) : '/legend/preview';
+      const response = await fetch(getApiUrl() + '/api/generate-html/jobs' + target, {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ sourceHtml: html, ...(save && sessionId ? { slideIndex, elementIndex } : {}) })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : 'Não foi possível ajustar a legenda.');
+      if (save) { onApply(result.html); onClose(); } else setPreview(result.html);
+    } catch (e) { setError(e.message || 'Falha na conexão. Reabra a prévia para conferir o estado antes de repetir.'); }
+    finally { setBusy(false); }
+  };
+  return <Dialog open onOpenChange={v => { if (!v && !busy) onClose(); }}>
+    <DialogContent className="sm:max-w-6xl max-h-[92vh] overflow-y-auto">
+      <DialogHeader><DialogTitle>Legibilidade da legenda</DialogTitle>
+        <DialogDescription>Texto escuro em fundo claro, com cores de referência e tamanho independente do desenho. Somente legendas estáticas compatíveis.</DialogDescription></DialogHeader>
+      <p className="text-sm">Preserva textos, imagens, movimentos e regras. Não usa créditos de IA nem gera o curso final. Confira a prévia antes de salvar.</p>
+      <Button disabled={busy} onClick={() => request(false)}>Preparar prévia da legenda</Button>
+      {busy && <p role="status">Preparando legenda…</p>}
+      {error && <p role="alert" className="text-red-500">{error}</p>}
+      {preview && <iframe title="Prévia da legenda legível" srcDoc={preview} sandbox="allow-scripts" className="w-full h-[540px] border rounded bg-white" />}
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" disabled={busy} onClick={onClose}>Cancelar</Button>
+        <Button disabled={!preview || busy} onClick={() => request(true)}>{sessionId ? 'Salvar somente a legenda no storyboard' : 'Aplicar somente a legenda à prévia'}</Button>
+      </div>
+    </DialogContent>
+  </Dialog>;
 }
 
 function Review({ model, onClose, onApply, sessionId, slideIndex, elementIndex }) {

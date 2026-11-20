@@ -39,6 +39,54 @@ class SaveComponentRequest(ComponentRequest):
     elementIndex: int = Field(ge=0, le=1000)
 
 
+class LegendRequest(BaseModel):
+    sourceHtml: str = Field(min_length=2, max_length=4200000)
+
+
+class SaveLegendRequest(LegendRequest):
+    slideIndex: int = Field(ge=0, le=1000)
+    elementIndex: int = Field(ge=0, le=1000)
+
+
+@router.post('/legend/preview')
+async def preview_legend(body: 'LegendRequest', user: dict = Depends(require_auth)):
+    from services.simulator_permissions import require_simulators
+    from services.simulator_legend import repair_legend
+    require_simulators(user)
+    try:
+        return await asyncio.to_thread(repair_legend, body.sourceHtml)
+    except (ValueError, TypeError, KeyError) as exc:
+        raise HTTPException(422, str(exc)[:1000]) from exc
+
+
+@router.post('/legend/sessions/{session_id}')
+async def save_legend(session_id: str, body: 'SaveLegendRequest', user: dict = Depends(require_auth)):
+    from services.simulator_permissions import require_simulators
+    from services.simulator_legend import repair_legend
+    require_simulators(user)
+    owner = _owner(user)
+    session = await db.agent_sessions.find_one({'id': session_id, 'userId': owner})
+    if not session:
+        raise HTTPException(404, 'Sessão não encontrada para este autor')
+    try:
+        element = session['storyboard']['slides'][body.slideIndex]['elements'][body.elementIndex]
+        field = 'htmlContent' if element.get('htmlContent') else 'content'
+        original = element[field]
+        if element.get('type') != 'html' or original != body.sourceHtml:
+            raise HTTPException(409, 'O slide mudou. Reabra a prévia; nenhuma alteração foi aplicada.')
+        result = await asyncio.to_thread(repair_legend, original)
+    except (ValueError, TypeError, KeyError, IndexError) as exc:
+        raise HTTPException(422, str(exc)[:1000]) from exc
+    path = f'storyboard.slides.{body.slideIndex}.elements.{body.elementIndex}.{field}'
+    saved = await db.agent_sessions.update_one({'id': session_id, 'userId': owner, path: original},
+        {'$set': {path: result['html'], 'updatedAt': datetime.now(timezone.utc).isoformat()}})
+    if not saved.modified_count:
+        current = await db.agent_sessions.find_one({'id': session_id, 'userId': owner, path: result['html']})
+        if not current:
+            raise HTTPException(409, 'O storyboard mudou durante a revisão. Nenhuma alteração foi aplicada.')
+    return result
+
+
 @router.get('/components/catalog')
 async def component_catalog(user: dict = Depends(require_auth)):
     from services.component_catalog import catalog
