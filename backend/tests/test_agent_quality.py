@@ -44,7 +44,7 @@ def test_image_fallback_only_reuses_course_assets_and_retains_original():
     source = '<body><img id="source" alt="dado original" src="invented.jpg"><script>function flip(){}</script></body>'
     fixed = repair_html(source, '/api/projects/same/assets/existing.png')
     assert 'data-quality-original-src="invented.jpg"' in fixed and 'id="source"' in fixed and 'function flip(){}' in fixed
-    assert 'dataset.originalSrc' in fixed and "addEventListener('error',recover)" in fixed
+    assert "addEventListener('load'" in fixed and "addEventListener('error'" not in fixed
     assert 'https://example.invalid' not in repair_html(source)
     assert repair_html(fixed, '/api/projects/same/assets/existing.png') == fixed
 

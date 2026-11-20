@@ -60,6 +60,10 @@ def repair_html(source, fallback=''):
             r'\bSonegar metas realistas\b', 'Definir metas realistas', m[1]), chunks[index])
         chunks[index] = re.sub(r'<h([1-6])\b[^>]*>\s*(?:Subtítulo da Seção|Section subtitle|Título da seção|Lorem ipsum)\s*</h\1>', '', chunks[index], flags=re.I)
     result = ''.join(chunks)
+    # Retire the v1 runtime fallback: a relative asset URL inside srcdoc can
+    # resolve against the frontend instead of the configured backend. Valid
+    # authored sources must never be replaced after a transient load error.
+    result = re.sub(r"<script>\(function\(\)\{'use strict';var fallback=[\s\S]*?</script>", '', result)
     if _safe_image(fallback):
         def replace_unresolved(match):
             tag, src = match[0], unescape(match[2])
@@ -125,7 +129,7 @@ def repair_html(source, fallback=''):
           figure.insertBefore(button,figure.firstChild);
         }if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(mount,0);},{once:true});else setTimeout(mount,0);})();</script>'''
     if has_images:
-        addition += '''<script>(function(){'use strict';var fallback=%s;function mount(){document.querySelectorAll('img').forEach(function(img){function recover(){if(img.dataset.qualityRecovered)return;img.dataset.qualityRecovered='1';img.dataset.originalSrc=img.getAttribute('src')||'';img.src=fallback;img.style.objectFit='contain';img.style.width='100%%';img.style.height='auto';img.style.maxHeight='220px';}img.addEventListener('load',function(){window.dispatchEvent(new Event('resize'));});img.addEventListener('error',recover);if(img.complete&&!img.naturalWidth)recover();});}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();})();</script>''' % payload
+        addition += '''<script>(function(){function mount(){document.querySelectorAll('img').forEach(function(img){img.addEventListener('load',function(){window.dispatchEvent(new Event('resize'));});});}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();})();</script>'''
     if not (is_cards or is_sim or is_timeline or has_images or re.search(r'class=["\'][^"\']*\b(?:step|infographic-step)\b', result)):
         return result
     return re.sub(r'</body>', lambda m: addition+m[0], result, count=1, flags=re.I) if re.search(r'</body>', result, re.I) else result+addition

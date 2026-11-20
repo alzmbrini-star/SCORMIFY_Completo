@@ -34,7 +34,7 @@ export default function QualityReviewDialog({ projectId, onClose, onSaved }) {
     <DialogContent className="sm:max-w-3xl max-h-[88vh] overflow-y-auto">
       <DialogHeader><DialogTitle>Revisar qualidade do curso</DialogTitle>
         <DialogDescription>Ajustes determinísticos, sem gerar mídias ou usar créditos. Só o curso aberto será alterado após sua confirmação.</DialogDescription></DialogHeader>
-      <p>Preserva slides, perguntas, gabaritos, notas e interações. Reaproveita imagens do próprio curso se uma imagem falhar; melhora leitura dos cartões e legendas. Não verifica a exatidão pedagógica de todo o conteúdo.</p>
+      <p>Preserva slides, perguntas, gabaritos, notas e interações. Nomes de imagens sem arquivo associado podem reaproveitar imagens do próprio curso; referências válidas não são substituídas por falha temporária. Melhora leitura dos cartões e legendas. Não verifica a exatidão pedagógica de todo o conteúdo.</p>
       {review && <><p>{review.slides} slides · {review.questions} perguntas · {review.changes.length} slides com ajustes disponíveis</p>
         <ul>{review.changes.map(row => <li key={row.slide}>Slide {row.slide}: {row.title}</li>)}</ul>
         <Button variant="outline" disabled={busy} onClick={download}>Baixar referência de segurança (JSON)</Button>
