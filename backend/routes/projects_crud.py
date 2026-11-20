@@ -307,6 +307,41 @@ async def get_project(project_id: str, user: dict = Depends(require_auth)):
     return project
 
 
+@router.get("/projects/{project_id}/quality-review")
+async def preview_quality_review(project_id: str, user: dict = Depends(require_auth)):
+    await load_authorized_project(project_id, user)
+    raw = await db.projects.find_one({'id': project_id}, {'_id': 0})
+    if not raw: raise HTTPException(404, 'Projeto não encontrado.')
+    from services.agent_quality import quality_plan, fingerprint
+    changes, report = quality_plan(raw)
+    count = await db.questions.count_documents({'projectId': project_id})
+    return {'fingerprint': fingerprint(raw), 'slides': len(raw.get('course', {}).get('slides', [])),
+            'questions': count, 'changes': report, 'fields': len(changes), 'course': raw.get('course', {})}
+
+
+@router.post("/projects/{project_id}/quality-review")
+async def apply_quality_review(project_id: str, request: Request, user: dict = Depends(require_auth)):
+    await load_authorized_project(project_id, user)
+    raw = await db.projects.find_one({'id': project_id}, {'_id': 0})
+    if not raw: raise HTTPException(404, 'Projeto não encontrado.')
+    from services.agent_quality import quality_plan, fingerprint
+    body = await request.json()
+    if body.get('fingerprint') != fingerprint(raw):
+        raise HTTPException(409, 'O curso mudou. Reabra a revisão antes de aplicar.')
+    changes, report = quality_plan(raw)
+    if not changes: return {'changed': False, 'changes': []}
+    from services.layout_recovery import backup_layout_source
+    backup = await backup_layout_source(db, raw, user.get('user_id'), changes)
+    # Fence against any simultaneous edit, even if it omitted updatedAt.
+    guard = {'id': project_id, 'course': raw['course']}
+    if 'updatedAt' in raw: guard['updatedAt'] = raw['updatedAt']
+    result = await db.projects.update_one(guard, {'$set': {**changes, 'updatedAt': now_utc().isoformat()}})
+    if result.matched_count != 1:
+        raise HTTPException(409, 'O curso mudou durante a revisão. Nenhuma edição foi sobrescrita.')
+    return {'changed': True, 'changes': report, 'backupId': backup,
+            'message': 'Ajustes salvos. Slides, banco de questões, notas e configurações preservados.'}
+
+
 @router.post("/projects/{project_id}/recover-activity-layout")
 async def recover_activity_layout(project_id: str, request: Request, user: dict = Depends(require_auth)):
     """Explicit, backed-up metadata recovery, guarded against concurrent edits."""

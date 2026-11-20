@@ -2,6 +2,8 @@
  * Quiz Controller - Handles quiz functionality in SCORM package
  */
 var QuizController = (function() {
+    function optionText(value) { return String(value || '').replace(/^\s*[A-Ha-h][).:]\s+/, ''); }
+    function explanationText(value) { return String(value || '').replace(/\b[Aa] resposta correta é\s+[A-Ha-h]\s+porque\s+/g, 'Justificativa: '); }
     var quizzes = {};
     var questions = {};
     
@@ -158,7 +160,7 @@ var QuizController = (function() {
                 
                 html += '<button style="' + altStyle + '" onclick="QuizController.selectAnswer(\'' + elementId + '\', \'' + alt.id + '\')" ' + (showingFeedback ? 'disabled' : '') + '>' +
                     '<div style="' + circleStyle + '">' + (showingFeedback && isCorrect ? '✓' : (showingFeedback && isSelected && !isCorrect ? '✕' : '')) + '</div>' +
-                    '<span style="flex:1;' + textStyle + '">' + alt.text + '</span></button>';
+                    '<span style="flex:1;' + textStyle + '">' + optionText(alt.text) + '</span></button>';
             });
             
             html += '</div>';
@@ -177,10 +179,10 @@ var QuizController = (function() {
                     '<span style="font-weight:600;font-size:' + altFontSize + 'px;' + (wasCorrect ? 'color:#22c55e;' : 'color:#ef4444;') + '">' + (wasCorrect ? 'Correto!' : 'Incorreto') + '</span></div>';
                 
                 if (question.explanation) {
-                    html += '<p style="color:#cbd5e1;font-size:' + smallFontSize + 'px;margin:0;line-height:1.4;">' + question.explanation + '</p>';
+                    html += '<p style="color:#cbd5e1;font-size:' + smallFontSize + 'px;margin:0;line-height:1.4;">' + explanationText(question.explanation) + '</p>';
                 }
                 if (!wasCorrect && correctAlt) {
-                    html += '<p style="color:#94a3b8;margin-top:4px;font-size:' + Math.round(baseFontSize * 0.625) + 'px;">Correta: <span style="color:#22c55e;font-weight:500;">' + correctAlt.text + '</span></p>';
+                    html += '<p style="color:#94a3b8;margin-top:4px;font-size:' + Math.round(baseFontSize * 0.625) + 'px;">Correta: <span style="color:#22c55e;font-weight:500;">' + optionText(correctAlt.text) + '</span></p>';
                 }
                 // Tutor IA rescue: only when wrong AND tutor is enabled
                 if (!wasCorrect && typeof window !== 'undefined' && window.AiTutor) {

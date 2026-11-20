@@ -684,7 +684,10 @@ async def _generate_standalone_html(
     
     # Add questions for quiz support
     if questions:
-        course_data["questions"] = questions
+        from services.agent_quality import alternative_text, explanation_text
+        course_data["questions"] = [{**q, 'alternatives': [
+            {**a, 'text': alternative_text(a.get('text'))} for a in q.get('alternatives', [])],
+            'explanation': explanation_text(q.get('explanation'))} for q in questions]
         logger.info(f"Added {len(questions)} questions to HTML export")
     
     # Generate HTML

@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 
 // Shuffle array helper
+export const quizOptionText = value => String(value || '').replace(/^\s*[A-Ha-h][).:]\s+/, '');
+export const quizExplanationText = value => String(value || '').replace(/\b[Aa] resposta correta é\s+[A-Ha-h]\s+porque\s+/g, 'Justificativa: ');
 function shuffleArray(array) {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -338,7 +340,7 @@ export default function QuizPlayer({
                     className="flex-1 text-left"
                     style={{ fontSize: `${quizConfig?.fontSize || 16}px` }}
                   >
-                    {alt.text}
+                    {quizOptionText(alt.text)}
                   </span>
                 </div>
               </button>
@@ -364,11 +366,11 @@ export default function QuizPlayer({
               </span>
             </div>
             {currentQuestion.explanation && (
-              <p className={`text-sm ${mutedColor}`}>{currentQuestion.explanation}</p>
+              <p className={`text-sm ${mutedColor}`}>{quizExplanationText(currentQuestion.explanation)}</p>
             )}
             {!selectedAlt?.isCorrect && correctAlt && (
               <p className={`mt-1 text-sm ${mutedColor}`}>
-                Resposta correta: <span className="text-green-400 font-medium">{correctAlt.text}</span>
+                Resposta correta: <span className="text-green-400 font-medium">{quizOptionText(correctAlt.text)}</span>
               </p>
             )}
           </div>

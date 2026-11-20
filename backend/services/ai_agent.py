@@ -1255,8 +1255,9 @@ SLIDES DE TÍTULO (type="title"):
 SLIDES DE QUIZ (type="quiz"):
 - OBRIGATÓRIO: inclua exatamente 3 perguntas no campo "quizQuestions"
 - Cada pergunta DEVE ter: "text" (pergunta clara), "type": "multiple_choice", "alternatives" (4 opções, exatamente 1 com "isCorrect":true), "explanation" (explicação detalhada de por que a resposta está correta)
+- Não escreva letras A), B), C) ou D) no texto das opções, nem cite letras no feedback: o player embaralha as alternativas e acrescenta os rótulos. Explique pelo conteúdo da resposta. Não use títulos provisórios como "Subtítulo da Seção". Imagens em recursos devem usar somente URLs/arquivos reais fornecidos no contexto, nunca image1.jpg ou endereços inventados.
 - As perguntas devem testar compreensão REAL do conteúdo, não memorização superficial
-- Formato: {{"text":"Pergunta?","type":"multiple_choice","alternatives":[{{"text":"Opção A","isCorrect":false}},{{"text":"Opção B","isCorrect":true}},{{"text":"Opção C","isCorrect":false}},{{"text":"Opção D","isCorrect":false}}],"explanation":"A resposta correta é B porque..."}}
+- Formato: {{"text":"Pergunta?","type":"multiple_choice","alternatives":[{{"text":"Primeira possibilidade","isCorrect":false}},{{"text":"Conduta adequada","isCorrect":true}},{{"text":"Outra possibilidade","isCorrect":false}},{{"text":"Última possibilidade","isCorrect":false}}],"explanation":"A conduta adequada atende ao objetivo explicado no conteúdo."}}
 
 SLIDES DE RESUMO (type="summary"):
 - Resuma TODOS os pontos-chave do módulo com <ul><li>
@@ -4399,6 +4400,8 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                 if el.get("type") in ("html", "text") and el.get("htmlContent"):
                     el["htmlContent"] = _re.sub(r'font-size:\s*(\d+(?:\.\d+)?)px', _scale_font, el["htmlContent"])
 
+    from services.agent_quality import prepare_new_course
+    project_slides, quiz_questions = prepare_new_course(project_slides, quiz_questions)
     return {
         "slides": project_slides,
         "quizQuestions": quiz_questions,
