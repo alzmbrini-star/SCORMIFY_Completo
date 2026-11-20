@@ -6,7 +6,7 @@ jest.mock('../utils/apiUrl',()=>({getApiUrl:()=>''}));
 jest.mock('../utils/htmlUtils',()=>({resolveAssetUrls:v=>v}));
 jest.mock('./ui/dialog',()=>({Dialog:({children})=><div>{children}</div>,DialogContent:({children})=><div>{children}</div>,DialogHeader:({children})=><div>{children}</div>,DialogTitle:({children})=><h1>{children}</h1>,DialogDescription:({children})=><p>{children}</p>}));
 jest.mock('./ui/button',()=>({Button:({variant,...props})=><button {...props}/>}));
-const catalog={styles:[{id:'clean',name:'Essencial'},{id:'editorial',name:'Editorial'}],palettes:[{id:'blue',name:'Azul',accent:'#315ad1'}],appearance:{},eligible:1};
+const catalog={styles:[{id:'clean',name:'Essencial'},{id:'editorial',name:'Editorial'}],palettes:[{id:'blue',name:'Azul',accent:'#315ad1'}],themes:[{id:'light',name:'Claro'},{id:'dark',name:'Escuro'}],typographies:[{id:'auto',name:'Recomendada'},{id:'book',name:'Clássica'}],appearance:{},eligible:1};
 let host,root,onClose,onSaved,onChange;
 beforeEach(()=>{global.IS_REACT_ACT_ENVIRONMENT=true;onClose=jest.fn();onSaved=jest.fn();onChange=jest.fn();
   global.fetch=jest.fn(async(url,opts)=>({ok:true,json:async()=>opts.method==='GET'?catalog:url.endsWith('/preview')?{fingerprint:'snapshot',totalSlides:19,slides:[{slide:1,title:'Capa real',html:'<img alt="Preservada">'}]}:{changed:true}}));
@@ -29,6 +29,15 @@ test('every visual edit invalidates preview and prevents applying stale appearan
  await render();await preview();expect(button('Aplicar visual somente neste curso').disabled).toBe(false);
  act(()=>button('Editorial').click());expect(host.querySelector('iframe')).toBeNull();expect(button('Aplicar visual somente neste curso').disabled).toBe(true);
  await preview();act(()=>host.querySelector('input[type=checkbox]').click());expect(button('Aplicar visual somente neste curso').disabled).toBe(true);
+});
+test('theme and typography changes invalidate preview and are preserved in requests',async()=>{
+ await render();await preview();
+ const change=(label,value)=>{const el=host.querySelector('[aria-label="'+label+'"]');Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el),'value').set.call(el,value);el.dispatchEvent(new Event('change',{bubbles:true}));};
+ act(()=>change('Tema claro ou escuro Astryx','dark'));
+ expect(host.querySelector('iframe')).toBeNull();expect(button('Aplicar visual somente neste curso').disabled).toBe(true);
+ act(()=>change('Tipografia Astryx','book'));await preview();
+ const body=JSON.parse(fetch.mock.calls[fetch.mock.calls.length-1][1].body);
+ expect(body.appearance.theme).toBe('dark');expect(body.appearance.typography).toBe('book');expect(body.appearance.captions).toBe(false);
 });
 test('explicit application sends matching fingerprint then refreshes only open course',async()=>{
  await render();await preview();await act(async()=>button('Aplicar visual somente neste curso').click());

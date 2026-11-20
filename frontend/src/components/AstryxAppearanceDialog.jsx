@@ -5,7 +5,7 @@ import {getApiUrl} from '../utils/apiUrl';
 import {authHeaders} from '../contexts/AuthContext';
 import {resolveAssetUrls} from '../utils/htmlUtils';
 
-const defaults={style:'clean',palette:'blue',customAccent:'',captions:false};
+const defaults={style:'clean',palette:'blue',customAccent:'',captions:false,theme:'light',typography:'auto'};
 async function request(path, body, signal) {
   const r=await fetch(getApiUrl()+'/api/'+path,{method:body?'POST':'GET',signal,
     headers:authHeaders(body?{'Content-Type':'application/json'}:{}),...(body?{body:JSON.stringify(body)}:{})});
@@ -50,10 +50,12 @@ export default function AstryxAppearanceDialog({projectId,value,onChange,onClose
     <div className="grid lg:grid-cols-[280px_minmax(0,1fr)] gap-5">
       <fieldset disabled={busy||!catalog} className="space-y-4 min-w-0"><legend className="font-semibold">Aparência</legend>
         <div className="grid grid-cols-2 gap-2" aria-label="Estilos Astryx">{catalog?.styles.map(s=><button type="button" key={s.id} aria-pressed={options.style===s.id} onClick={()=>edit('style',s.id)} className={'text-left p-3 border rounded-lg '+(options.style===s.id?'border-cyan-400 bg-cyan-950':'border-slate-600')}><strong>{s.name}</strong><span className="block text-xs mt-1">{s.description}</span></button>)}</div>
+        <label className="block">Tema<select aria-label="Tema claro ou escuro Astryx" className="block w-full bg-slate-950 border rounded p-2" value={options.theme} onChange={e=>edit('theme',e.target.value)}>{catalog?.themes?.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
+        <label className="block">Tipografia<select aria-label="Tipografia Astryx" className="block w-full bg-slate-950 border rounded p-2" value={options.typography} onChange={e=>edit('typography',e.target.value)}>{catalog?.typographies?.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
         <label className="block">Paleta<select className="block w-full bg-slate-950 border rounded p-2" value={options.palette} onChange={e=>edit('palette',e.target.value)}>{catalog?.palettes.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
         <div className="flex gap-2" aria-label="Amostras de cores">{catalog?.palettes.map(p=><button type="button" key={p.id} title={p.name} aria-label={'Paleta '+p.name} aria-pressed={options.palette===p.id} onClick={()=>edit('palette',p.id)} className={'w-8 h-8 rounded-full border-2 '+(options.palette===p.id?'border-white':'border-transparent')} style={{background:p.accent}}/>)}</div>
         <label className="block text-sm">Cor de destaque personalizada (opcional)<input aria-label="Cor personalizada Astryx" placeholder="#315AD1" maxLength={7} value={options.customAccent} onChange={e=>edit('customAccent',e.target.value)} className="block w-full bg-slate-950 border rounded p-2"/></label>
-        <p className="text-xs">Cores muito claras são escurecidas na prévia para manter contraste. Deixe vazio para usar a paleta.</p>
+        <p className="text-xs">A cor é ajustada ao tema claro ou escuro para manter contraste. Deixe vazio para usar a paleta. As fontes usam alternativas locais, sem downloads externos.</p>
         <label className="flex gap-2 items-start"><input type="checkbox" checked={options.captions} onChange={e=>edit('captions',e.target.checked)}/>Mostrar legendas abaixo das imagens</label>
         <p className="text-xs">Ocultar a legenda não remove o texto alternativo da imagem nem apaga a legenda armazenada.</p>
         <Button type="button" onClick={prepare} disabled={!catalog||busy}>{busy?'Preparando…':'Preparar prévia — sem salvar'}</Button>

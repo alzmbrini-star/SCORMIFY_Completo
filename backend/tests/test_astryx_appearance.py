@@ -9,6 +9,27 @@ from services.astryx_prototype import AstryxContent, render_documents
 from services.astryx_agent import build_elements, TEMPLATE
 
 
+@pytest.mark.parametrize('theme',['light','dark','midnight'])
+@pytest.mark.parametrize('custom',['#000000','#ffffff','#ffff00','#ff0000','#00ff00','#0000ff'])
+def test_theme_contrast_covers_both_backgrounds(theme,custom):
+    css=appearance_css({'theme':theme,'customAccent':custom})
+    def token(name):return re.search(re.escape(name)+':(#[a-f0-9]{6})',css)[1]
+    def ratio(a,b):return (max(luminance(a),luminance(b))+.05)/(min(luminance(a),luminance(b))+.05)
+    for surface in (token('--ax-appearance-bg'),token('--ax-surface')):
+        assert ratio(token('--ax-accent'),surface)>=4.5
+        assert ratio(token('--ax-ink'),surface)>=4.5
+        assert ratio(token('--ax-muted'),surface)>=4.5
+
+
+@pytest.mark.parametrize('font',['auto','sans','humanist','serif','book','technical'])
+def test_local_typography_and_old_config_compatibility(font):
+    doc=render_documents(AstryxContent(appearance=Appearance(typography=font,theme='dark',style='focus')))[0]
+    assert 'color-scheme:dark!important' in doc and 'astryx-appearance-data' in doc
+    assert 'fonts.googleapis.com' not in doc and '@font-face' not in doc
+    old=normalize({'style':'editorial','palette':'rose','captions':True})
+    assert old['theme']=='light' and old['typography']=='auto' and old['captions'] is True
+
+
 @pytest.mark.parametrize('style',[s['id'] for s in STYLES])
 @pytest.mark.parametrize('palette',[p['id'] for p in PALETTES])
 def test_all_styles_palettes_preserve_accessible_images_and_activities(style,palette):
@@ -22,7 +43,7 @@ def test_all_styles_palettes_preserve_accessible_images_and_activities(style,pal
     assert 'ax-confirm' in docs[2] and 'addEventListener' in docs[2]
 
 
-@pytest.mark.parametrize('bad',[{'style':'unknown'},{'palette':'x'},{'customAccent':'red;}</style><script>x()</script>'},{'customAccent':'#fff'},{'captions':'invalid'},{'injected':'x'}])
+@pytest.mark.parametrize('bad',[{'style':'unknown'},{'palette':'x'},{'theme':'device-auto'},{'typography':'url(https://evil.example/font)'},{'customAccent':'red;}</style><script>x()</script>'},{'customAccent':'#fff'},{'captions':'invalid'},{'injected':'x'}])
 def test_invalid_options_cannot_inject_css(bad):
     with pytest.raises(ValidationError):normalize(bad)
 
@@ -69,7 +90,8 @@ def test_new_agent_lessons_receive_settings_without_changing_source_or_alt():
 
 
 @pytest.mark.asyncio
-async def test_explicit_appearance_flows_through_agent_config_and_real_exports(tmp_path,monkeypatch):
+@pytest.mark.parametrize('theme',['light','dark','midnight'])
+async def test_explicit_appearance_flows_through_agent_config_and_real_exports(tmp_path,monkeypatch,theme):
     from services import ai_agent
     from test_astryx_agent import storyboard
     from services.astryx_prototype import illustration
@@ -79,7 +101,7 @@ async def test_explicit_appearance_flows_through_agent_config_and_real_exports(t
     from test_astryx_prototype import expand_embedded
     from PIL import Image
     import zipfile
-    options=normalize({'style':'editorial','palette':'rose','captions':True})
+    options=normalize({'style':'editorial','palette':'rose','captions':True,'theme':theme,'typography':'book'})
     monkeypatch.setattr(ai_agent,'_new_chat',lambda *a,**kw:pytest.fail('No paid calls for design'))
     sb=storyboard('Testes de aparência');before=copy.deepcopy(sb)
     course=await ai_agent.generate_course_from_storyboard('test',sb,{'title':'Testes de aparência','astryxAppearance':options},
@@ -96,7 +118,7 @@ async def test_explicit_appearance_flows_through_agent_config_and_real_exports(t
     with zipfile.ZipFile(archive) as z:
         saved=json.loads(z.read('course.json'))
         documents=[e['htmlContent'] for s in saved['slides'] for e in s['elements'] if e.get('astryxDesign')]
-        assert documents and all('figcaption{display:block!important}' in d and '--ax-accent:#aa2853' in d for d in documents)
+        assert documents and all('figcaption{display:block!important}' in d and f'color-scheme:{"light" if theme=="light" else "dark"}!important' in d and 'Palatino' in d for d in documents)
     assert question_bank==course['quizQuestions']
 
 
