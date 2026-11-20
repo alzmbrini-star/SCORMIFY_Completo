@@ -60,6 +60,10 @@ def repair_html(source, fallback=''):
             r'\bSonegar metas realistas\b', 'Definir metas realistas', m[1]), chunks[index])
         chunks[index] = re.sub(r'<h([1-6])\b[^>]*>\s*(?:Subtítulo da Seção|Section subtitle|Título da seção|Lorem ipsum)\s*</h\1>', '', chunks[index], flags=re.I)
     result = ''.join(chunks)
+    result = result.replace("'use strict';function mount(){\n          var figure=document.getElementById('rule-visual');if(!figure||figure.querySelector('.quality-pieces-button'))return;",
+        "'use strict';var attempts=0;function retry(){if(++attempts<40)setTimeout(mount,250);}function mount(){\n          var figure=document.getElementById('rule-visual');if(!figure){retry();return;}if(figure.querySelector('.quality-pieces-button'))return;")
+    result = result.replace('b.width<=45&&b.height<=45;', 'b.width<=120&&b.height<=120;')
+    result = result.replace('.slice(0,8);if(!nodes.length)return;', '.slice(0,8);if(!nodes.length){retry();return;}')
     # Retire the v1 runtime fallback: a relative asset URL inside srcdoc can
     # resolve against the frontend instead of the configured backend. Valid
     # authored sources must never be replaced after a transient load error.
@@ -99,12 +103,12 @@ def repair_html(source, fallback=''):
     if is_timeline:
         addition += '''<script>(function(){function mount(){document.querySelectorAll('.milestone').forEach(function(n){n.setAttribute('role','button');n.tabIndex=0;function sync(){n.setAttribute('aria-expanded',String(n.classList.contains('active')));}n.addEventListener('click',function(){document.querySelectorAll('.milestone').forEach(function(x){x.setAttribute('aria-expanded',String(x.classList.contains('active')));});});n.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();n.click();}});sync();});}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();})();</script>'''
     if is_sim:
-        addition += '''<script>(function(){'use strict';function mount(){
-          var figure=document.getElementById('rule-visual');if(!figure||figure.querySelector('.quality-pieces-button'))return;
+        addition += '''<script>(function(){'use strict';var attempts=0;function retry(){if(++attempts<40)setTimeout(mount,250);}function mount(){
+          var figure=document.getElementById('rule-visual');if(!figure){retry();return;}if(figure.querySelector('.quality-pieces-button'))return;
           var nodes=Array.from(figure.querySelectorAll('[data-visual-node]')).filter(function(n){
             if(n.tagName.toLowerCase()==='text')return false;
-            var b=n.getBBox();return b.width>0&&b.height>0&&b.width<=45&&b.height<=45;
-          });nodes=nodes.filter(function(n){return !nodes.some(function(parent){return parent!==n&&parent.contains(n);});}).slice(0,8);if(!nodes.length)return;
+            var b=n.getBBox();return b.width>0&&b.height>0&&b.width<=120&&b.height<=120;
+          });nodes=nodes.filter(function(n){return !nodes.some(function(parent){return parent!==n&&parent.contains(n);});}).slice(0,8);if(!nodes.length){retry();return;}
           var button=document.createElement('button');button.type='button';button.className='quality-pieces-button';
           button.textContent='Ver peças ampliadas';button.style.cssText='font:600 16px system-ui;min-height:40px;flex-shrink:0';
           var dialog=document.createElement('dialog');dialog.style.cssText='background:#f8fbff;color:#10243b;border:1px solid #52667a;border-radius:12px;padding:18px;width:min(760px,92vw);max-height:85vh;overflow:auto';
