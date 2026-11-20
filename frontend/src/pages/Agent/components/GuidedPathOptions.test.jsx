@@ -9,6 +9,7 @@ jest.mock('../../../components/ui/checkbox',()=>({Checkbox:()=>null}));
 jest.mock('../../../components/ui/tabs',()=>{const Box=({children})=><div>{children}</div>;return {Tabs:Box,TabsList:Box,TabsTrigger:Box,TabsContent:Box};});
 jest.mock('../../../components/AnimPreviewButton',()=>({AnimPreviewButton:()=>null}));
 jest.mock('../../../components/SimulatorExperienceOptions',()=>()=>null);
+jest.mock('../../../components/AstryxAppearanceDialog',()=>({AstryxAppearanceButton:()=>null}));
 jest.mock('../../../contexts/AuthContext',()=>({authHeaders:()=>({}),useAuth:()=>({canCreateSimulators:false})}));
 
 test('guided mode uses interactive assessments and exposes image-credit notice without replacing existing options',()=>{

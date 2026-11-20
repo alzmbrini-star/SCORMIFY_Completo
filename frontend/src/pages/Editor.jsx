@@ -17,6 +17,7 @@ import { mergeRunwayProject } from './Editor/utils/runwayJobs';
 import LayoutRecoveryNotice from '../components/editor/LayoutRecoveryNotice';
 import FilmStudioDialog from '../components/FilmStudioDialog';
 import AstryxPrototypeDialog from '../components/AstryxPrototypeDialog';
+import AstryxAppearanceDialog from '../components/AstryxAppearanceDialog';
 import QualityReviewDialog from '../components/QualityReviewDialog';
 import GammaRefreshDialog from '../components/GammaRefreshDialog';
 import { Button } from '../components/ui/button';
@@ -299,6 +300,7 @@ export default function Editor() {
   const [showMediaDialog, setShowMediaDialog] = useState(false);
   const [showFilmStudio,setShowFilmStudio]=useState(false);
   const [showAstryxPrototype,setShowAstryxPrototype]=useState(false);
+  const [showAstryxAppearance,setShowAstryxAppearance]=useState(false);
   const [showQualityReview,setShowQualityReview]=useState(false);
   // Background opacity slider: local draft + debounced save. Without this
   // every 1% tick fired a PUT and any failure (e.g. project deleted in
@@ -1423,6 +1425,7 @@ export default function Editor() {
     <TooltipProvider>
       <FilmStudioDialog open={showFilmStudio} onOpenChange={setShowFilmStudio} sourceProjectId={currentProject?.id} sourceTitle={currentProject?.name}/>
       {canUseAstryx&&<AstryxPrototypeDialog open={showAstryxPrototype} onOpenChange={setShowAstryxPrototype} sourceProjectId={currentProject?.id}/>}
+      {canUseAstryx&&showAstryxAppearance&&currentProject?.id&&<AstryxAppearanceDialog projectId={currentProject.id} onClose={()=>setShowAstryxAppearance(false)} onSaved={()=>fetchProject(currentProject.id)}/>}
       {showQualityReview && currentProject?.id && <QualityReviewDialog projectId={currentProject.id} onClose={()=>setShowQualityReview(false)} onSaved={()=>fetchProject(currentProject.id)}/>}
       {/* Course Preview Modal */}
       {showPreview && (
@@ -1523,6 +1526,7 @@ export default function Editor() {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={()=>setShowQualityReview(true)}>Revisar qualidade do curso</DropdownMenuItem>
                 {canUseAstryx&&<DropdownMenuItem onClick={()=>setShowAstryxPrototype(true)} data-testid="editor-astryx-prototype">Astryx — laboratório de slides</DropdownMenuItem>}
+                {canUseAstryx&&<DropdownMenuItem onClick={()=>setShowAstryxAppearance(true)}>Astryx — estilos, cores e legendas</DropdownMenuItem>}
                 <DropdownMenuItem
                   onClick={handleRepairPdfImages}
                   disabled={repairingPdfImages}

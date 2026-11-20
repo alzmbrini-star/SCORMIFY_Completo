@@ -3604,6 +3604,8 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
     palette["mode"] = design_token.get("mode", "light") if design_token else "light"
     if design_token and design_token.get('id') == 'astryx':
         palette['astryxDesign'] = True
+        from services.astryx_appearance import normalize as normalize_astryx_appearance
+        palette['astryxAppearance'] = normalize_astryx_appearance(config.get('astryxAppearance'))
 
     # Brand Kit: when the project opts into the company's brand library AND
     # the company has a configured BrandKit, override the palette colors and
@@ -4413,7 +4415,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             "title": config.get("title", "Curso Gerado por IA"),
             "description": config.get("description", ""),
             "visualCourseMode": config.get("visualCourseMode", "standard"),
-            **({'designTemplateId': 'astryx', 'astryxDesignVersion': '0.7.16-agent-v1'} if design_template_id == 'astryx' else {}),
+            **({'designTemplateId': 'astryx', 'astryxDesignVersion': '0.7.16-agent-v1', 'astryxAppearance': palette['astryxAppearance']} if design_template_id == 'astryx' else {}),
             "playerTemplate": "visual_journey" if config.get("visualCourseMode") == "illustrated_journey" else "traditional",
             "visualStoryBible": storyboard.get("visualStoryBible", {}),
             "sourceCoverage": storyboard.get('sourceCoverage', {}),

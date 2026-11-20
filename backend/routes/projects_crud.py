@@ -110,6 +110,65 @@ async def delete_project_owned_records(project_id: str) -> dict:
 # ---------------------------------------------------------------------------
 
 from services.astryx_prototype import AstryxContent
+from services.astryx_appearance import Appearance
+
+
+class AstryxAppearanceRequest(BaseModel):
+    appearance: Appearance
+    fingerprint: Optional[str] = None
+
+
+@router.get('/design-prototypes/astryx/appearance-options')
+async def astryx_appearance_options(user: dict = Depends(require_auth)):
+    _astryx_editor(user)
+    from services.astryx_appearance import catalog
+    return catalog()
+
+
+@router.get('/projects/{project_id}/astryx-appearance')
+async def astryx_project_appearance(project_id: str, user: dict = Depends(require_auth)):
+    _astryx_editor(user)
+    await load_authorized_project(project_id, user)
+    raw = await db.projects.find_one({'id':project_id}, {'_id':0})
+    if not raw: raise HTTPException(404, 'Projeto não encontrado.')
+    from services.astryx_appearance import catalog, appearance_plan
+    options = raw.get('course',{}).get('metadata',{}).get('astryxAppearance',{})
+    _, previews = appearance_plan(raw, options)
+    return {**catalog(), 'appearance':options, 'eligible':len(previews)}
+
+
+@router.post('/projects/{project_id}/astryx-appearance/preview')
+async def astryx_project_preview(project_id: str, data: AstryxAppearanceRequest, user: dict = Depends(require_auth)):
+    _astryx_editor(user)
+    await load_authorized_project(project_id, user)
+    raw = await db.projects.find_one({'id':project_id}, {'_id':0})
+    if not raw: raise HTTPException(404, 'Projeto não encontrado.')
+    from services.astryx_appearance import appearance_plan
+    from services.agent_quality import fingerprint
+    _, previews = appearance_plan(raw, data.appearance.model_dump())
+    return {'slides':previews, 'fingerprint':fingerprint(raw), 'totalSlides':len(raw.get('course',{}).get('slides',[]))}
+
+
+@router.post('/projects/{project_id}/astryx-appearance/apply')
+async def astryx_project_apply(project_id: str, data: AstryxAppearanceRequest, user: dict = Depends(require_auth)):
+    _astryx_editor(user)
+    await load_authorized_project(project_id, user)
+    raw = await db.projects.find_one({'id':project_id}, {'_id':0})
+    if not raw: raise HTTPException(404, 'Projeto não encontrado.')
+    from services.astryx_appearance import appearance_plan
+    from services.agent_quality import fingerprint
+    if data.fingerprint != fingerprint(raw):
+        raise HTTPException(409, 'O curso mudou. Prepare uma nova prévia antes de aplicar.')
+    changes, previews = appearance_plan(raw, data.appearance.model_dump())
+    if not previews: raise HTTPException(422, 'Este curso não possui telas Astryx compatíveis. Nenhum slide foi convertido.')
+    from services.layout_recovery import backup_layout_source
+    backup = await backup_layout_source(db, raw, user.get('user_id'), changes)
+    guard = {'id':project_id, 'course':raw['course']}
+    if 'updatedAt' in raw: guard['updatedAt']=raw['updatedAt']
+    result = await db.projects.update_one(guard, {'$set':{**changes,'updatedAt':now_utc().isoformat()}})
+    if result.matched_count != 1:
+        raise HTTPException(409, 'O curso mudou durante a aplicação. Nenhuma edição foi sobrescrita.')
+    return {'changed':True,'backupId':backup,'styledElements':len(previews)}
 
 
 def _astryx_editor(user):

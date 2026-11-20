@@ -4,6 +4,7 @@ import {authHeaders} from '../contexts/AuthContext';
 import {getApiUrl} from '../utils/apiUrl';
 import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription} from './ui/dialog';
 import {Button} from './ui/button';
+import {AstryxAppearanceButton} from './AstryxAppearanceDialog';
 
 const labels=['Capa','Conteúdo com imagem','Atividade'];
 export default function AstryxPrototypeDialog({open,onOpenChange,sourceProjectId}){
@@ -46,7 +47,7 @@ export default function AstryxPrototypeDialog({open,onOpenChange,sourceProjectId
       }}/></label>
      {data.image&&<Button type="button" variant="outline" onClick={()=>edit('image','')}>Usar ilustração de exemplo</Button>}
      {field('imageAlt','Descrição da imagem',300)}
-     <label className="block text-sm">Cor de destaque<select aria-label="Cor do protótipo" value={data.accent} onChange={e=>edit('accent',e.target.value)} className="block w-full p-2 bg-slate-950 border rounded border-slate-600"><option value="blue">Azul</option><option value="teal">Verde-petróleo</option><option value="violet">Violeta</option></select></label>
+     <AstryxAppearanceButton title={data.title} value={data.appearance} onChange={v=>edit('appearance',v)}/>
      {field('question','Pergunta da atividade',600,true)}
      {data.options.map((value,i)=><label key={i} className="block text-sm">Alternativa {i+1}<input aria-label={`Alternativa ${i+1}`} value={value} maxLength={400} className="block w-full p-2 bg-slate-950 border rounded border-slate-600" onChange={e=>edit('options',data.options.map((v,j)=>j===i?e.target.value:v))}/></label>)}
      <label className="block text-sm">Resposta correta<select aria-label="Resposta correta" value={data.correct} onChange={e=>edit('correct',Number(e.target.value))} className="block w-full p-2 bg-slate-950 border rounded border-slate-600">{data.options.map((_,i)=><option key={i} value={i}>{i+1}</option>)}</select></label>

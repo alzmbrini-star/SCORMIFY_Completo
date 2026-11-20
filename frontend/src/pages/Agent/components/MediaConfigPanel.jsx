@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import MediaAssessmentOptions, {assessmentMediaSummary} from './MediaAssessmentOptions';
+import {AstryxAppearanceButton} from '../../../components/AstryxAppearanceDialog';
 import { getApiUrl } from '../../../utils/apiUrl';
 import { authHeaders } from '../../../contexts/AuthContext';
 import { Button } from '../../../components/ui/button';
@@ -637,7 +638,7 @@ function SuggestionsCategory({ icon: Icon, title, color, items }) {
 }
 
 
-export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor, globalFontSize, setGlobalFontSize, globalAnimation, setGlobalAnimation, isEditMode, originalMediaConfig, originalBgConfig, projectId, selectedDesignTemplate, setSelectedDesignTemplate, useBrandLibrary, setUseBrandLibrary, brandLibraryMode, setBrandLibraryMode, brandLibraryCount, brandLibraryCompanyId }) {
+export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConfig, loading, onConfirm, heygenConfig, setHeygenConfig, bgConfig, setBgConfig, sessionId, globalTextColor, setGlobalTextColor, globalFontSize, setGlobalFontSize, globalAnimation, setGlobalAnimation, isEditMode, originalMediaConfig, originalBgConfig, projectId, selectedDesignTemplate, setSelectedDesignTemplate, useBrandLibrary, setUseBrandLibrary, brandLibraryMode, setBrandLibraryMode, brandLibraryCount, brandLibraryCompanyId, astryxAppearance, onAstryxAppearance }) {
   const [avatars, setAvatars] = useState([]);
   const [voices, setVoices] = useState([]);
   const [loadingAvatars, setLoadingAvatars] = useState(false);
@@ -1389,6 +1390,7 @@ export default function MediaConfigPanel({ storyboard, mediaConfig, setMediaConf
                 </p>
               </div>
             )}
+            {!isEditMode&&selectedDesignTemplate?.id==='astryx'&&<AstryxAppearanceButton value={astryxAppearance} onChange={onAstryxAppearance}/>}
           </CardContent>
         </Card>
       )}

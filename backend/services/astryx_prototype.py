@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
+from services.astryx_appearance import Appearance, style_document
 
 ASSETS = Path(__file__).with_name('astryx_assets')
 
@@ -28,6 +29,7 @@ class AstryxContent(BaseModel):
     correct: int = Field(default=0, ge=0, le=2)
     feedback: str = Field(default='Oferecer apoio e alinhar as próximas ações ajuda a equipe a alcançar o objetivo comum.', min_length=1, max_length=900)
     accent: Literal['blue', 'teal', 'violet'] = 'blue'
+    appearance: Appearance = Field(default_factory=Appearance)
 
     @field_validator('title', 'heading', 'body', 'question', 'feedback')
     @classmethod
@@ -173,7 +175,10 @@ def render_documents(data: AstryxContent):
                       f'<style>{vendor_css}\n:root{{--ax-accent:{colors[data.accent]}}}\n{CSS}</style></head><body>'
                       f'<!-- Astryx 0.7.16 static adapter\n{license_text} -->{root}'
                       f'<script type="application/json" id="ax-data">{safe_data}</script><script>{SCRIPT}</script></body></html>')
-    return result
+    options = data.appearance.model_dump()
+    if 'appearance' not in data.model_fields_set:
+        options['palette'] = data.accent
+    return [style_document(document, options) for document in result]
 
 
 def prototype_project(data: AstryxContent, project_id=None):

@@ -95,6 +95,8 @@ class GenerateHtmlRequest(BaseModel):
     simulatorActivityType: Literal['simulation','visualization'] = 'simulation'
     simulatorObjectImages: bool = False
 
+from services.astryx_appearance import Appearance as AstryxAppearance
+
 class AgentConfigUpdate(BaseModel):
     model_config = PydanticConfigDict(extra="allow")
     title: Optional[str] = None
@@ -119,6 +121,7 @@ class AgentConfigUpdate(BaseModel):
     assessmentImages: bool = True
     format: Optional[str] = "curso_completo"
     description: Optional[str] = None
+    astryxAppearance: AstryxAppearance = Field(default_factory=AstryxAppearance)
 
 class AgentChatMessage(BaseModel):
     message: str
@@ -1324,6 +1327,11 @@ async def agent_set_media_config(session_id: str, data: dict, user: dict = Depen
     }
     if design_template_id:
         update_data["config.designTemplateId"] = design_template_id
+    if 'astryxAppearance' in data:
+        try:
+            update_data['config.astryxAppearance'] = AstryxAppearance.model_validate(data['astryxAppearance']).model_dump()
+        except ValueError:
+            raise HTTPException(422, 'Aparência Astryx inválida. Confira o estilo, a paleta e a cor hexadecimal.')
     await db.agent_sessions.update_one({"id": session_id}, {"$set": update_data})
     return {"status": "ok", "configured": len(media_config), "backgrounds": len(bg_config)}
 

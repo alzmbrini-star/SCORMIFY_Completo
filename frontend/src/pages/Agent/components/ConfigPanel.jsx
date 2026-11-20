@@ -12,6 +12,7 @@ import { AnimPreviewButton } from '../../../components/AnimPreviewButton';
 import { Checkbox } from '../../../components/ui/checkbox';
 import { toast } from 'sonner';
 import SimulatorExperienceOptions from '../../../components/SimulatorExperienceOptions';
+import {AstryxAppearanceButton} from '../../../components/AstryxAppearanceDialog';
 import {
   Brain, Upload, FileText, Settings, BookOpen, Layers, Play,
   Send, ArrowLeft, ArrowRight, Check, Loader2, Sparkles,
@@ -163,6 +164,7 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
               </p>
             </div>
           )}
+          {selectedDesignTemplate?.id === 'astryx' && <AstryxAppearanceButton title={config.title} value={config.astryxAppearance} onChange={v=>update('astryxAppearance',v)}/>}
         </div>
       )}
 

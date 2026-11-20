@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 
 from services.astryx_prototype import assets, CSS, ASSETS
 from services.teaching_copy import lesson_html
+from services.astryx_appearance import normalize, style_document
 
 TEMPLATE = {
     'id': 'astryx', 'name': 'Astryx',
@@ -204,9 +205,12 @@ def build_elements(slide, palette, module='', image_url=None, course_title=None,
                 f'<meta name="viewport" content="width=device-width,initial-scale=1"><title>{safe(title)}</title>'
                 f'<style>{vendor_css}\n:root{{--ax-accent:{accent};--ax-ink:{ink}}}\n{CSS}\n{EXTRA_CSS}\n{scale_css}</style></head><body>'
                 f'<!-- Astryx 0.7.16 / MIT\n{license_text} -->{root}</body></html>')
+    appearance = normalize(palette.get('astryxAppearance'))
+    document = style_document(document, appearance)
     from models import generate_id
     from services.teaching_copy import visible_teaching_text
     return [{'id':generate_id(),'type':'html','x':0,'y':0,'width':1920,'height':820,
              'htmlContent':document,'htmlDisplayMode':'scroll','astryxDesign':True,
+             'astryxAppearance':appearance,
              'astryxTeachingText':title + '\n' + re.sub(r'\[IMG:[^\]]+\]', '', visible_teaching_text(raw)) + ('\n' + '\n'.join(str(m) for m in modules) if modules else ''),
              'style':{},'startTime':0,'animations':[]}]
