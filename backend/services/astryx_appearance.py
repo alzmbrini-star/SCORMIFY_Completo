@@ -124,7 +124,9 @@ def style_document(document, value=None):
     document=re.sub(r'<script id="astryx-appearance-data" type="application/json">[\s\S]*?</script>', '', document, flags=re.I)
     snippet='<style id="astryx-appearance-v1">'+appearance_css(opt)+'</style>'
     snippet+='<script id="astryx-appearance-data" type="application/json">'+json.dumps(opt).replace('<','\\u003c')+'</script>'
-    return re.sub(r'</head\s*>',lambda m:snippet+m[0],document,count=1,flags=re.I) if re.search(r'</head\s*>',document,re.I) else snippet+document
+    styled = re.sub(r'</head\s*>',lambda m:snippet+m[0],document,count=1,flags=re.I) if re.search(r'</head\s*>',document,re.I) else snippet+document
+    from services.astryx_viewport import upgrade_astryx_viewport
+    return upgrade_astryx_viewport(styled)
 
 def eligible(element):
     raw=element.get('htmlContent')

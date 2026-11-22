@@ -115,6 +115,8 @@ async def process_html_content_images(
     """
     if not html_content:
         return html_content
+    from services.astryx_viewport import upgrade_astryx_viewport
+    html_content = upgrade_astryx_viewport(html_content)
     from services.assessment_assets import inline_assessment_assets
     html_content = inline_assessment_assets(html_content, assets_dir)
     

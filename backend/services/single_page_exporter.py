@@ -1132,6 +1132,8 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
     from services.treasure_upgrade import upgrade_treasure_html
     from services.climb_upgrade import upgrade_climb_html
     raw = upgrade_climb_html(upgrade_treasure_html(upgrade_battle_html(upgrade_crossword_html(upgrade_game_hud(_inject_fixed_game_stage_fit(raw))))))
+    from services.astryx_viewport import upgrade_astryx_viewport
+    raw = upgrade_astryx_viewport(raw)
     raw = _inline_assets_in_html(raw, project_id, assets_dir, base_url)
     # Element-level text-shadow — captured here so each branch below (iframe
     # / inline interactive / direct-inline) can apply it in the correct scope.

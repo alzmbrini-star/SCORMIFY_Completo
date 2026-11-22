@@ -816,6 +816,8 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
                         })
 
                     # Sanitize: remove Tailwind CSS variables and editor artifacts
+                    from services.astryx_viewport import upgrade_astryx_viewport
+                    html_content = upgrade_astryx_viewport(html_content)
                     if 'data-astryx-slide=' not in html_content and 'data-astryx-lesson=' not in html_content:
                         html_content = re.sub(r'--tw-[^;:]+:[^;]*;?\s*', '', html_content)
                         html_content = re.sub(r'outline-style:\s*dashed\s*;?\s*', '', html_content)

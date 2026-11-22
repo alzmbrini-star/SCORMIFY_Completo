@@ -4,6 +4,7 @@
  */
 
 import { getApiUrl } from './apiUrl';
+import { upgradeAstryxViewport, isAgentAstryxLesson } from './astryxViewport';
 import { resolveHtmlAssetUrls } from './htmlAssetUrls';
 import { assessmentLayout } from '../components/assessment/assessmentLayout';
 import { upgradeGameHud } from './gameHud';
@@ -24,10 +25,11 @@ const API_URL = getApiUrl();
  */
 export const sanitizeHtmlForDisplay = (htmlContent) => {
   if (!htmlContent || typeof htmlContent !== 'string') return htmlContent || '';
+  if (isAgentAstryxLesson(htmlContent)) return upgradeAstryxViewport(htmlContent);
   // Preserve complete Astryx CSS: artifact regexes are not CSS parsers and
   // consume closing braces in its layered stylesheet. Security remains the
   // responsibility of the isolated iframe, not this cosmetic cleanup.
-  if (htmlContent.includes('data-astryx-slide=') || htmlContent.includes('data-astryx-lesson=')) return htmlContent;
+  if (htmlContent.includes('data-astryx-slide=') || htmlContent.includes('data-astryx-lesson=')) return upgradeAstryxViewport(htmlContent);
   
   // Remove --tw-* CSS custom properties from inline styles
   let cleaned = htmlContent.replace(/--tw-[^;:]+:[^;]*;?\s*/g, '');
@@ -200,6 +202,7 @@ export const fitGameElementToSlide = (element, slideWidth = 960, slideHeight = 5
 
 export const wrapInteractiveFullbleed = (html, mode = 'page') => {
   if (!html || typeof html !== 'string') return html;
+  if (isAgentAstryxLesson(html)) return upgradeAstryxViewport(html);
   if (/id=["']guided-data["']/.test(html)) return html;
   // Recorded-video interactions own a responsive, height-bounded viewport.
   if (/id=["']video-quiz-data["']/.test(html)) return upgradeVideoQuizPlayback(trustedHostedVideoQuizDocument(html));

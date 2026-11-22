@@ -207,6 +207,8 @@ def build_elements(slide, palette, module='', image_url=None, course_title=None,
                 f'<!-- Astryx 0.7.16 / MIT\n{license_text} -->{root}</body></html>')
     appearance = normalize(palette.get('astryxAppearance'))
     document = style_document(document, appearance)
+    from services.astryx_viewport import upgrade_astryx_viewport
+    document = upgrade_astryx_viewport(document)
     from models import generate_id
     from services.teaching_copy import visible_teaching_text
     return [{'id':generate_id(),'type':'html','x':0,'y':0,'width':1920,'height':820,
