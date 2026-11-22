@@ -13,7 +13,8 @@ export function upgradeAstryxViewport(source) {
       return fixed===raw?source:'__B64__:'+btoa(unescape(encodeURIComponent(fixed)));
     }catch(_){return source;}
   }
-  if(!/data-astryx-lesson=["']/.test(source)||source.includes('id="astryx-viewport-v1"'))return source;
-  const snippet='<script id="astryx-viewport-v1">('+astryxViewportRuntime.toString()+')('+JSON.stringify(astryxViewportCss)+');</script>';
+  if(!/data-astryx-lesson=["']/.test(source)||source.includes('id="astryx-viewport-v2"'))return source;
+  source=source.replace(/<script id="astryx-viewport-v1">[\s\S]*?<\/script>/gi,'');
+  const snippet='<script id="astryx-viewport-v2">('+astryxViewportRuntime.toString()+')('+JSON.stringify(astryxViewportCss)+');</script>';
   return /<\/body\s*>/i.test(source)?source.replace(/<\/body\s*>/i,m=>snippet+m):source+snippet;
 }

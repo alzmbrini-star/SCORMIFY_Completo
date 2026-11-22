@@ -16,6 +16,7 @@ def upgrade_astryx_viewport(document):
         except (ValueError,UnicodeError):return document
         fixed=upgrade_astryx_viewport(raw)
         return document if fixed==raw else '__B64__:'+base64.b64encode(fixed.encode()).decode()
-    if not re.search(r'data-astryx-lesson=["\']',document) or 'id="astryx-viewport-v1"' in document:return document
-    snippet='<script id="astryx-viewport-v1">'+viewport_script()+'</script>'
+    if not re.search(r'data-astryx-lesson=["\']',document) or 'id="astryx-viewport-v2"' in document:return document
+    document=re.sub(r'<script id="astryx-viewport-v1">[\s\S]*?</script>', '', document, flags=re.I)
+    snippet='<script id="astryx-viewport-v2">'+viewport_script()+'</script>'
     return re.sub(r'</body\s*>',lambda m:snippet+m[0],document,count=1,flags=re.I) if re.search(r'</body\s*>',document,re.I) else document+snippet
