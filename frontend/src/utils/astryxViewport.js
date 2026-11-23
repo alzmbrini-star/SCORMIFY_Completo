@@ -1,4 +1,5 @@
 import {astryxViewportCss,astryxViewportRuntime} from './astryxViewportRuntime';
+import {prepareAstryxImages} from './astryxImages';
 export function isAgentAstryxLesson(source) {
   if(typeof source!=='string')return false;
   if(source.startsWith('__B64__:')){try{source=atob(source.slice(8));}catch(_){return false;}}
@@ -13,6 +14,7 @@ export function upgradeAstryxViewport(source) {
       return fixed===raw?source:'__B64__:'+btoa(unescape(encodeURIComponent(fixed)));
     }catch(_){return source;}
   }
+  source=prepareAstryxImages(source);
   if(!/data-astryx-lesson=["']/.test(source)||source.includes('id="astryx-viewport-v2"'))return source;
   source=source.replace(/<script id="astryx-viewport-v1">[\s\S]*?<\/script>/gi,'');
   const snippet='<script id="astryx-viewport-v2">('+astryxViewportRuntime.toString()+')('+JSON.stringify(astryxViewportCss)+');</script>';

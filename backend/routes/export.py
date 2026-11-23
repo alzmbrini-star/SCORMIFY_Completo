@@ -1645,11 +1645,11 @@ _active_export_tasks = set()
 # Static file serving
 
 @router.get("/projects/{project_id}/assets/{filename}")
-async def serve_asset(project_id: str, filename: str):
+async def serve_asset(project_id: str, filename: str, request: Request, astryx_image: str = ''):
     """Serve project asset - falls back to MongoDB if local file is missing"""
     file_path = PROJECTS_DIR / project_id / "assets" / filename
     if file_path.exists():
-        return FileResponse(file_path)
+        return await _astryx_display_response(file_path, astryx_image, request)
     
     # Fallback: try to restore from MongoDB (production ephemeral storage)
     if db is not None:
@@ -1662,7 +1662,7 @@ async def serve_asset(project_id: str, filename: str):
                     file_path.parent.mkdir(parents=True, exist_ok=True)
                     with open(file_path, 'wb') as f:
                         f.write(data)
-                    return FileResponse(file_path)
+                    return await _astryx_display_response(file_path, astryx_image, request)
                 except Exception:
                     from fastapi.responses import Response
                     return Response(content=data, media_type=content_type)
@@ -1670,6 +1670,20 @@ async def serve_asset(project_id: str, filename: str):
             logger.warning(f"MongoDB asset fallback failed for {project_id}/{filename}: {e}")
     
     raise HTTPException(status_code=404, detail=f"Asset not found: {filename}")
+
+
+async def _astryx_display_response(file_path, version, request=None):
+    from services.astryx_images import display_image, VERSION
+    if version == VERSION:
+        optimized = await asyncio.to_thread(display_image, file_path)
+        if optimized != file_path:
+            response = FileResponse(optimized, media_type='image/webp', stat_result=optimized.stat(),
+                                    headers={'Cache-Control': 'private, max-age=0, must-revalidate'})
+            if request and request.headers.get('if-none-match') == response.headers.get('etag'):
+                return Response(status_code=304, headers={name: response.headers[name]
+                                for name in ('etag', 'cache-control', 'last-modified')})
+            return response
+    return FileResponse(file_path)
 
 
 @router.post("/admin/repair-assets")

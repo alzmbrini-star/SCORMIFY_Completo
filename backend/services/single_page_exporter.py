@@ -153,6 +153,8 @@ def _inline_assets_in_html(html_str: str, project_id: str, assets_dir: str, base
     """
     if not html_str:
         return ""
+    from services.astryx_images import prepare_astryx_images
+    html_str = prepare_astryx_images(html_str, None if _PREVIEW_MEDIA.get() else assets_dir)
     from services.assessment_assets import inline_assessment_assets
     html_str = inline_assessment_assets(html_str, assets_dir,inline_media=not _PREVIEW_MEDIA.get())
     if _PREVIEW_MEDIA.get():
