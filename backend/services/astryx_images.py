@@ -11,7 +11,7 @@ from urllib.parse import urlsplit, parse_qsl, urlencode, urlunsplit
 
 VERSION = 'v1'
 _LOCK = threading.Lock()
-_GENERATED = re.compile(r'(?:ai_img|leonardo|gemini)_[a-fA-F0-9]{8,32}\.(?:png|jpe?g|webp)', re.I)
+_GENERATED = re.compile(r'(?:ai_img|leonardo|gemini|assessment)_[a-fA-F0-9]{8,32}\.(?:png|jpe?g|webp)', re.I)
 _IMG = re.compile(r'<img\b[^>]*\bsrc=(["\'])([^"\']+)\1[^>]*>', re.I)
 
 def generated_filename(name):

@@ -25,6 +25,8 @@ def upgrade_simulator_slide(document):
             return '__B64__:'+base64.b64encode(updated.encode()).decode() if updated!=source else document
         except (ValueError,UnicodeError):
             return document
+    from services.interactive_images import prepare_interactive_images
+    document=prepare_interactive_images(document)
     if re.search(r'data-sim-engine=["\']didactic-visualization-v1["\']',document):
         from services.didactic_visualizations import upgrade_presentation
         return upgrade_presentation(document)

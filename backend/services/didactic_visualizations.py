@@ -184,7 +184,8 @@ def render(raw):
     if data.get('illustrations') or data.get('artworkNotice'):
         from services.simulator_object_images import inject
         document=inject(document)
-    return document
+    from services.interactive_images import prepare_interactive_images
+    return prepare_interactive_images(document)
 
 
 def generated_plan(raw):

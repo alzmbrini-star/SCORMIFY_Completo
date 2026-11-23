@@ -9,6 +9,8 @@ from urllib.parse import urlsplit
 
 
 def inline_assessment_assets(document: str, assets_dir: str, inline_media: bool = True) -> str:
+    from services.interactive_images import prepare_interactive_images
+    document = prepare_interactive_images(document, assets_dir if inline_media else None)
     from services.video_quiz_playback import upgrade_video_quiz_playback
     document = upgrade_video_quiz_playback(document)
     # Repair existing snapshots as well as newly generated assessments.

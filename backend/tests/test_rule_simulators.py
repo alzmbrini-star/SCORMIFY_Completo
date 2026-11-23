@@ -309,7 +309,7 @@ class RuleTests(unittest.TestCase):
         exec(compile(ast.Module(body=[node],type_ignores=[]),str(source),'exec'),ns)
         document=render_rules(fixtures()[0]);generated={'html':document,'spec':{'mechanic':ENGINE}}
         with patch.dict(os.environ,{'OPENAI_API_KEY':'test-only','SIMULATOR_AI_PROVIDER':'openai'}),patch('services.visual_simulators.generate_visual_simulator',AsyncMock(return_value=generated)):
-            result=asyncio.run(ns['generate_html_with_ai'](SimpleNamespace(prompt='Simulador',courseContext='Programação fetch'),{}))
+            result=asyncio.run(ns['generate_html_with_ai'](SimpleNamespace(prompt='Simulador',courseContext='Programação fetch'),{'user_id':'test-author','permissions':{'createSimulators':True}}))
         self.assertEqual(result['html'],document)
 
 

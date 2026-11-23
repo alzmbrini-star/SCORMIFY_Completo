@@ -12,3 +12,18 @@ export function prepareAstryxImages(source) {
     return /\bdecoding=/.test(tag)?tag:tag.replace(/<img/i,'<img decoding="async"');
   });
 }
+
+export function prepareAssessmentImages(value) {
+  if(Array.isArray(value))return value.map(prepareAssessmentImages);
+  if(!value||typeof value!=='object')return value;
+  const result=Object.fromEntries(Object.entries(value).map(([k,v])=>[k,prepareAssessmentImages(v)]));
+  if(result.kind==='image'&&typeof result.url==='string'){
+    let url;
+    try{url=new URL(result.url,'https://astryx.local');}catch(_){return result;}
+    if(/^\/api\/projects\/[A-Za-z0-9_-]+\/assets\/(?:assessment|ai_img|leonardo|gemini)_[a-f0-9]{8,32}\.(?:png|jpe?g|webp)$/i.test(url.pathname)){
+      url.searchParams.set('astryx_image','v1');
+      result.url=result.url.startsWith('/')?url.pathname+url.search+url.hash:url.href;
+    }
+  }
+  return result;
+}

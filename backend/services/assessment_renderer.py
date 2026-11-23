@@ -33,6 +33,8 @@ def refresh_assessment_documents(project):
             if template is None:
                 template = (Path(__file__).parent / 'export_assets' / 'assessment-player.html').read_text(encoding='utf-8')
             document = template.replace('__ASSESSMENT_DATA__', json.dumps(config, ensure_ascii=False).replace('<', '\\u003c'))
+            from services.interactive_images import prepare_interactive_images
+            document = prepare_interactive_images(document)
             element['htmlContent'] = apply_editorial_text_colors(document, config.get('textColors'))
     return project
 
@@ -42,6 +44,8 @@ def assessment_element(questions, title='Avaliação', allow_skip=True, width=96
               'assetBase': os.environ.get('PUBLIC_BACKEND_URL') or os.environ.get('RENDER_EXTERNAL_URL') or ''}
     template = (Path(__file__).parent / 'export_assets' / 'assessment-player.html').read_text(encoding='utf-8')
     document = template.replace('__ASSESSMENT_DATA__', json.dumps(config, ensure_ascii=False).replace('<', '\\u003c'))
+    from services.interactive_images import prepare_interactive_images
+    document = prepare_interactive_images(document)
     return {'id': str(uuid.uuid4()), 'type': 'html', 'x': 0, 'y': 0, 'width': width, 'height': height,
             'htmlContent': document, 'htmlDisplayMode': 'fit', 'objectFit': 'cover', 'startTime': 0,
             'assessmentConfig': config}
