@@ -18,6 +18,27 @@ var Gamification = (function() {
     var quizScores = [];
     var scenarioScores = [];
     var courseCompleted = false;
+    var assessmentAttempts = new WeakMap();
+    var assessmentListenerBound = false;
+
+    function onAssessmentMessage(event) {
+        var result = event.data;
+        if (!config.enabled || !result || result.type !== 'scormify-assessment-gamification') return;
+        // Accept only the controlled assessment frames in this course, not
+        // unrelated embedded pages, self-messages, or another browser window.
+        var frame = Array.prototype.find.call(document.querySelectorAll('iframe[data-assessment="true"]'), function(item) {
+            return item.contentWindow === event.source;
+        });
+        if (!frame || typeof result.attemptId !== 'string' || !result.attemptId || result.attemptId.length > 160) return;
+        if (typeof result.score !== 'number' || !isFinite(result.score) || result.score < 0 || result.score > 100) return;
+        if (!Number.isInteger(result.totalQuestions) || result.totalQuestions < 1 ||
+            !Number.isInteger(result.correctAnswers) || result.correctAnswers < 0 || result.correctAnswers > result.totalQuestions) return;
+        var attempts = assessmentAttempts.get(event.source);
+        if (!attempts) { attempts = new Set(); assessmentAttempts.set(event.source, attempts); }
+        if (attempts.has(result.attemptId)) return;
+        attempts.add(result.attemptId);
+        onQuizComplete(result.score, result.totalQuestions, result.correctAnswers);
+    }
     
     // Icon SVGs for badges
     var BADGE_ICONS = {
@@ -43,6 +64,10 @@ var Gamification = (function() {
     
     function init(gamificationConfig) {
         config = Object.assign(config, gamificationConfig || {});
+        if (!assessmentListenerBound) {
+            window.addEventListener('message', onAssessmentMessage);
+            assessmentListenerBound = true;
+        }
         if (!config.enabled) return;
         injectStyles();
     }
@@ -51,7 +76,7 @@ var Gamification = (function() {
         var style = document.createElement('style');
         style.textContent = [
             '.gamification-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 10000; animation: fadeIn 0.3s ease; }',
-            '.gamification-content { background: linear-gradient(135deg, #1e293b, #0f172a); border-radius: 16px; padding: 32px; max-width: 500px; width: 90%; text-align: center; animation: slideUp 0.4s ease; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }',
+            '.gamification-content { box-sizing:border-box; max-height:90vh; overflow:auto; background: linear-gradient(135deg, #1e293b, #0f172a); border-radius: 16px; padding: 32px; max-width: 500px; width: 90%; text-align: center; animation: slideUp 0.4s ease; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }',
             '.gamification-emoji { font-size: 64px; margin-bottom: 16px; animation: bounce 0.6s ease; }',
             '.gamification-title { font-size: 28px; font-weight: bold; color: #fff; margin-bottom: 8px; }',
             '.gamification-message { color: #94a3b8; font-size: 16px; line-height: 1.6; margin-bottom: 24px; }',

@@ -663,6 +663,7 @@ async def _generate_standalone_html(
     # Build course JSON
     course_data = {
         "metadata": metadata,
+        "_gamification": project.get('gamification'),
         "slides": processed_slides,
         "globalAudio": processed_global_audio,
         "_guidedPlan": guided_plan,
@@ -715,6 +716,8 @@ async def _generate_standalone_html(
 def generate_html_template(title: str, course_data: Dict, width: int, height: int, enable_vlibras: bool = True, backend_url: str = "", tutor_config: dict = None, output_path: str = None) -> str:
     """Generate the complete HTML template with embedded player"""
     
+    # Private export configuration must not be sent as slide content.
+    gamification_config = course_data.get('_gamification')
     # VLibras block for accessibility (LIBRAS - Brazilian Sign Language)
     if enable_vlibras:
         proxy_base = backend_url.rstrip('/') + '/api/vlibras-proxy' if backend_url else ''
@@ -768,6 +771,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
     # Create a deep copy and sanitize htmlContent fields to prevent JSON/JS issues
     import copy
     sanitized_data = dict(course_data) if output_path else copy.deepcopy(course_data)
+    sanitized_data.pop('_gamification', None)
     from services.simulator_slide import refresh_simulator_slides
     if not output_path:
         refresh_simulator_slides({'course':sanitized_data})
@@ -2525,7 +2529,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                     'body,body *{{text-shadow:' + elem.style.textShadow + '!important;}}' : '') +
                                 '</style></head><body>' + htmlContent + '</body></html>';
                             }}
-                            html += '<iframe ' + (elem.guidedActivity ? 'data-guided-id="'+String(elem.guidedActivity.id).replace(/[^a-zA-Z0-9_-]/g,'')+'" ' : '') + 'srcdoc="' + wrappedHtml.replace(/"/g, '&quot;') + '" style="width:100%;height:100%;border:0;overflow:' + (isFullscreen ? 'hidden' : 'auto') + ';"></iframe>';
+                            html += '<iframe ' + (elem.assessmentConfig ? 'data-assessment="true" ' : '') + (elem.guidedActivity ? 'data-guided-id="'+String(elem.guidedActivity.id).replace(/[^a-zA-Z0-9_-]/g,'')+'" ' : '') + 'srcdoc="' + wrappedHtml.replace(/"/g, '&quot;') + '" style="width:100%;height:100%;border:0;overflow:' + (isFullscreen ? 'hidden' : 'auto') + ';"></iframe>';
                         }}
                         else if (elem.type === 'flipbook' && elem.flipbookUrl) {{
                             var fbUrl = elem.flipbookUrl;
@@ -3829,6 +3833,11 @@ html,body{{background:{canvas}}}
     html = install_portrait_view(html)
     from services.astryx_export import install_astryx_host
     html = install_astryx_host(html, course_data.get('_astryxResponsive') is True, course_data.get('_astryxAgent') is True)
+    if gamification_config and gamification_config.get('enabled'):
+        engine = (Path(__file__).parent / 'export_assets' / 'gamification.js').read_text(encoding='utf-8')
+        config_json = json.dumps(gamification_config, ensure_ascii=False).replace('<', '\\u003c')
+        block = '<script>' + engine + '\n' + 'document.addEventListener("DOMContentLoaded",function(){Gamification.init(' + config_json + ');});</script>'
+        html = html.replace('</body>', block + '</body>')
     if output_path:
         return write_html_file(output_path, html, sanitized_data)
     return html

@@ -1595,6 +1595,7 @@ var CoursePlayer = (function() {
                     ? 'allow-scripts allow-same-origin allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals'
                     : 'allow-scripts allow-same-origin';
                 if (element.assessmentConfig) {
+                    htmlIframe.dataset.assessment = 'true';
                     htmlIframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
                     htmlIframe.allowFullscreen = true;
                     window.addEventListener('message',function(event){

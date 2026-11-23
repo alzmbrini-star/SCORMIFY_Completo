@@ -1206,6 +1206,7 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
         sandbox = 'allow-scripts allow-same-origin allow-forms'
         if el.get('assessmentConfig'):
             sandbox += ' allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals'
+        assessment_marker = ' data-assessment="true"' if el.get('assessmentConfig') else ''
         video_quiz_key = ''
         if el.get('videoQuizConfig') or 'video-quiz-data' in raw:
             match_key = re.search(r'"key"\s*:\s*"([a-f0-9]{20})"', raw)
@@ -1219,7 +1220,7 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
         frame_source = ('srcdoc="' + html.escape(raw_with_meta, quote=True) + '"') if hosted_video else f'src="data:text/html;charset=utf-8;base64,{b64}"'
         return (
             f'<div class="sp-html sp-interactive" data-interactive="html" data-required="true">'
-            f'<iframe{video_quiz_key} sandbox="{sandbox}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen '
+            f'<iframe{video_quiz_key}{assessment_marker} sandbox="{sandbox}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen '
             f'{frame_source} '
             f'style="width:100%;{iframe_height_css};border:0;border-radius:8px;background:#fff;display:block"></iframe>'
             f'<button type="button" class="sp-btn sp-btn-primary sp-iframe-done" '

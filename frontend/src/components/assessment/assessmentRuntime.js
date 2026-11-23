@@ -7,6 +7,9 @@ export function assessmentRuntime(resolveVideoLink) {
   const submitted = new Map();
   let index = 0;
   let selectedCard = null;
+  const gamificationSession = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+  let gamificationAttempt = 0;
+  let gamificationReported = false;
   const labels = { single_choice: 'Escolha simples', multiple_choice: 'Múltipla seleção', ordering: 'Ordenar etapas', categorization: 'Arrastar e soltar' };
   function node(tag, cls, text, parent) {
     const el = document.createElement(tag); el.className = cls || '';
@@ -41,6 +44,16 @@ export function assessmentRuntime(resolveVideoLink) {
     if (submitted.size < questions.length && !window.confirm('Há questões sem resposta confirmada. Deseja finalizar?')) return;
     let total = 0, points = 0;
     questions.forEach(q => { total += q.points || 1; if (submitted.has(q.id) && correct(q, submitted.get(q.id))) points += q.points || 1; });
+    // Separate from LMS reporting: also works in HTML and guided assessments.
+    // Reviewing a completed attempt must not grant achievements a second time.
+    if (!gamificationReported && questions.length) {
+      gamificationReported = true;
+      window.parent.postMessage({type:'scormify-assessment-gamification',
+        attemptId:gamificationSession + '-' + gamificationAttempt,
+        score:Math.round(total ? points / total * 100 : 0),
+        totalQuestions:questions.length,
+        correctAnswers:questions.filter(q => submitted.has(q.id) && correct(q, submitted.get(q.id))).length}, '*');
+    }
     // Exported players expose an initialized SCORM API in the parent chain.
     // Record this assessment's score without completing the surrounding course.
     if (data.guidedPath) window.parent.postMessage({type:'scormify-guided-assessment-result',id:data.guidedActivityId,score:Math.round(total ? points / total * 100 : 0)},'*');
@@ -71,7 +84,7 @@ export function assessmentRuntime(resolveVideoLink) {
     node('div', 'score', `${Math.round(total ? points / total * 100 : 0)}%`, box);
     node('p', '', `${points} de ${total} pontos · ${submitted.size} de ${questions.length} respondidas`, box);
     button('Revisar respostas', '', () => { index = 0; render(); }, box);
-    button('Tentar novamente', '', () => { answers.clear(); submitted.clear(); index = 0; selectedCard = null; if(!data.guidedPath)window.parent.postMessage({type:'scormify-assessment-retry'},'*'); render(); }, box);
+    button('Tentar novamente', '', () => { answers.clear(); submitted.clear(); index = 0; selectedCard = null; gamificationAttempt++; gamificationReported = false; if(!data.guidedPath)window.parent.postMessage({type:'scormify-assessment-retry'},'*'); render(); }, box);
   }
   function advance() {
     if (index < questions.length - 1) navigate(index + 1); else finish();

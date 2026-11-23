@@ -253,7 +253,7 @@ export default function GamificationPanel({ projectId, onClose }) {
       <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg mb-6">
         <div>
           <h3 className="text-white font-medium">Ativar Gamificação</h3>
-          <p className="text-sm text-slate-400">Habilita badges e feedbacks nos cursos exportados</p>
+          <p className="text-sm text-slate-400">Habilita badges e feedbacks nos cursos exportados, incluindo Quiz tradicional e Avaliações interativas com imagens.</p>
         </div>
         <Switch
           checked={config.enabled}
@@ -268,7 +268,7 @@ export default function GamificationPanel({ projectId, onClose }) {
             checked={config.showBadgesAfterQuiz}
             onCheckedChange={(checked) => setConfig(prev => ({ ...prev, showBadgesAfterQuiz: checked }))}
           />
-          <span className="text-sm text-slate-300">Mostrar após Quiz</span>
+          <span className="text-sm text-slate-300">Mostrar após Quiz / Avaliação com imagens</span>
         </label>
         <label className="flex items-center gap-2 p-3 bg-slate-700/30 rounded-lg cursor-pointer">
           <Switch
@@ -499,7 +499,7 @@ export default function GamificationPanel({ projectId, onClose }) {
       {/* Quiz Feedback Tab */}
       {activeTab === 'quiz-feedback' && (
         <div className="space-y-4">
-          <p className="text-sm text-slate-400">Configure mensagens de feedback por faixa de pontuação nos quizzes</p>
+          <p className="text-sm text-slate-400">Configure mensagens por faixa de pontuação para o Quiz tradicional e as Avaliações interativas com imagens.</p>
           {config.quizFeedbackRanges.map((range, index) => (
             <div key={range.id || index} className="p-4 bg-slate-700/30 rounded-lg space-y-3">
               <div className="grid grid-cols-4 gap-3">
