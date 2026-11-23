@@ -26,6 +26,8 @@ def plan_assessments(structure, config):
             s.get('sourceExcerpt') or s.get('purpose') or s.get('title', '') for s in teaching),
             'sourceRefs': list(dict.fromkeys(r for s in teaching for r in s.get('sourceRefs', [])))}
         request = assessment_request(source, config.get('assessmentQuestionCount', 3), config.get('assessmentImages', True))
+        if config.get('adaptiveAssessments') is True:
+            request['assessmentRequest'].update(adaptiveMode=True,questionCount=max(3,request['assessmentRequest']['questionCount']))
         request['moduleName'] = module.get('title', '')
         end = next((i for i, s in enumerate(slides) if s.get('type') == 'summary'), len(slides))
         slides.insert(end, request)
@@ -36,9 +38,13 @@ def plan_assessments(structure, config):
 def media_options(slide, media):
     """Absent settings retain the author's approved storyboard; no implicit opt-in."""
     base = slide.get('assessmentRequest') or {}
+    if slide.get('adaptiveMode') is True and 'adaptiveMode' not in base:
+        base={**base,'adaptiveMode':True}
     options = media.get('interactiveAssessment')
     if not isinstance(options, dict):
-        options = {'enabled': bool(base), 'questionCount': base.get('questionCount', 3), 'images': base.get('images', True)}
+        options = {'enabled': bool(slide.get('assessmentRequest')), 'questionCount': base.get('questionCount', 3), 'images': base.get('images', True), **({'adaptiveMode':True} if base.get('adaptiveMode') is True else {})}
+    elif 'adaptiveMode' not in options and base.get('adaptiveMode') is True:
+        options = {**options,'adaptiveMode':True}
     if type(options.get('enabled')) is not bool or type(options.get('images', True)) is not bool:
         raise ValueError('Escolha se a avaliação e as imagens estão habilitadas.')
     if 'adaptiveMode' in options and type(options['adaptiveMode']) is not bool:
@@ -54,7 +60,7 @@ async def generate_assessment(source, context, ask, options=None):
     options = options or media_options(source, {})
     request = {**source, 'guidedRequest': 'assessment', 'guidedUnitId': 'assessment_unit'}
     path = {'units': [{'id': 'assessment_unit', 'title': source.get('moduleName') or source['title']}],
-            'questionsPerUnit': options['questionCount'], 'assessmentImages': options['images']}
+            'questionsPerUnit': options['questionCount'], 'assessmentImages': options['images'], 'adaptiveMode':options.get('adaptiveMode') is True}
     spec = await generate_activity(request, path, context, ask)
     spec['imagesEnabled'] = options['images']
     spec['adaptiveMode'] = options.get('adaptiveMode') is True

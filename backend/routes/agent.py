@@ -119,6 +119,7 @@ class AgentConfigUpdate(BaseModel):
     guidedConfirmReading: bool = True
     assessmentQuestionCount: int = Field(default=3, ge=1, le=10)
     assessmentImages: bool = True
+    adaptiveAssessments: bool = Field(default=False, strict=True)
     format: Optional[str] = "curso_completo"
     description: Optional[str] = None
     astryxAppearance: AstryxAppearance = Field(default_factory=AstryxAppearance)

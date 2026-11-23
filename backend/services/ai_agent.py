@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
+from services.adaptive_assessment import generation_instructions, validate_generated_levels, difficulty
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 
 logger = logging.getLogger(__name__)
@@ -1040,6 +1041,8 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
             for key in ('guidedStage','guidedUnitId'):
                 if key in source:item[key]=source[key]
         for item in completed:
+            if config.get('adaptiveAssessments') is True:
+                item['adaptiveMode']=True
             _normalize_interactive_storyboard_slide(item)
             _normalize_visual_content_slide(item)
         if checkpoint_store:
@@ -1055,7 +1058,17 @@ async def generate_storyboard(session_id: str, content_text: str, structure: dic
             cached_batch = await checkpoint_store.load(batch_num, batch)
             if cached_batch is not None:
                 try:
-                    for cached_slide in cached_batch:validate_lesson(cached_slide)
+                    for cached_slide in cached_batch:
+                        validate_lesson(cached_slide)
+                        if config.get('adaptiveAssessments') is True:
+                            if cached_slide.get('type')=='quiz':
+                                validate_generated_levels(cached_slide.get('quizQuestions',[]),True)
+                            for key in ('assessmentActivity','guidedActivity'):
+                                spec=cached_slide.get(key) or {}
+                                if spec.get('questions'):
+                                    validate_generated_levels(spec['questions'],True)
+                                    if spec.get('adaptiveMode') is not True:
+                                        raise ValueError('Retomar a configuração adaptativa do recurso.')
                 except ValueError:
                     cached_batch=None  # Regenerate only this incomplete batch.
                 if cached_batch is not None:
@@ -1253,6 +1266,7 @@ SLIDES DE TÍTULO (type="title"):
 - Adicione <p> com descrição do que será abordado no módulo (2-3 frases)
 
 SLIDES DE QUIZ (type="quiz"):
+{generation_instructions(config.get('adaptiveAssessments') is True)}
 - OBRIGATÓRIO: inclua exatamente 3 perguntas no campo "quizQuestions"
 - Cada pergunta DEVE ter: "text" (pergunta clara), "type": "multiple_choice", "alternatives" (4 opções, exatamente 1 com "isCorrect":true), "explanation" (explicação detalhada de por que a resposta está correta)
 - Não escreva letras A), B), C) ou D) no texto das opções, nem cite letras no feedback: o player embaralha as alternativas e acrescenta os rótulos. Explique pelo conteúdo da resposta. Não use títulos provisórios como "Subtítulo da Seção". Imagens em recursos devem usar somente URLs/arquivos reais fornecidos no contexto, nunca image1.jpg ou endereços inventados.
@@ -1574,6 +1588,8 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
                     for slide_data in data["slides"]:
                         _normalize_interactive_storyboard_slide(slide_data)
                         _normalize_visual_content_slide(slide_data)
+                        if slide_data.get('type') == 'quiz':
+                            validate_generated_levels(slide_data.get('quizQuestions',[]),config.get('adaptiveAssessments') is True)
                     all_slides.extend(data["slides"])
                     batch_success = True
                     if retries > 0:
@@ -1598,6 +1614,8 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
 
         # If batch failed, use fallback content
         if not batch_success:
+            if config.get('adaptiveAssessments') is True and any(s.get('type')=='quiz' for s in batch):
+                raise StoryboardActivityError('avaliação adaptativa',batch[0].get('title'),ValueError('Não foram geradas questões válidas nos três níveis. '+last_batch_error+' Os lotes válidos foram preservados; revise e retome.'))
             if 'CONTEUDO_DIDATICO_AUSENTE' in last_batch_error:
                 raise StoryboardActivityError('conteúdo',batch[0].get('title'),ValueError(last_batch_error))
             if any(sl.get('sourceRequired') for sl in batch):
@@ -1699,8 +1717,12 @@ licoes aprendidas. A interacao deve funcionar em JavaScript sem bibliotecas exte
         await save_batch(batch_num, batch, saved_start)
 
     for slide in all_slides:
+        if config.get('adaptiveAssessments') is True:
+            slide['adaptiveMode']=True
         _normalize_interactive_storyboard_slide(slide)
         _normalize_visual_content_slide(slide)
+        if slide.get('type')=='quiz':
+            validate_generated_levels(slide.get('quizQuestions',[]),config.get('adaptiveAssessments') is True)
     return {
         "slides": all_slides,
         **({'sourceCoverage': dict(structure['sourceCoverage'], status='generated')} if structure.get('sourceCoverage') else {}),
@@ -2187,7 +2209,7 @@ def _build_content_slide(sb_slide: dict, palette: dict, module_name: str, image_
     return elements
 
 
-def _build_quiz_slide(sb_slide: dict, palette: dict, module_name: str, question_ids: list) -> dict:
+def _build_quiz_slide(sb_slide: dict, palette: dict, module_name: str, question_ids: list, adaptive=False) -> dict:
     """Build a quiz slide with actual Scormfy quiz element + visual header."""
     from models import generate_id
     accent = palette["accent"]
@@ -2228,6 +2250,7 @@ def _build_quiz_slide(sb_slide: dict, palette: dict, module_name: str, question_
             "showExplanation": True,
             "passingScore": 60.0,
             "maxAttempts": 0,
+            "adaptiveMode": adaptive is True,
         }
         elements.append({
             "id": generate_id(), "type": "quiz", "x": 260, "y": 280, "width": 1400, "height": 500,
@@ -3909,6 +3932,8 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
         palette = _palette_for_slide(base_palette, slide_custom_bg, bool(global_text_color))
 
         # Process quiz questions FIRST (before building slide elements)
+        if stype == 'quiz':
+            validate_generated_levels(sb_slide.get('quizQuestions',[]),config.get('adaptiveAssessments') is True)
         slide_question_ids = []
         if stype == "quiz" and not (media_config.get(str(i), {}).get('interactiveAssessment') or {}).get('enabled'):
             for q in sb_slide.get("quizQuestions", []):
@@ -3920,6 +3945,9 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
                     "text": q.get("text", ""),
                     "alternatives": alts,
                     "explanation": q.get("explanation", ""),
+                    "difficulty": difficulty(q.get('difficulty')),
+                    "learningObjective": q.get('learningObjective',''),
+                    "reinforcement": q.get('reinforcement',''),
                     "points": 1.0,
                     "tags": [module_name] if module_name else [],
                 })
@@ -3946,7 +3974,7 @@ async def generate_course_from_storyboard(session_id: str, storyboard: dict, con
             slide_elements = _build_title_slide(sb_slide, palette, config.get("title", ""), module_names, cover_image)
         elif stype == "quiz":
             bg = palette.get("coverBg", palette["primary"])
-            slide_elements = _build_quiz_slide(sb_slide, palette, module_name, slide_question_ids)
+            slide_elements = _build_quiz_slide(sb_slide, palette, module_name, slide_question_ids, config.get('adaptiveAssessments') is True)
         elif stype == "scenario":
             bg = palette.get("coverBg", palette["primary"])
             # Generate scenario via AI - extract config from storyboard

@@ -1,9 +1,10 @@
 import React from 'react';
 
 export function assessmentMediaSettings(slide, media = {}, defaultImages = true) {
-  const planned = slide.assessmentRequest || (slide.guidedActivity?.questions ? {questionCount:slide.guidedActivity.questions.length,images:defaultImages} : null);
-  return media.interactiveAssessment || {enabled: !!planned,
-    questionCount: planned?.questionCount || 3, images: planned?.images !== false};
+  const planned = slide.assessmentRequest || (slide.guidedActivity?.questions ? {questionCount:slide.guidedActivity.questions.length,images:defaultImages,adaptiveMode:slide.guidedActivity.adaptiveMode} : null);
+  const inherited=planned?.adaptiveMode===true || slide.adaptiveMode===true;
+  return media.interactiveAssessment ? {...(inherited?{adaptiveMode:true}:{}),...media.interactiveAssessment} : {enabled: !!planned,
+    questionCount: planned?.questionCount || 3, images: planned?.images !== false, ...(inherited?{adaptiveMode:true}:{})};
 }
 
 export function assessmentMediaSummary(storyboard, mediaConfig) {

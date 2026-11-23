@@ -120,6 +120,7 @@ export default function Agent() {
     title: '', depth: 'intermediario', duration: 30, modules: 3,
     interactivity: 'media', visualStyle: 'moderno e profissional',
     visualCourseMode: 'standard',
+    adaptiveAssessments: false,
     guidedQuestionsPerUnit: 3, guidedFinalQuestionCount: 12,
     guidedUnitPassingScore: 100, guidedPassingScore: 80,
     guidedAssessmentImages: true, guidedProjectRequired: true, guidedConfirmReading: true,

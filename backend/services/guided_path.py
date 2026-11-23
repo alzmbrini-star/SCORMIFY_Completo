@@ -24,10 +24,11 @@ def settings(config):
         return value
     return {'version': 1, 'unitPassingScore': number('guidedUnitPassingScore', 100, 0, 100),
             'passingScore': number('guidedPassingScore', 80, 0, 100),
-            'questionsPerUnit': number('guidedQuestionsPerUnit', 3, 1, 10),
+            'questionsPerUnit': number('guidedQuestionsPerUnit', 3, 3 if config.get('adaptiveAssessments') is True else 1, 10),
             'finalQuestionCount': number('guidedFinalQuestionCount', 12, 3, 100),
             'projectRequired': config.get('guidedProjectRequired', True) is not False,
             'assessmentImages': config.get('guidedAssessmentImages', True) is not False,
+            'adaptiveMode': config.get('adaptiveAssessments') is True,
             'confirmReading': config.get('guidedConfirmReading', True) is not False}
 
 
@@ -117,6 +118,8 @@ def validate_activity(raw, request, path):
         questions=raw.get('questions')
         count=path['finalQuestionCount'] if kind=='final' else path['questionsPerUnit']
         if not isinstance(questions,list) or len(questions)!=count: raise ValueError(f'A avaliação requer {count} questões contextualizadas.')
+        from services.adaptive_assessment import validate_generated_levels
+        validate_generated_levels(questions,path.get('adaptiveMode') is True)
         result=[]
         for i,q in enumerate(questions):
             if not isinstance(q,dict): raise ValueError('Questão inválida.')
@@ -132,7 +135,10 @@ def validate_activity(raw, request, path):
                 'points':1,'media':None,'options':[{'id':'op_'+str(j),'text':text(v,600),'isCorrect':j==correct} for j,v in enumerate(options)],
                 'imageGenerationStatus':'pending' if path['assessmentImages'] else 'disabled'})
         if kind=='final' and {q['unitId'] for q in result}!=unit_ids: raise ValueError('A avaliação final deve contemplar todas as unidades.')
+        from services.adaptive_assessment import validate_generated_levels
+        validate_generated_levels(result,path.get('adaptiveMode') is True)
         out['questions']=result
+        out['adaptiveMode']=path.get('adaptiveMode') is True
     elif kind=='project':
         deliveries=raw.get('deliverables')
         if not isinstance(deliveries,list) or not 1<=len(deliveries)<=12: raise ValueError('O projeto precisa de uma a doze entregas.')
@@ -204,6 +210,9 @@ Use exemplos e casos fictícios ligados à fonte. Não invente regras do produto
 Não retorne HTML, JavaScript, fórmulas executáveis ou URLs. As imagens das avaliações serão produzidas separadamente.
 As avaliações usarão o player de Avaliações interativas, não Quiz tradicional. O mesmo caso aplicado deve conectar o módulo ao projeto.
 '''
+    from services.adaptive_assessment import generation_instructions
+    if request['guidedRequest'] in ('assessment','final'):
+        prompt += '\n'+generation_instructions(path.get('adaptiveMode') is True)
     error='';previous=None
     for attempt in range(2):
         try:
@@ -221,6 +230,7 @@ def activity_element(spec, width=1920, height=820):
         from services.assessment_renderer import assessment_element
         element=assessment_element(spec['questions'],spec['title'],False,width,height)
         element['assessmentConfig'].update(guidedPath=True,guidedActivityId=spec['id'])
+        element['assessmentConfig']['adaptiveMode']=spec.get('adaptiveMode') is True
         from services.assessment_renderer import refresh_assessment_documents
         refresh_assessment_documents({'course':{'slides':[{'elements':[element]}]}})
         element['id']=spec['id']

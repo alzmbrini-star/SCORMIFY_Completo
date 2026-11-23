@@ -572,6 +572,7 @@ export default function StoryboardPanel({ storyboard, loading, onApprove, onSubm
                 {slide.quizQuestions.map((q, qi) => (
                   <div key={q.id || `q-${qi}`} className="mb-2">
                     <p className="text-sm font-medium text-slate-200">{qi + 1}. {q.text}</p>
+                    {slide.adaptiveMode && <p className="text-xs text-cyan-200">Adaptativa · nível {q.difficulty}/3 · {q.learningObjective}<br/>Reforço: {q.reinforcement}</p>}
                     <div className="ml-4 mt-1 space-y-1">
                       {q.alternatives?.map((a, ai) => (
                         <p key={a.id || `a-${qi}-${ai}`} className={`text-xs ${a.isCorrect ? 'text-emerald-400' : 'text-slate-400'}`}>

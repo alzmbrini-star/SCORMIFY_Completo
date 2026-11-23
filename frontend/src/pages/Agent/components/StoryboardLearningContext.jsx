@@ -1,5 +1,10 @@
 import React from 'react';
 
+function AdaptiveLevels({activity}) {
+  if(!activity?.adaptiveMode) return null;
+  return <details className="mt-2 text-cyan-200"><summary>Avaliação adaptativa — revisar níveis e reforços</summary>{activity.questions.map(q=><p key={q.id} className="mt-2">{q.title} · nível {q.difficulty}/3 · {q.learningObjective}<br/>Reforço: {q.reinforcement}</p>)}</details>;
+}
+
 export default function StoryboardLearningContext({slide}) {
   if(slide.simulatorVisual) {
     const visual=slide.simulatorVisual;
@@ -13,12 +18,14 @@ export default function StoryboardLearningContext({slide}) {
   }
   if(slide.assessmentActivity) return <aside className="rounded-lg border border-teal-500/40 bg-teal-950/40 p-3 text-sm text-teal-100" data-testid="assessment-storyboard-resource">
     <strong>Avaliação interativa · {slide.assessmentActivity.questions.length} questões</strong>
+    <AdaptiveLevels activity={slide.assessmentActivity}/>
     <p>Mesmo player das Avaliações interativas do Editor. As imagens serão geradas com o curso, se habilitadas em Mídia, e salvas no material de apoio e na biblioteca.</p>
     <details><summary>Revisar questões, gabarito e feedback</summary>{slide.assessmentActivity.questions.map(q=><div key={q.id} className="mt-3 border-t border-teal-700 pt-2"><p>{q.prompt}</p><ul>{q.options.map(o=><li key={o.id}>{o.text}{o.isCorrect ? ' — correta' : ''}</li>)}</ul><p>{q.explanation}</p></div>)}</details>
   </aside>;
   if(slide.guidedActivity) return <aside className="rounded-lg border border-teal-500/40 bg-teal-950/40 p-3 text-sm text-teal-100" data-testid="guided-storyboard-resource">
     <strong>{{practice:'Prática orientada com cartões de revisão',assessment:'Avaliação interativa da unidade',final:'Avaliação interativa final',project:'Projeto integrador com autoverificação'}[slide.guidedActivity.kind]}</strong>
     <p>{slide.guidedActivity.instructions}</p>
+    <AdaptiveLevels activity={slide.guidedActivity}/>
     {slide.guidedActivity.questions && <p>{slide.guidedActivity.questions.length} questões no mesmo player de Avaliações interativas do Editor. Imagens de apoio serão geradas na etapa Gerar curso, se habilitadas, consumindo créditos e ficando disponíveis na biblioteca.</p>}
     {slide.guidedActivity.deliverables && <p>{slide.guidedActivity.deliverables.length} entregas com critérios de revisão. Os textos não são avaliados automaticamente nem enviados ao instrutor pelo LMS.</p>}
   </aside>;

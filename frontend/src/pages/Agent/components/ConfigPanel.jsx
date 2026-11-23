@@ -260,7 +260,7 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
             <p className="text-sm text-slate-300">Preserva as explicações e as imagens originais. Acrescenta práticas com cartões de revisão, Avaliações interativas por unidade, projeto integrador e Avaliação interativa final — sem o Quiz tradicional.</p>
             <div className="grid gap-3 sm:grid-cols-2">
               {[
-                ['guidedQuestionsPerUnit','Questões por unidade',3,1,10],
+                ['guidedQuestionsPerUnit','Questões por unidade',3,config.adaptiveAssessments?3:1,10],
                 ['guidedFinalQuestionCount','Questões na avaliação final',12,3,100],
                 ['guidedUnitPassingScore','Nota mínima da unidade (%)',100,0,100],
                 ['guidedPassingScore','Nota mínima final (%)',80,0,100],
@@ -381,10 +381,14 @@ export default function ConfigPanel({ config, setConfig, analysis, loading, onGe
               </div>
             </div>
 
+            <label className="flex items-start gap-3 rounded-lg border border-cyan-500/40 bg-cyan-950/30 p-3 text-sm" data-testid="agent-adaptive-assessments">
+              <input type="checkbox" aria-label="Avaliações adaptativas nos novos recursos" checked={config.adaptiveAssessments === true} onChange={e=>{const checked=e.target.checked;setConfig(previous=>({...previous,adaptiveAssessments:checked,...(checked?{assessmentQuestionCount:Math.max(3,previous.assessmentQuestionCount||3),guidedQuestionsPerUnit:Math.max(3,previous.guidedQuestionsPerUnit||3)}:{})}));}} className="mt-1"/>
+              <span><strong className="block text-cyan-200">Avaliações adaptativas</strong>Aplicar aos novos Quizzes tradicionais e às avaliações com imagens habilitados: questões fáceis, intermediárias e avançadas, com reforço após erros. Mínimo de 3 questões por avaliação. Revise no Storyboard; a escolha acompanha a fase Mídia e o Editor. Não converte formatos nem altera cursos existentes. A geração usa os créditos habituais; responder não consome IA.</span>
+            </label>
             {/* Distribution Preview */}
             {config.enabledResources?.interactive_assessment && config.visualCourseMode !== 'guided_practice_project' && <div className="rounded-lg border border-teal-500/40 bg-teal-950/30 p-3 space-y-3" data-testid="assessment-resource-options">
               <p className="text-sm text-teal-100">Uma Avaliação interativa por módulo, além do conteúdo e das capturas originais. Os Quizzes continuam independentes.</p>
-              <label className="block text-sm">Questões por avaliação<Input type="number" min={1} max={10} value={config.assessmentQuestionCount ?? 3} onChange={e=>update('assessmentQuestionCount',Number(e.target.value))}/></label>
+              <label className="block text-sm">Questões por avaliação<Input type="number" min={config.adaptiveAssessments?3:1} max={10} value={config.assessmentQuestionCount ?? 3} onChange={e=>update('assessmentQuestionCount',Number(e.target.value))}/></label>
               <label className="flex gap-2 items-center text-sm"><input type="checkbox" checked={config.assessmentImages !== false} onChange={e=>update('assessmentImages',e.target.checked)}/>Gerar imagem IA para cada questão e salvar na biblioteca</label>
               <p className="text-xs text-amber-200">Questões e imagens usam créditos de IA. Revise no Storyboard; ajuste por tela em Mídia. As imagens ficam no material de apoio e na Biblioteca de Imagens; as questões ficam no Banco do projeto.</p>
             </div>}

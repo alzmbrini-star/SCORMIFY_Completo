@@ -4,6 +4,14 @@ import {createRoot} from 'react-dom/client';
 import {act} from 'react';
 import MediaAssessmentOptions,{assessmentMediaSettings,assessmentMediaSummary} from './MediaAssessmentOptions';
 
+test('initial adaptive choice flows to Media without converting traditional quiz and explicit override wins',()=>{
+ expect(assessmentMediaSettings({type:'quiz',adaptiveMode:true},{})).toMatchObject({enabled:false,adaptiveMode:true});
+ const planned={assessmentRequest:{questionCount:3,images:true,adaptiveMode:true}};
+ expect(assessmentMediaSettings(planned,{})).toMatchObject({enabled:true,adaptiveMode:true});
+ expect(assessmentMediaSettings(planned,{interactiveAssessment:{enabled:true,adaptiveMode:false}}).adaptiveMode).toBe(false);
+ expect(assessmentMediaSettings({guidedActivity:{questions:[{},{},{}],adaptiveMode:true}},{}).adaptiveMode).toBe(true);
+});
+
 test('options preserve separate slide media and default to explicit opt-in',()=>{
  expect(assessmentMediaSettings({type:'content'},{type:'heygen'}).enabled).toBe(false);
  const media={type:'youtube',url:'https://example.test/video',interactiveAssessment:{enabled:true,questionCount:4,images:false}};
