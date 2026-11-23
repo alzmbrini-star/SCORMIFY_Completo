@@ -28,6 +28,7 @@ export default function MediaAssessmentOptions({slide, media, onChange, defaultI
     {(guided || settings.enabled) && <>
       {!guided && <label className="block text-sm">Quantidade de questões<input aria-label="Quantidade de questões da avaliação" type="number" min="1" max="10" value={settings.questionCount} onChange={e=>update({questionCount:Number(e.target.value)})} className="ml-3 w-20 rounded border border-slate-600 bg-slate-900 p-1"/></label>}
       <label className="flex gap-2 items-center text-sm"><input type="checkbox" checked={settings.images} onChange={e=>update({images:e.target.checked})}/>Gerar imagem IA para cada questão</label>
+      <label className="flex gap-2 items-center text-sm"><input type="checkbox" checked={settings.adaptiveMode===true} onChange={e=>update({adaptiveMode:e.target.checked})}/>Avaliação adaptativa: ajustar dificuldade e oferecer reforço após erros</label>
       <p className="text-xs text-amber-200">Usa créditos na geração do curso, não ao marcar esta opção. Imagens no material de apoio e na biblioteca; questões no Banco. Falhas de imagem não apagam as questões. Conteúdo e capturas originais são preservados.</p>
       {!slide.assessmentRequest && !guided && <p className="text-xs text-slate-300">As questões serão geradas com base no conteúdo desta tela ao confirmar Mídia. Revise a avaliação no Editor antes de distribuir.</p>}
     </>}

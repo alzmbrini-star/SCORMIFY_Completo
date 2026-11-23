@@ -3354,6 +3354,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     if (!container) return;
                     
                     var config = JSON.parse(container.dataset.quizConfig || '{{}}');
+                    container.dataset.adaptiveActive=config.adaptiveMode===true?'true':'false';
                     var questionIds = config.questionIds || [];
                     var quizQuestions = questionIds.map(function(id) {{ return questions[id]; }}).filter(Boolean);
                     
@@ -3368,6 +3369,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     
                     var count = Math.min(config.questionCount || quizQuestions.length, quizQuestions.length);
                     quizQuestions = quizQuestions.slice(0, count);
+                    if(config.adaptiveMode===true && window.ScormifyAdaptive)quizQuestions=window.ScormifyAdaptive.start(quizQuestions);
                     
                     if (config.shuffleAlternatives !== false) {{
                         quizQuestions = quizQuestions.map(function(q) {{
@@ -3504,6 +3506,10 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     
                     html += '</div></div>';
                     container.innerHTML = html;
+                    if(quiz.config.adaptiveMode===true && quiz.showingFeedback && !quiz.answers[quiz.currentIndex].isCorrect && window.ScormifyAdaptive){{
+                        var reinforcement=document.createElement('p');reinforcement.setAttribute('role','status');reinforcement.textContent='Reforço: '+window.ScormifyAdaptive.reinforce(question);
+                        (container.querySelector('.quiz-scroll')||container).appendChild(reinforcement);
+                    }}
                 }},
                 
                 selectAnswer: function(elementId, altId) {{
@@ -3515,7 +3521,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 
                 confirmAnswer: function(elementId) {{
                     var quiz = quizzes[elementId];
-                    if (!quiz || !quiz.selectedAnswer) return;
+                    if (!quiz || !quiz.selectedAnswer || quiz.showingFeedback) return;
                     
                     var question = quiz.questions[quiz.currentIndex];
                     var selectedAlt = question.alternatives.find(function(a) {{ return a.id === quiz.selectedAnswer; }});
@@ -3526,7 +3532,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         isCorrect: selectedAlt && selectedAlt.isCorrect
                     }});
                     
-                    if (quiz.config.showFeedback !== false) {{
+                    if (quiz.config.showFeedback !== false || quiz.config.adaptiveMode===true) {{
                         quiz.showingFeedback = true;
                         this.renderQuestion(elementId);
                     }} else {{
@@ -3537,6 +3543,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 nextQuestion: function(elementId) {{
                     var quiz = quizzes[elementId];
                     if (!quiz) return;
+                    if(quiz.config.adaptiveMode===true && window.ScormifyAdaptive)quiz.questions=window.ScormifyAdaptive.next(quiz.questions,quiz.currentIndex,!!quiz.answers[quiz.currentIndex].isCorrect);
                     
                     quiz.showingFeedback = false;
                     quiz.selectedAnswer = null;
@@ -3551,7 +3558,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                 
                 prevQuestion: function(elementId) {{
                     var quiz = quizzes[elementId];
-                    if (!quiz || quiz.currentIndex === 0 || quiz.showingFeedback) return;
+                    if (!quiz || quiz.currentIndex === 0 || quiz.showingFeedback || quiz.config.adaptiveMode===true) return;
                     
                     quiz.currentIndex--;
                     quiz.selectedAnswer = quiz.answers[quiz.currentIndex] ? quiz.answers[quiz.currentIndex].selectedAlternativeId : null;
@@ -3836,6 +3843,8 @@ html,body{{background:{canvas}}}
     html = install_portrait_view(html)
     from services.astryx_export import install_astryx_host
     html = install_astryx_host(html, course_data.get('_astryxResponsive') is True, course_data.get('_astryxAgent') is True)
+    from services.adaptive_assessment import install_adaptive_engine
+    html = install_adaptive_engine(html)
     if gamification_config and gamification_config.get('enabled'):
         engine = (Path(__file__).parent / 'export_assets' / 'gamification.js').read_text(encoding='utf-8')
         config_json = json.dumps(gamification_config, ensure_ascii=False).replace('<', '\\u003c')

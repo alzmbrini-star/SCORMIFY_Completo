@@ -27,6 +27,7 @@ RUN pip install --no-cache-dir -r requirements-production.txt
 
 COPY backend/ .
 COPY frontend/src/components/games/ /app/game_templates/
+COPY frontend/src/utils/adaptiveAssessment.js /app/game_templates/adaptiveAssessment.js
 COPY marketing/ /app/marketing/
 
 RUN mkdir -p \

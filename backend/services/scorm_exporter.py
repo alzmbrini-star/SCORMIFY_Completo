@@ -270,6 +270,8 @@ html, body {{ background: {canvas}; }}
 
     from services.export_navigation import install_navigation_window
     from services.portrait_view import install_portrait_view
+    from services.adaptive_assessment import install_adaptive_engine
+    html = install_adaptive_engine(html)
     return install_portrait_view(install_navigation_window(html))
 
 IMS_MANIFEST_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8"?>

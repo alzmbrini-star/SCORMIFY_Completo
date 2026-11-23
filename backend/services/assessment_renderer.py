@@ -35,6 +35,8 @@ def refresh_assessment_documents(project):
             document = template.replace('__ASSESSMENT_DATA__', json.dumps(config, ensure_ascii=False).replace('<', '\\u003c'))
             from services.interactive_images import prepare_interactive_images
             document = prepare_interactive_images(document)
+            from services.adaptive_assessment import install_adaptive_engine
+            document = install_adaptive_engine(document)
             element['htmlContent'] = apply_editorial_text_colors(document, config.get('textColors'))
     return project
 
@@ -46,6 +48,8 @@ def assessment_element(questions, title='Avaliação', allow_skip=True, width=96
     document = template.replace('__ASSESSMENT_DATA__', json.dumps(config, ensure_ascii=False).replace('<', '\\u003c'))
     from services.interactive_images import prepare_interactive_images
     document = prepare_interactive_images(document)
+    from services.adaptive_assessment import install_adaptive_engine
+    document = install_adaptive_engine(document)
     return {'id': str(uuid.uuid4()), 'type': 'html', 'x': 0, 'y': 0, 'width': width, 'height': height,
             'htmlContent': document, 'htmlDisplayMode': 'fit', 'objectFit': 'cover', 'startTime': 0,
             'assessmentConfig': config}

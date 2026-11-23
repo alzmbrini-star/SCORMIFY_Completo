@@ -63,6 +63,7 @@ export function ElementProperties({ element, onUpdate, slideWidth = 960, slideHe
 
   return (
     <div className="p-4 space-y-4">
+      {(element.type==='quiz'||element.assessmentConfig) && <label className="panel-section flex items-start gap-2 text-sm"><input type="checkbox" aria-label="Avaliação adaptativa" checked={(element.type==='quiz'?element.quizConfig:element.assessmentConfig)?.adaptiveMode===true} onChange={e=>{const key=element.type==='quiz'?'quizConfig':'assessmentConfig';onUpdate({[key]:{...element[key],adaptiveMode:e.target.checked}});}}/><span>Avaliação adaptativa: dificuldade e reforço conforme as respostas. Desativada por padrão; não altera as perguntas. Requer níveis variados no banco para variar a dificuldade.</span></label>}
       <div className="panel-section">
         <h4 className="text-sm font-medium mb-3">Position & Size</h4>
         <div className="grid grid-cols-2 gap-2">

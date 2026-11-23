@@ -75,6 +75,7 @@ export default function QuizGenerator({
   // Manual question creation state
   const [showManualDialog, setShowManualDialog] = useState(false);
   const [manualQuestion, setManualQuestion] = useState({
+    difficulty:2,
     type: 'multiple_choice',
     text: '',
     alternatives: [
@@ -247,6 +248,8 @@ export default function QuizGenerator({
         text: manualQuestion.text,
         alternatives: validAlts,
         explanation: manualQuestion.explanation,
+        difficulty: manualQuestion.difficulty || 2,
+        learningObjective: manualQuestion.learningObjective || '',
         tags: ['manual'],
       }, {
         headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -620,6 +623,7 @@ export default function QuizGenerator({
 
                 <div className="space-y-3">
                   <Label>Opções</Label>
+                  <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={quizConfig.adaptiveMode===true} onChange={e=>setQuizConfig(prev=>({...prev,adaptiveMode:e.target.checked}))}/><span>Avaliação adaptativa: dificuldade conforme as respostas e reforço após erros. Desativada por padrão. Selecione questões de níveis diferentes; todas as questões previstas serão mantidas.</span></label>
                   
                   <div className="flex items-center gap-2">
                     <Checkbox
@@ -833,7 +837,10 @@ export default function QuizGenerator({
             </div>
 
             <div className="space-y-2">
-              <Label>Explicação (opcional)</Label>
+              <Label>Dificuldade</Label>
+              <select aria-label="Dificuldade da questão tradicional" value={manualQuestion.difficulty||2} onChange={e=>setManualQuestion(prev=>({...prev,difficulty:Number(e.target.value)}))}><option value="1">Fácil</option><option value="2">Intermediária</option><option value="3">Avançada</option></select>
+              <Label>Conceito avaliado (opcional)</Label><Input value={manualQuestion.learningObjective||''} onChange={e=>setManualQuestion(prev=>({...prev,learningObjective:e.target.value}))}/>
+              <Label>Explicação / reforço após erro (opcional)</Label>
               <Textarea
                 value={manualQuestion.explanation}
                 onChange={(e) => setManualQuestion(prev => ({ ...prev, explanation: e.target.value }))}

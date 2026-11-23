@@ -557,6 +557,42 @@
       body.innerHTML = html;
       var submit = body.querySelector('.sp-quiz-submit');
       var result = body.querySelector('.sp-quiz-result');
+      if(qs.length && quizEl.dataset.adaptive==='true' && window.ScormifyAdaptive){
+        var engine=window.ScormifyAdaptive,position=0,correctCount=0,feedback=false;
+        var order=engine.start(qs.map(function(q,i){return Object.assign({},q,{adaptiveIndex:i});}));
+        function showAdaptive(){
+          body.querySelectorAll('.sp-quiz-question').forEach(function(n){n.hidden=true;});
+          var current=order[position];
+          body.querySelector('[data-q-idx="'+current.adaptiveIndex+'"]').hidden=false;
+          submit.textContent='Confirmar resposta';
+          result.textContent='Modo adaptativo · questão '+(position+1)+' de '+order.length+' · nível '+engine.level(current)+'/3';
+        }
+        submit.addEventListener('click',function(){
+          if(submit.disabled)return;
+          if(feedback){
+            if(position<order.length-1){position++;feedback=false;showAdaptive();return;}
+            var pct=Math.round(100*correctCount/(order.length||1));
+            state.quizScores[quizEl.dataset.interactiveId]={correct:correctCount,total:order.length,pct:pct};
+            result.textContent='Você acertou '+correctCount+' de '+order.length+' ('+pct+'%).';
+            SP.markClicked(quizEl);scormUpdateScore();scormSaveState();
+            if(window.Gamification)Gamification.onQuizComplete(pct,order.length,correctCount);
+            submit.disabled=true;return;
+          }
+          var q=order[position],qi=q.adaptiveIndex;
+          var fieldset=body.querySelector('[data-q-idx="'+qi+'"]');
+          var input=fieldset.querySelector('input:checked');
+          if(!input){result.textContent='Selecione uma resposta antes de confirmar.';return;}
+          var picked=Number(input.value),ok=!!(q.options[picked]&&q.options[picked].correct);
+          fieldset.querySelectorAll('input').forEach(function(n){n.disabled=true;});
+          if(ok)correctCount++;
+          scormReportQuiz(quizEl.dataset.interactiveId,String(picked),ok,qi,String(q.text||'').slice(0,250));
+          result.textContent=ok?'Resposta correta. '+(q.explanation||''):'Reforço: '+engine.reinforce(q);
+          result.setAttribute('role','status');
+          order=engine.next(order,position,ok);feedback=true;
+          submit.textContent=position<order.length-1?'Continuar':'Ver resultado';
+        });
+        showAdaptive();return;
+      }
       submit.addEventListener('click', function(){
         var correct = 0;
         qs.forEach(function(q, qi){

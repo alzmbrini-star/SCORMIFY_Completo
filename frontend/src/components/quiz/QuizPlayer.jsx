@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
+import {createAdaptiveEngine} from '../../utils/adaptiveAssessment';
+const adaptiveEngine=createAdaptiveEngine();
 import {
   Check,
   X,
@@ -40,6 +42,11 @@ export default function QuizPlayer({
   const [answers, setAnswers] = useState([]);
   const [isComplete, setIsComplete] = useState(false);
   const [results, setResults] = useState(null);
+  const [adaptiveQuestions,setAdaptiveQuestions]=useState(null);
+  useEffect(()=>{
+    setAdaptiveQuestions(null);setCurrentIndex(0);setSelectedAnswer(null);setShowFeedback(false);
+    setAnswers([]);setIsComplete(false);setResults(null);
+  },[quizConfig?.adaptiveMode]);
 
   // Prepare questions (shuffle if configured)
   const preparedQuestions = useMemo(() => {
@@ -65,8 +72,10 @@ export default function QuizPlayer({
     return questionsToUse;
   }, [questions, quizConfig]);
 
-  const currentQuestion = preparedQuestions[currentIndex];
-  const totalQuestions = preparedQuestions.length;
+  const adaptive=quizConfig?.adaptiveMode===true;
+  const activeQuestions=adaptive ? (adaptiveQuestions||adaptiveEngine.start(preparedQuestions)) : preparedQuestions;
+  const currentQuestion = activeQuestions[currentIndex];
+  const totalQuestions = activeQuestions.length;
 
   const handleSelectAnswer = (alternativeId) => {
     if (showFeedback) return;
@@ -74,7 +83,7 @@ export default function QuizPlayer({
   };
 
   const handleConfirmAnswer = () => {
-    if (!selectedAnswer || !currentQuestion) return;
+    if (!selectedAnswer || !currentQuestion || showFeedback) return;
 
     const selectedAlt = currentQuestion.alternatives?.find(a => a.id === selectedAnswer);
     const isCorrect = selectedAlt?.isCorrect || false;
@@ -87,7 +96,7 @@ export default function QuizPlayer({
 
     setAnswers(prev => [...prev.filter(answer => answer.questionId !== answerRecord.questionId), answerRecord]);
 
-    if (quizConfig?.showFeedback) {
+    if (quizConfig?.showFeedback || adaptive) {
       setShowFeedback(true);
     } else {
       // Auto-advance to next question
@@ -96,6 +105,7 @@ export default function QuizPlayer({
   };
 
   const moveToNext = () => {
+    if(adaptive)setAdaptiveQuestions(adaptiveEngine.next(activeQuestions,currentIndex,!!currentQuestion.alternatives?.find(a=>a.id===selectedAnswer)?.isCorrect));
     setShowFeedback(false);
     setSelectedAnswer(null);
 
@@ -144,6 +154,7 @@ export default function QuizPlayer({
   }, [answers, selectedAnswer, currentQuestion, quizConfig, onComplete]);
 
   const handleRestart = () => {
+    setAdaptiveQuestions(null);
     setCurrentIndex(0);
     setSelectedAnswer(null);
     setShowFeedback(false);
@@ -293,6 +304,7 @@ export default function QuizPlayer({
           style={{ fontSize: `${(quizConfig?.fontSize || 16) * 1.125}px` }}
         >
           {currentQuestion.text}
+          {adaptive && <small className="block text-xs mt-2">Modo adaptativo · nível {adaptiveEngine.level(currentQuestion)}/3</small>}
         </h3>
 
         {/* Alternatives */}
@@ -365,6 +377,7 @@ export default function QuizPlayer({
                 {selectedAlt?.isCorrect ? 'Correto!' : 'Incorreto'}
               </span>
             </div>
+            {adaptive && !selectedAlt?.isCorrect && <p role="status" className="text-sm">Reforço: {adaptiveEngine.reinforce(currentQuestion)}</p>}
             {currentQuestion.explanation && (
               <p className={`text-sm ${mutedColor}`}>{quizExplanationText(currentQuestion.explanation)}</p>
             )}
@@ -383,7 +396,7 @@ export default function QuizPlayer({
           <Button
             variant="ghost"
             size="sm"
-            disabled={currentIndex === 0 || showFeedback}
+            disabled={currentIndex === 0 || showFeedback || adaptive}
             onClick={() => {
               if (currentIndex > 0 && !showFeedback) {
                 setCurrentIndex(prev => prev - 1);

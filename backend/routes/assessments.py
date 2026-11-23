@@ -140,7 +140,11 @@ def normalise(raw: dict, project: dict, user_id: str, item_id: str = "") -> dict
                  'provider': video['provider'], 'name': clean(source_media.get('name'),300) or 'Vídeo · ' + video['provider']}
     else:
         media = attachment({"url": media_url, "kind": source_media.get("kind") or raw.get("mediaKind"), "name": source_media.get("name") or raw.get("mediaName")})
+    from services.adaptive_assessment import difficulty
     return {
+        "difficulty": difficulty(raw.get('difficulty')),
+        "learningObjective": clean(raw.get('learningObjective'),300),
+        "reinforcement": clean(raw.get('reinforcement'),1800),
         "id": item_id or clean(raw.get("id"), 100) or make_id(),
         "projectId": str(project.get("id") or ""), "companyId": str(project.get("companyId") or ""),
         "category": clean(raw.get("category"), 140) or "Geral", "title": clean(raw.get("title"), 300) or prompt[:90],
@@ -216,6 +220,7 @@ async def _create_questions(payload, project, user_id, progress=None):
     system = '''Você cria avaliações profissionais em português brasileiro. Responda somente JSON válido.
 Crie questões claras e variadas dos tipos single_choice, multiple_choice, ordering e categorization.
 Cada questão deve conter type, title, category, prompt (enunciado), instructions e explanation (feedback).
+Inclua difficulty inteiro 1=fácil,2=intermediário,3=avançado, learningObjective (conceito avaliado) e reinforcement (reforço didático após erro). Distribua níveis e crie questões mais simples e avançadas sobre os mesmos conceitos, sem perder a cobertura do tema.
 Para alternativas use options com id, text, isCorrect. Para ordering use items com id/text e correctOrder com os IDs.
 Para categorization use targets com id/label e items com id/text/correctTarget. Não invente URLs de mídia.
 Formato: {"questions":[{...}]}'''

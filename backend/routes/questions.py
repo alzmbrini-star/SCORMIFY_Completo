@@ -122,12 +122,16 @@ def _normalize_generated_questions(
                 {"text": "Falso", "isCorrect": not correct_is_true},
             ]
 
+        from services.adaptive_assessment import difficulty
         normalized.append(
             {
                 "type": q_type,
                 "text": text,
                 "alternatives": alternatives,
                 "explanation": explanation,
+                "difficulty": difficulty(raw.get('difficulty')),
+                "learningObjective": _clean_quiz_text(raw.get('learningObjective'),300),
+                "reinforcement": _clean_quiz_text(raw.get('reinforcement'),1800),
             }
         )
 
@@ -159,14 +163,19 @@ async def create_question(data: QuizQuestionCreate):
     q = {
         "id": generate_id(),
         "projectId": data.projectId,
-        "slideId": data.slideId,
+        "slideId": getattr(data,'slideId',None),
         "type": data.type,
-        "questionText": data.questionText,
-        "alternatives": [a.model_dump() for a in data.alternatives] if data.alternatives else [],
-        "correctAnswer": data.correctAnswer,
+        "text": data.text,
+        "questionText": data.text,
+        "alternatives": [a if isinstance(a,dict) else a.model_dump() for a in data.alternatives] if data.alternatives else [],
+        "correctAnswer": getattr(data,'correctAnswer',None),
         "explanation": data.explanation or "",
         "points": data.points,
-        "order": data.order,
+        "order": getattr(data,'order',0),
+        "difficulty": data.difficulty,
+        "learningObjective": data.learningObjective,
+        "reinforcement": data.reinforcement,
+        "tags": data.tags,
         "createdAt": now_utc().isoformat(),
     }
     await db.questions.insert_one(q)
@@ -247,6 +256,7 @@ FORMATO:
   {{"type": "true_false", "text": "Afirmação", "alternatives": [{{"text": "Verdadeiro", "isCorrect": true}}, {{"text": "Falso", "isCorrect": false}}], "explanation": "Explicação"}}
 ]}}
 """
+        system_message += '\nCada questão deve incluir difficulty inteiro 1=fácil,2=intermediário,3=avançado, learningObjective e reinforcement didático após erro. Varie os níveis sobre os mesmos conceitos para permitir adaptação, preservando a cobertura do conteúdo.'
         chat = (
             LlmChat(
                 api_key=api_key,
@@ -293,6 +303,9 @@ FORMATO:
                 text=q_data["text"],
                 alternatives=alternatives,
                 explanation=q_data["explanation"],
+                difficulty=q_data.get('difficulty',2),
+                learningObjective=q_data.get('learningObjective',''),
+                reinforcement=q_data.get('reinforcement',''),
                 tags=["ai-generated"],
             )
             question_dict = question.model_dump()

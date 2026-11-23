@@ -124,7 +124,9 @@ def validate_activity(raw, request, path):
             if unit not in unit_ids: raise ValueError('Associe a questão a uma unidade existente.')
             options=q.get('options'); correct=q.get('correct')
             if not isinstance(options,list) or not 2<=len(options)<=6 or type(correct) is not int or not 0<=correct<len(options): raise ValueError('Alternativas ou resposta correta inválidas.')
+            from services.adaptive_assessment import difficulty
             result.append({'id':request['id']+'_q'+str(i+1),'type':'single_choice','title':text(q.get('title') or q.get('prompt'),240),
+                'difficulty':difficulty(q.get('difficulty')),'learningObjective':str(q.get('learningObjective') or '')[:300],'reinforcement':str(q.get('reinforcement') or '')[:1800],
                 'prompt':text(q.get('prompt'),1200),'category':next(u['title'] for u in path['units'] if u['id']==unit),
                 'unitId':unit,'instructions':'Selecione a alternativa correta.','explanation':text(q.get('explanation'),1200),
                 'points':1,'media':None,'options':[{'id':'op_'+str(j),'text':text(v,600),'isCorrect':j==correct} for j,v in enumerate(options)],
@@ -187,8 +189,8 @@ def validate_activity(raw, request, path):
 async def generate_activity(request, path, context, ask):
     schema = {
       'practice': 'cards:[{front,back}], activity: {type:classification|ordering|decision|calculator|matrix, feedback}. classification/matrix: targets:[nomes],rows:[{text,correct:indice}]; ordering:items:[etapas em ordem correta]; decision:steps:[{prompt,options:[textos],correct:indice,feedback}]; calculator:unit,rows:[{text,value:numero,accepted:boolean,status}]. Escolha só um tipo pertinente ao objetivo, sem modelos de assunto.',
-      'assessment':'questions:[{title,prompt,options:[textos],correct:indice,explanation}].',
-      'final':'questions:[{unitId,title,prompt,options:[textos],correct:indice,explanation}]. Ao menos uma questão por unidade.',
+      'assessment':'questions:[{title,prompt,options:[textos],correct:indice,explanation,difficulty:1|2|3,learningObjective,reinforcement}]. Varie a dificuldade por conceito; reinforcement ensina após erro.',
+      'final':'questions:[{unitId,title,prompt,options:[textos],correct:indice,explanation,difficulty:1|2|3,learningObjective,reinforcement}]. Ao menos uma questão por unidade; varie a dificuldade por conceito.',
       'project':'deliverables:1..12 objetos [{title,prompt,criterion,unitIds:[ids exatos das unidades]}]. Entregas contextualizadas que juntas contemplem TODAS as unidades listadas, inclusive introdução e síntese quando constarem na lista. Pode agrupar várias unidades relacionadas por entrega; se houver mais de doze unidades, o agrupamento é necessário. O texto e o critério devem realmente abordar as unidades associadas. Propor autoverificação, sem prometer correção automática.'}
     count=path['finalQuestionCount'] if request['guidedRequest']=='final' else path['questionsPerUnit']
     prompt=f'''Crie um recurso para o percurso guiado de um curso em Português do Brasil.

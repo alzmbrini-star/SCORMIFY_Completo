@@ -388,10 +388,19 @@ class QuizQuestion(BaseModel):
     alternatives: List[QuizAlternative] = Field(default_factory=list)
     explanation: Optional[str] = None  # Explanation shown after answering
     points: float = 1.0  # Points for this question
+    difficulty: int = Field(default=2,ge=1,le=3)
+    learningObjective: str = ""
+    reinforcement: str = ""
     tags: List[str] = Field(default_factory=list)  # For categorization
     
     createdAt: datetime = Field(default_factory=now_utc)
     updatedAt: datetime = Field(default_factory=now_utc)
+
+    @field_validator('difficulty', mode='before')
+    @classmethod
+    def compatible_difficulty(cls,value):
+        from services.adaptive_assessment import difficulty
+        return difficulty(value)
 
 class QuizConfig(BaseModel):
     """Configuration for a quiz element on a slide"""
@@ -407,6 +416,7 @@ class QuizConfig(BaseModel):
     showExplanation: bool = True  # Show explanation text
     passingScore: float = 60.0  # Percentage needed to pass (0-100)
     maxAttempts: int = 0  # 0 = unlimited
+    adaptiveMode: bool = False
 
 class QuizAttempt(BaseModel):
     """Records a user's attempt at a quiz"""
@@ -434,6 +444,9 @@ class QuizQuestionCreate(BaseModel):
     explanation: Optional[str] = None
     points: float = 1.0
     tags: List[str] = Field(default_factory=list)
+    difficulty: int = Field(default=2,ge=1,le=3)
+    learningObjective: str = ""
+    reinforcement: str = ""
 
 class QuizQuestionUpdate(BaseModel):
     """Update a quiz question"""
@@ -442,6 +455,9 @@ class QuizQuestionUpdate(BaseModel):
     explanation: Optional[str] = None
     points: Optional[float] = None
     tags: Optional[List[str]] = None
+    difficulty: Optional[int] = Field(default=None,ge=1,le=3)
+    learningObjective: Optional[str] = None
+    reinforcement: Optional[str] = None
 
 class QuizGenerateRequest(BaseModel):
     """Request to generate quiz questions using AI"""

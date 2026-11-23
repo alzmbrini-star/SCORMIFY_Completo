@@ -41,7 +41,8 @@ body{display:block!important;position:relative!important}
 // Serialized into the assessment document; do not reference module scope.
 function assessmentRuntime(resolveVideoLink) {
   const data = JSON.parse(document.getElementById('assessment-data').textContent);
-  const questions = data.questions || [];
+  const adaptive = data.adaptiveMode === true && window.ScormifyAdaptive;
+  let questions = adaptive ? adaptive.start(data.questions || []) : (data.questions || []);
   const root = document.getElementById('app');
   const answers = new Map();
   const submitted = new Map();
@@ -75,12 +76,13 @@ function assessmentRuntime(resolveVideoLink) {
     return JSON.stringify([...a].sort()) === JSON.stringify(q.options.filter(x => x.isCorrect).map(x => x.id).sort());
   }
   function navigate(next) {
+    if (adaptive && (next !== index + 1 || !submitted.has(questions[index].id))) return;
     if (next < 0 || next >= questions.length) return;
     if (data.allowSkip === false && questions.slice(0, next).some(q => !submitted.has(q.id))) return;
     index = next; selectedCard = null; render();
   }
   function finish() {
-    if (data.allowSkip === false && submitted.size < questions.length) return;
+    if ((data.allowSkip === false || adaptive) && submitted.size < questions.length) return;
     if (submitted.size < questions.length && !window.confirm('Há questões sem resposta confirmada. Deseja finalizar?')) return;
     let total = 0, points = 0;
     questions.forEach(q => { total += q.points || 1; if (submitted.has(q.id) && correct(q, submitted.get(q.id))) points += q.points || 1; });
@@ -124,7 +126,7 @@ function assessmentRuntime(resolveVideoLink) {
     node('div', 'score', `${Math.round(total ? points / total * 100 : 0)}%`, box);
     node('p', '', `${points} de ${total} pontos · ${submitted.size} de ${questions.length} respondidas`, box);
     button('Revisar respostas', '', () => { index = 0; render(); }, box);
-    button('Tentar novamente', '', () => { answers.clear(); submitted.clear(); index = 0; selectedCard = null; gamificationAttempt++; gamificationReported = false; if(!data.guidedPath)window.parent.postMessage({type:'scormify-assessment-retry'},'*'); render(); }, box);
+    button('Tentar novamente', '', () => { answers.clear(); submitted.clear(); index = 0; if(adaptive)questions=adaptive.start(data.questions || []); selectedCard = null; gamificationAttempt++; gamificationReported = false; if(!data.guidedPath)window.parent.postMessage({type:'scormify-assessment-retry'},'*'); render(); }, box);
   }
   function advance() {
     if (index < questions.length - 1) navigate(index + 1); else finish();
@@ -191,7 +193,8 @@ function assessmentRuntime(resolveVideoLink) {
       indices.forEach(i => { const b = button(String(i + 1), `num ${i === index ? 'active' : ''} ${submitted.has(questions[i].id) ? 'done' : ''}`, () => navigate(i), nums, data.allowSkip === false && i > index && !locked); b.setAttribute('aria-label', `Questão ${i + 1}: ${questions[i].title}`); });
     });
     node('span', '', `${submitted.size} de ${questions.length} respondidas`, top);
-    button('Finalizar', 'skip', finish, top, data.allowSkip === false && submitted.size !== questions.length);
+    button('Finalizar', 'skip', finish, top, (data.allowSkip === false || adaptive) && submitted.size !== questions.length);
+    if(adaptive)node('span','', 'Modo adaptativo · nível ' + adaptive.level(q) + '/3',top);
     const shell = node('section', 'shell', undefined, main); const work = node('section', 'work', undefined, shell);
     const head = node('div', 'media-head', undefined, work); node('span', '', q.media?.name || q.title, head); node('span', 'badge', q.category, head);
     if (q.media?.kind === 'image') button('⤢ Ampliar', 'image-expand', () => enlarge(q), head);
@@ -246,11 +249,16 @@ function assessmentRuntime(resolveVideoLink) {
       });
     }
     if (locked) node('div', `feedback ${correct(q, submitted.get(q.id)) ? 'ok' : 'no'}`, `${correct(q, submitted.get(q.id)) ? 'Resposta correta. ' : 'Resposta incorreta. '}${q.explanation || ''}`, body);
+    if (adaptive && locked && !correct(q,submitted.get(q.id))) node('div','feedback no','Reforço: '+adaptive.reinforce(q),body).setAttribute('role','status');
     const footer = node('footer', 'footer', undefined, panel);
     button(locked ? 'Próxima questão →' : '✓ Confirmar resposta', 'confirm', () => {
-      if (!locked) submitted.set(q.id, JSON.parse(JSON.stringify(a))); advance();
+      if (!locked) {
+        submitted.set(q.id, JSON.parse(JSON.stringify(a)));
+        if(adaptive){questions=adaptive.next(questions,index,correct(q,a));render();return;}
+      }
+      advance();
     }, footer, !locked && !ready(q));
-    if (data.allowSkip !== false && !locked) button('Pular', 'skip', advance, footer);
+    if (!adaptive && data.allowSkip !== false && !locked) button('Pular', 'skip', advance, footer);
   }
   render();
 })(// Pure, self-contained: serialized into the offline assessment player as well.

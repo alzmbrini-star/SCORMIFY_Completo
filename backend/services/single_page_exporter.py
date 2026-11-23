@@ -1274,8 +1274,14 @@ def _render_quiz_element_inner(el: dict, slide_idx: int, el_idx: int, questions_
             "id": q.get("id"),
             "text": q.get("text") or q.get("question") or "",
             "explanation": q.get("explanation") or "",
+            "difficulty": q.get("difficulty",2),
+            "learningObjective": q.get("learningObjective") or "",
+            "tags": q.get("tags") or [],
+            "reinforcement": q.get("reinforcement") or "",
             "options": normalized_options,
         })
+    if cfg.get('adaptiveMode') is True and type(cfg.get('questionCount')) is int and cfg['questionCount']>0:
+        questions=questions[:cfg['questionCount']]
     qjson = json.dumps(questions, ensure_ascii=False).replace("</", "<\\/")
     qjson_attr = html.escape(qjson, quote=True)
     is_transparent = bool(cfg.get("transparentBackground"))
@@ -1285,7 +1291,7 @@ def _render_quiz_element_inner(el: dict, slide_idx: int, el_idx: int, questions_
     return (
         f'<div class="{quiz_classes}" data-interactive="quiz" data-required="true" data-autostart="true" '
         f'data-interactive-id="quiz-{slide_idx}-{el_idx}" '
-        f'data-questions="{qjson_attr}">'
+        f'data-adaptive="{"true" if cfg.get("adaptiveMode") is True else "false"}" data-questions="{qjson_attr}">'
         f'<div class="sp-quiz-icon">📝</div>'
         f'<h3 class="sp-quiz-title">{title}</h3>'
         f'<p class="sp-quiz-meta">{len(questions)} questões</p>'
@@ -1571,6 +1577,8 @@ def generate_single_page_html(*args,preview_mode=False,output_path=None,document
             args = tuple(stream.compact(arg) if isinstance(arg, (dict, list)) else arg for arg in args)
             kwargs = {key: stream.compact(value) for key, value in kwargs.items()}
         document = _generate_single_page_html(*args,**kwargs)
+        from services.adaptive_assessment import install_adaptive_engine
+        document = install_adaptive_engine(document)
         if document_transform:
             document = document_transform(document)
         if stream:

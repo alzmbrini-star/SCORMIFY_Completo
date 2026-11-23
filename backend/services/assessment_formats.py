@@ -13,6 +13,7 @@ def native_quiz(spec):
     for source in spec['questions']:
         questions.append({'id':'quiz_'+uuid.uuid4().hex,'type':'multiple_choice','text':source['prompt'],
             'alternatives':[{'id':uuid.uuid4().hex,'text':o['text'],'isCorrect':o.get('isCorrect',False)} for o in source['options']],
+            'difficulty':source.get('difficulty',2),'learningObjective':source.get('learningObjective',''),'reinforcement':source.get('reinforcement',''),
             'explanation':source.get('explanation',''),'points':source.get('points',1),'tags':[source.get('category','')]})
     config={'id':'quiz_'+uuid.uuid4().hex,'title':spec['title'],'questionIds':[q['id'] for q in questions],
         'questionCount':len(questions),'shuffleQuestions':True,'shuffleAlternatives':True,

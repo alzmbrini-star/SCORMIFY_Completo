@@ -39,6 +39,7 @@ var QuizController = (function() {
             }
             
             var config = JSON.parse(container.dataset.quizConfig || '{}');
+            container.dataset.adaptiveActive=config.adaptiveMode===true?'true':'false';
             var questionIds = config.questionIds || [];
             var quizQuestions = questionIds.map(function(id) { return questions[id]; }).filter(Boolean);
             
@@ -55,6 +56,7 @@ var QuizController = (function() {
             // Limit to question count
             var count = Math.min(config.questionCount || quizQuestions.length, quizQuestions.length);
             quizQuestions = quizQuestions.slice(0, count);
+            if(config.adaptiveMode===true && window.ScormifyAdaptive)quizQuestions=window.ScormifyAdaptive.start(quizQuestions);
             
             // Shuffle alternatives if configured
             if (config.shuffleAlternatives !== false) {
@@ -217,6 +219,10 @@ var QuizController = (function() {
             html += '</div></div>';
             
             container.innerHTML = html;
+            if(quiz.config.adaptiveMode===true && quiz.showingFeedback && !quiz.answers[quiz.currentIndex].isCorrect && window.ScormifyAdaptive){
+                var reinforcement=document.createElement('p');reinforcement.setAttribute('role','status');reinforcement.textContent='Reforço: '+window.ScormifyAdaptive.reinforce(question);
+                (container.querySelector('.quiz-scroll')||container).appendChild(reinforcement);
+            }
         },
         
         // Select answer
@@ -231,7 +237,7 @@ var QuizController = (function() {
         // Confirm answer
         confirmAnswer: function(elementId) {
             var quiz = quizzes[elementId];
-            if (!quiz || !quiz.selectedAnswer) return;
+            if (!quiz || !quiz.selectedAnswer || quiz.showingFeedback) return;
             
             var question = quiz.questions[quiz.currentIndex];
             var selectedAlt = question.alternatives.find(function(a) { return a.id === quiz.selectedAnswer; });
@@ -242,7 +248,7 @@ var QuizController = (function() {
                 isCorrect: selectedAlt && selectedAlt.isCorrect
             });
             
-            if (quiz.config.showFeedback !== false) {
+            if (quiz.config.showFeedback !== false || quiz.config.adaptiveMode===true) {
                 quiz.showingFeedback = true;
                 this.renderQuestion(elementId);
             } else {
@@ -254,6 +260,7 @@ var QuizController = (function() {
         nextQuestion: function(elementId) {
             var quiz = quizzes[elementId];
             if (!quiz) return;
+            if(quiz.config.adaptiveMode===true && window.ScormifyAdaptive)quiz.questions=window.ScormifyAdaptive.next(quiz.questions,quiz.currentIndex,!!quiz.answers[quiz.currentIndex].isCorrect);
             
             quiz.showingFeedback = false;
             quiz.selectedAnswer = null;
@@ -269,7 +276,7 @@ var QuizController = (function() {
         // Previous question
         prevQuestion: function(elementId) {
             var quiz = quizzes[elementId];
-            if (!quiz || quiz.currentIndex === 0 || quiz.showingFeedback) return;
+            if (!quiz || quiz.currentIndex === 0 || quiz.showingFeedback || quiz.config.adaptiveMode===true) return;
             
             quiz.currentIndex--;
             quiz.selectedAnswer = quiz.answers[quiz.currentIndex]?.selectedAlternativeId || null;

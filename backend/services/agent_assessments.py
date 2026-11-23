@@ -41,6 +41,8 @@ def media_options(slide, media):
         options = {'enabled': bool(base), 'questionCount': base.get('questionCount', 3), 'images': base.get('images', True)}
     if type(options.get('enabled')) is not bool or type(options.get('images', True)) is not bool:
         raise ValueError('Escolha se a avaliação e as imagens estão habilitadas.')
+    if 'adaptiveMode' in options and type(options['adaptiveMode']) is not bool:
+        raise ValueError('Escolha se a avaliação adaptativa está habilitada.')
     count = options.get('questionCount', 3)
     if type(count) is not int or not 1 <= count <= 10:
         raise ValueError('Escolha de 1 a 10 questões por avaliação interativa.')
@@ -55,12 +57,17 @@ async def generate_assessment(source, context, ask, options=None):
             'questionsPerUnit': options['questionCount'], 'assessmentImages': options['images']}
     spec = await generate_activity(request, path, context, ask)
     spec['imagesEnabled'] = options['images']
+    spec['adaptiveMode'] = options.get('adaptiveMode') is True
     return spec
 
 
 def render_assessment(spec, width=1920, height=820):
     from services.assessment_renderer import assessment_element
     element = assessment_element(copy.deepcopy(spec['questions']), spec['title'], False, width, height)
+    if spec.get('adaptiveMode') is True:
+        from services.assessment_renderer import refresh_assessment_documents
+        element['assessmentConfig']['adaptiveMode']=True
+        refresh_assessment_documents({'course':{'slides':[{'elements':[element]}]}})
     element['agentAssessment'] = {'imagesEnabled': spec.get('imagesEnabled', True)}
     return element
 
@@ -78,6 +85,10 @@ async def apply_media_assessments(project_slides, storyboard_slides, media, ask)
                 for element in slide.get('elements',[]):
                     if element.get('assessmentConfig'):
                         element['agentAssessment']={'imagesEnabled':options['images']}
+                        if 'adaptiveMode' in override:
+                            from services.assessment_renderer import refresh_assessment_documents
+                            element['assessmentConfig']['adaptiveMode']=override['adaptiveMode'] is True
+                            refresh_assessment_documents({'course':{'slides':[{'elements':[element]}]}})
             result.append(slide)
             continue
         existing = source.get('assessmentActivity')
@@ -95,6 +106,7 @@ async def apply_media_assessments(project_slides, storyboard_slides, media, ask)
                 spec = await generate_assessment(request, context, ask, options)
             else:
                 continue  # Explicitly omit this planned assessment; source lessons are elsewhere.
+            spec['adaptiveMode']=options.get('adaptiveMode') is True
             assessment_slide = {**slide, 'id': 'slide_' + uuid.uuid4().hex[:16], 'title': spec['title'],
                                 'elements': [render_assessment(spec)], 'quizQuestionIds': [], 'duration': 120,
                                 'background':'#f4f8fc','backgroundImage':None,'backgroundOpacity':None,
