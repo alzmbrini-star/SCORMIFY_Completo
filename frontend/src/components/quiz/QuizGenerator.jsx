@@ -96,6 +96,7 @@ export default function QuizGenerator({
     showFeedback: true,
     passingScore: 60,
     fontSize: 16, // Font size in pixels
+    adaptiveMode: false,
   });
 
   // Load questions when dialog opens
@@ -461,6 +462,11 @@ export default function QuizGenerator({
                   </div>
                 </div>
 
+                <label className="flex items-start gap-3 rounded-lg border border-cyan-500/30 bg-cyan-500/5 p-3 text-sm">
+                  <input type="checkbox" aria-label="Avaliação adaptativa" checked={quizConfig.adaptiveMode === true} disabled={generating} onChange={e => setQuizConfig(prev => ({...prev, adaptiveMode: e.target.checked}))} className="mt-1" />
+                  <span><strong className="block">Avaliação adaptativa</strong>Dificuldade conforme as respostas, com reforço após erros. A mesma opção será mantida em Configurar e no quiz inserido. Use questões de níveis diferentes; todas as questões previstas serão mantidas. Desativada por padrão.</span>
+                </label>
+
                 <Button
                   className="w-full gap-2"
                   onClick={handleGenerateWithAI}
@@ -623,7 +629,7 @@ export default function QuizGenerator({
 
                 <div className="space-y-3">
                   <Label>Opções</Label>
-                  <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={quizConfig.adaptiveMode===true} onChange={e=>setQuizConfig(prev=>({...prev,adaptiveMode:e.target.checked}))}/><span>Avaliação adaptativa: dificuldade conforme as respostas e reforço após erros. Desativada por padrão. Selecione questões de níveis diferentes; todas as questões previstas serão mantidas.</span></label>
+                  <label className="flex items-start gap-2 text-sm"><input type="checkbox" aria-label="Avaliação adaptativa" checked={quizConfig.adaptiveMode===true} onChange={e=>setQuizConfig(prev=>({...prev,adaptiveMode:e.target.checked}))}/><span>Avaliação adaptativa: dificuldade conforme as respostas e reforço após erros. Desativada por padrão. Selecione questões de níveis diferentes; todas as questões previstas serão mantidas.</span></label>
                   
                   <div className="flex items-center gap-2">
                     <Checkbox
