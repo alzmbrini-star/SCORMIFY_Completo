@@ -3477,6 +3477,8 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
     cached = await db.analysis_cache.find_one({"key": cache_key}, {"_id": 0})
     if cached and 'sourceUpdatedAt' in cached and cached['sourceUpdatedAt'] != project.get('updatedAt'):
         cached = None  # Never reuse a result after the author edits the course.
+    from services.course_analysis_jobs import interrupted, INTERRUPTED_MESSAGE
+    deployment_revision = os.environ.get('RENDER_GIT_COMMIT', '')
     if request.query_params.get('status_only') == 'true':
         # Reconnection/polling is strictly read-only: never launch another paid
         # run, consume a result, clear an error, or touch project contents.
@@ -3492,12 +3494,8 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
         if cached.get('status') == 'error':
             return {'status': 'error', 'error': cached.get('error', 'Erro na análise.')}
         if cached.get('status') == 'processing':
-            try:
-                age = (datetime.now(timezone.utc) - datetime.fromisoformat(cached['updatedAt'].replace('Z', '+00:00'))).total_seconds()
-                if age > (1800 if gamma else 180):
-                    return {'status': 'error', 'error': 'A execução não respondeu no prazo esperado. Use Retomar análise para reaproveitar as leituras salvas.'}
-            except (KeyError, ValueError, TypeError):
-                pass
+            if interrupted(cached, deployment_revision):
+                return {'status': 'error', 'error': INTERRUPTED_MESSAGE}
             return {'status': 'processing', 'progress': cached.get('progress'), 'total': cached.get('total')}
         return {'status': 'not_started'}
     if request.query_params.get('cached_only')=='true':
@@ -3510,21 +3508,13 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
         from services.course_resource_balance import balanced_result
         return balanced_result(saved_result,project)
 
-    # If currently processing, check if it's stuck (> 3 min old)
+    # A worker publishes a heartbeat independently of slow provider calls.
+    # Only an explicit author start/resume may replace an interrupted worker.
     if cached and cached.get("status") == "processing":
-        updated = cached.get("updatedAt", "")
-        try:
-            from datetime import datetime as dt
-            cache_time = dt.fromisoformat(updated.replace("Z", "+00:00"))
-            age_seconds = (datetime.now(timezone.utc) - cache_time).total_seconds()
-            if age_seconds > (1800 if gamma else 180):
-                logger.warning(f"Stale processing cache for {project_id} (age={age_seconds:.0f}s), clearing")
-                await db.analysis_cache.delete_one({"key": cache_key})
-                # Fall through to start new analysis
-            else:
-                return {"status": "processing", "message": "Analise do curso em andamento..."}
-        except Exception:
+        if not interrupted(cached, deployment_revision):
             return {"status": "processing", "message": "Analise do curso em andamento..."}
+        if request.query_params.get('resume_partial') != 'true':
+            return {'status': 'error', 'error': INTERRUPTED_MESSAGE}
 
     # Keep completed results: a dropped response can be read again safely.
     if cached and cached.get("status") == "done":
@@ -3549,10 +3539,15 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
         if request.query_params.get('resume_partial') != 'true':
             return {"status": "error", "error": err}
 
-    # Mark as processing and start background analysis
+    # Fence progress/completion writes so an old worker cannot replace a newer run.
+    run_id = str(uuid.uuid4())
+    run_filter = {'key': cache_key, 'runId': run_id}
     await db.analysis_cache.update_one(
         {"key": cache_key},
-        {"$set": {"key": cache_key, "status": "processing", "projectId": project_id, "sourceUpdatedAt": project.get('updatedAt'), "updatedAt": datetime.now(timezone.utc).isoformat()}},
+        {"$set": {"key": cache_key, "status": "processing", "projectId": project_id, "runId": run_id,
+                  "deploymentRevision": deployment_revision, "heartbeatAt": datetime.now(timezone.utc).isoformat(),
+                  "sourceUpdatedAt": project.get('updatedAt'), "updatedAt": datetime.now(timezone.utc).isoformat()},
+         "$unset": {"error": '', "progress": '', "total": ''}},
         upsert=True
     )
 
@@ -3561,13 +3556,22 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
     def _sync_analyze_course():
         import asyncio
         loop = asyncio.new_event_loop()
+        stopped = threading.Event()
+        def heartbeat():
+            while not stopped.wait(15):
+                try:
+                    _get_bg_db().analysis_cache.update_one(run_filter,
+                        {'$set': {'heartbeatAt': datetime.now(timezone.utc).isoformat()}})
+                except Exception:
+                    logger.warning('Could not persist course analysis heartbeat for %s', project_id)
+        threading.Thread(target=heartbeat, daemon=True).start()
         try:
             from services.ai_agent import analyze_existing_course
             if gamma:
                 from services.gamma_course_analysis import analyze
                 async def report_progress(done, total):
                     await asyncio.to_thread(_get_bg_db().analysis_cache.update_one,
-                        {'key':cache_key}, {'$set':{'progress':done,'total':total}})
+                        run_filter, {'$set':{'progress':done,'total':total}})
                 analysis = loop.run_until_complete(analyze(project, _get_bg_db(), PROJECTS_DIR, report_progress))
             else:
                 analysis = loop.run_until_complete(analyze_existing_course(session_id, project))
@@ -3575,7 +3579,7 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
             analysis = normalize_analysis(analysis)
             _bgdb = _get_bg_db()
             _bgdb.analysis_cache.update_one(
-                {"key": cache_key},
+                run_filter,
                 {"$set": {"status": "done", "result": analysis, "updatedAt": datetime.now(timezone.utc).isoformat()}}
             )
             logger.info(f"Course analysis complete for project {project_id}")
@@ -3583,10 +3587,11 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
             logger.error(f"Course analysis failed for project {project_id}: {e}")
             _bgdb = _get_bg_db()
             _bgdb.analysis_cache.update_one(
-                {"key": cache_key},
+                run_filter,
                 {"$set": {"status": "error", "error": str(e)[:500], "updatedAt": datetime.now(timezone.utc).isoformat()}}
             )
         finally:
+            stopped.set()
             loop.close()
 
     import threading
