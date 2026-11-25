@@ -354,7 +354,7 @@ function TestCombinationPlayer({ avatarId, voiceId, avatarName, voiceName }) {
 }
 
 
-export function CourseReviewPanel({ course, analysis, loading, selectedImprovements, toggleImprovement, selectedNewSlides = [], toggleNewSlide, onApply, onTypeOverride, onScriptOverride }) {
+export function CourseReviewPanel({ course, analysis, analysisError, onRetryAnalysis, loading, selectedImprovements, toggleImprovement, selectedNewSlides = [], toggleNewSlide, onApply, onTypeOverride, onScriptOverride }) {
   const [avatarLimit, setAvatarLimit] = useState(3);
   const [avatarSettingsOpen, setAvatarSettingsOpen] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -531,6 +531,15 @@ export function CourseReviewPanel({ course, analysis, loading, selectedImproveme
             {course.cachedReview?<p className="text-xs text-emerald-200 mt-3">Reequilibrando a análise salva, sem iniciar leitura de IA ou alterar o curso.</p>:(course.visualAnalysisAvailable||['gamma','ppt','imported'].includes(course.source)||course.gammaJobId)&&<GammaVisualLoading provider={course.source==='gamma'||course.gammaJobId?'Gamma':'PPT'}/>}
           </CardContent>
         </Card>
+      )}
+
+      {!loading && analysisError && (
+        <div role="alert" className="rounded-lg border border-amber-700/50 bg-amber-950/20 p-5 space-y-3" data-testid="course-analysis-error">
+          <h3 className="font-semibold text-amber-200">Não foi possível concluir o acompanhamento</h3>
+          <p className="text-sm text-slate-200">{analysisError}</p>
+          <p className="text-xs text-slate-400">Retomar consulta o trabalho em andamento ou o resultado salvo. Se a execução tiver parado, somente as leituras pendentes serão tentadas novamente; novas leituras usam créditos de IA. Slides, imagens, perguntas e interações não são alterados.</p>
+          <Button onClick={onRetryAnalysis} disabled={!onRetryAnalysis} data-testid="retry-course-analysis"><RefreshCw className="w-4 h-4 mr-2" />Retomar análise</Button>
+        </div>
       )}
 
       {analysis && (

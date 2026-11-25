@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {agentSlideLabel} from '../utils/agentSlideLabels';
 import {waitForStoryboard} from '../utils/storyboardPolling';
+import {runCourseAnalysis, courseAnalysisError} from '../utils/courseAnalysisTransport';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { authHeaders } from '../contexts/AuthContext';
@@ -182,6 +183,9 @@ export default function Agent() {
   const [agentCourses, setAgentCourses] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [courseAnalysis, setCourseAnalysis] = useState(null);
+  const [analysisError, setAnalysisError] = useState(null);
+  const analysisRequest = useRef(null);
+  useEffect(() => () => analysisRequest.current?.abort(), []);
 
   // Companies for approval workflow
   const [companiesList, setCompaniesList] = useState([]);
@@ -1087,44 +1091,31 @@ export default function Agent() {
   };
 
   const handleAnalyzeCourse = async (course,cachedOnly = false) => {
+    analysisRequest.current?.abort();
+    const controller = new AbortController();
+    analysisRequest.current = controller;
+    setAnalysisError(null);
     setLoading(true);
     const status = (text, state) => setChatMessages(prev => updateAnalysisStatus(prev, course.id, text, state));
     status(cachedOnly ? 'Conferindo a análise salva, sem nova leitura de IA...' : `Analisando o curso "${course.name}"...`, 'pending');
     try {
-      const res = await fetch(`${API}/api/agent/courses/${course.id}/analyze${cachedOnly?'?cached_only=true':'?resume_partial=true'}`, { method: 'POST', headers: authHeaders() });
-      if (!res.ok) {const error=await res.json().catch(()=>({}));throw new Error(error.detail||'Erro ao analisar o curso');}
-      const data = await res.json();
-
-      // If result returned directly (not processing), use it
-      if (data.overallScore !== undefined || data.improvements) {
-        setCourseAnalysis(data);
-        setSelectedImprovements([]);
-        status(analysisMessage(data), 'done');
-      } else if (data.status === 'processing') {
-        status('Análise em andamento. Aguarde; os conteúdos do curso permanecem preservados.', 'pending');
-        // Poll every 2s for faster response
-        const maxWait = course.visualAnalysisAvailable || ['gamma','ppt','imported'].includes(course.source) || course.gammaJobId ? 1800000 : 180000;
-        const start = Date.now();
-        let result = null;
-        while (Date.now() - start < maxWait) {
-          await new Promise(r => setTimeout(r, 2000));
-          const pollRes = await fetch(`${API}/api/agent/courses/${course.id}/analyze`, { method: 'POST', headers: authHeaders() });
-          if (!pollRes.ok) continue;
-          const pollData = await pollRes.json();
-          if (pollData.overallScore !== undefined || pollData.improvements) {
-            result = pollData;
-            break;
-          }
-          if (pollData.status === 'error') throw new Error(pollData.error || 'Erro na analise');
-        }
-        if (!result) throw new Error('Timeout aguardando analise do curso');
-        setCourseAnalysis(result);
-        setSelectedImprovements([]);
-        status(analysisMessage(result), 'done');
-      }
-      else if (data.status === 'error') { throw new Error(data.error || 'Erro ao analisar o curso.'); }
-    } catch (e) { toast.error(e.message || 'Erro na analise'); status(`Não foi possível concluir a análise: ${e.message || 'tente novamente'}. O curso não foi alterado.`, 'error'); }
-    finally { setLoading(false); }
+      const data = await runCourseAnalysis({
+        url: `${API}/api/agent/courses/${course.id}/analyze`, headers: authHeaders(),
+        cachedOnly, signal: controller.signal,
+        maxWait: course.visualAnalysisAvailable || ['gamma','ppt','imported'].includes(course.source) || course.gammaJobId ? 1800000 : 180000,
+        onProgress: text => { if (!controller.signal.aborted) status(text, 'pending'); },
+      });
+      if (controller.signal.aborted) return;
+      setCourseAnalysis(data);
+      setSelectedImprovements([]);
+      status(analysisMessage(data), 'done');
+    } catch (e) {
+      if (controller.signal.aborted) return;
+      const message = courseAnalysisError(e);
+      setAnalysisError(message);
+      toast.error(message);
+      status(message, 'error');
+    } finally { if (!controller.signal.aborted) setLoading(false); }
   };
 
   const toggleImprovement = (improvement) => {
@@ -1551,7 +1542,7 @@ export default function Agent() {
 
               {/* EDIT MODE */}
               {mode === 'edit' && currentStep === 0 && <CourseListPanel courses={agentCourses} loading={loading} onSelect={handleSelectCourse} onRefresh={loadAgentCourses} onReopenWizard={handleReopenWizard} />}
-              {mode === 'edit' && currentStep === 1 && <CourseReviewPanel course={selectedCourse} analysis={courseAnalysis} loading={loading} selectedImprovements={selectedImprovements} toggleImprovement={toggleImprovement} selectedNewSlides={selectedNewSlides} toggleNewSlide={toggleNewSlide} onApply={handleApplyImprovements} onTypeOverride={handleTypeOverride} onScriptOverride={handleScriptOverride} />}
+              {mode === 'edit' && currentStep === 1 && <CourseReviewPanel course={selectedCourse} analysis={courseAnalysis} analysisError={analysisError} onRetryAnalysis={() => handleAnalyzeCourse(selectedCourse, !!selectedCourse?.cachedReview)} loading={loading} selectedImprovements={selectedImprovements} toggleImprovement={toggleImprovement} selectedNewSlides={selectedNewSlides} toggleNewSlide={toggleNewSlide} onApply={handleApplyImprovements} onTypeOverride={handleTypeOverride} onScriptOverride={handleScriptOverride} />}
               {mode === 'edit' && currentStep === 2 && <PreviewPanel preview={previewData} loading={loading} applyProgress={applyProgress} onConfirm={handleConfirmImprovements} onCancel={handleCancelPreview} onSubmitForApproval={isSuperAdmin ? handleSubmitImprovementsForApproval : null} companies={companiesList} onComplete={handleApplyImprovements} onEditText={handleEditPreviewText} />}
               {mode === 'edit' && currentStep === 3 && <EditResultPanel result={editResult} course={selectedCourse} navigate={navigate} onUndo={handleUndoImprovements} loading={loading} />}
             </div>

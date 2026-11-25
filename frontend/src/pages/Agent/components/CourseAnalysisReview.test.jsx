@@ -30,6 +30,14 @@ beforeEach(()=>{
 afterEach(()=>{act(()=>root.unmount());host.remove();jest.restoreAllMocks();});
 function panel(overrides={}) {return <CourseReviewPanel course={{id:'p',name:'Curso'}} analysis={analysis} selectedImprovements={[]} toggleImprovement={()=>{}} onApply={()=>{}} {...overrides}/>;}
 
+test('connection failure displays recovery button instead of a blank analysis panel',async()=>{
+ const retry=jest.fn();
+ await act(async()=>root.render(panel({analysis:null,analysisError:'Conexão interrompida. Curso preservado.',onRetryAnalysis:retry})));
+ expect(host.querySelector('[role="alert"]').textContent).toContain('Conexão interrompida');
+ act(()=>host.querySelector('[data-testid="retry-course-analysis"]').click());
+ expect(retry).toHaveBeenCalledTimes(1);
+});
+
 test('decision scenario stays distinct, all three formats are offered, manual changes are explicit',async()=>{
  const change=jest.fn(),select=jest.fn();
  await act(async()=>root.render(panel({onTypeOverride:change,toggleImprovement:select})));

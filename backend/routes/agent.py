@@ -3473,8 +3473,33 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
 
     from services.gamma_course_analysis import is_visual_project, fingerprint
     gamma = is_visual_project(project)
-    cache_key = f"course_analysis_visual_{fingerprint(project)}" if gamma else f"course_analysis_{project_id}"
+    cache_key = f"course_analysis_visual_{await asyncio.to_thread(fingerprint, project)}" if gamma else f"course_analysis_{project_id}"
     cached = await db.analysis_cache.find_one({"key": cache_key}, {"_id": 0})
+    if cached and 'sourceUpdatedAt' in cached and cached['sourceUpdatedAt'] != project.get('updatedAt'):
+        cached = None  # Never reuse a result after the author edits the course.
+    if request.query_params.get('status_only') == 'true':
+        # Reconnection/polling is strictly read-only: never launch another paid
+        # run, consume a result, clear an error, or touch project contents.
+        if not cached:
+            return {'status': 'not_started'}
+        if cached.get('status') == 'done':
+            from services.suggestion_semantics import normalize_analysis
+            result = normalize_analysis(cached['result'])
+            if gamma:
+                from services.course_resource_balance import balanced_result
+                result = balanced_result(result, project)
+            return result
+        if cached.get('status') == 'error':
+            return {'status': 'error', 'error': cached.get('error', 'Erro na análise.')}
+        if cached.get('status') == 'processing':
+            try:
+                age = (datetime.now(timezone.utc) - datetime.fromisoformat(cached['updatedAt'].replace('Z', '+00:00'))).total_seconds()
+                if age > (1800 if gamma else 180):
+                    return {'status': 'error', 'error': 'A execução não respondeu no prazo esperado. Use Retomar análise para reaproveitar as leituras salvas.'}
+            except (KeyError, ValueError, TypeError):
+                pass
+            return {'status': 'processing', 'progress': cached.get('progress'), 'total': cached.get('total')}
+        return {'status': 'not_started'}
     if request.query_params.get('cached_only')=='true':
         if not gamma:
             raise HTTPException(400,'Reequilíbrio disponível para análises visuais Gamma/PPT.')
@@ -3501,7 +3526,7 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
         except Exception:
             return {"status": "processing", "message": "Analise do curso em andamento..."}
 
-    # If done, return result and clear cache for next time
+    # Keep completed results: a dropped response can be read again safely.
     if cached and cached.get("status") == "done":
         result = cached["result"]
         from services.suggestion_semantics import normalize_analysis
@@ -3509,7 +3534,6 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
         if gamma:
             from services.course_resource_balance import balanced_result
             result = balanced_result(result,project)
-        await db.analysis_cache.delete_one({"key": cache_key})
         reading_status = result.get('visualAnalysis') or {}
         resume = (gamma and request.query_params.get('resume_partial') == 'true'
                   and reading_status.get('readSlides',0) < reading_status.get('totalSlides',0))
@@ -3522,12 +3546,13 @@ async def agent_analyze_course(project_id: str, request: Request, user: dict = D
     if cached and cached.get("status") == "error":
         err = cached.get("error", "Erro desconhecido")
         await db.analysis_cache.delete_one({"key": cache_key})
-        return {"status": "error", "error": err}
+        if request.query_params.get('resume_partial') != 'true':
+            return {"status": "error", "error": err}
 
     # Mark as processing and start background analysis
     await db.analysis_cache.update_one(
         {"key": cache_key},
-        {"$set": {"key": cache_key, "status": "processing", "projectId": project_id, "updatedAt": datetime.now(timezone.utc).isoformat()}},
+        {"$set": {"key": cache_key, "status": "processing", "projectId": project_id, "sourceUpdatedAt": project.get('updatedAt'), "updatedAt": datetime.now(timezone.utc).isoformat()}},
         upsert=True
     )
 
