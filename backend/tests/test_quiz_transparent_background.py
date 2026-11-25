@@ -39,7 +39,7 @@ def test_sp_quiz_transparent_class_added_when_flag_true():
     out = _render_quiz_element_inner(el, 0, 0, {})
     assert 'sp-quiz-transparent' in out
     # Composite class string preserved
-    assert 'sp-quiz sp-interactive sp-quiz-transparent' in out
+    assert 'sp-quiz sp-quiz-autostart sp-interactive sp-quiz-transparent' in out
 
 
 def test_sp_quiz_transparent_class_omitted_when_flag_missing_or_false():
@@ -49,7 +49,7 @@ def test_sp_quiz_transparent_class_omitted_when_flag_missing_or_false():
         out = _render_quiz_element_inner(el, 0, 0, {})
         assert 'sp-quiz-transparent' not in out
         # but the standard quiz classes are still there
-        assert 'class="sp-quiz sp-interactive"' in out
+        assert 'class="sp-quiz sp-quiz-autostart sp-interactive"' in out
 
 
 # ---------- html_exporter ----------

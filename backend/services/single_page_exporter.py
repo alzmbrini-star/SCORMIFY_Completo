@@ -1288,8 +1288,21 @@ def _render_quiz_element_inner(el: dict, slide_idx: int, el_idx: int, questions_
     quiz_classes = "sp-quiz sp-quiz-autostart sp-interactive"
     if is_transparent:
         quiz_classes += " sp-quiz-transparent"
+    try:
+        configured_font = cfg.get('fontSize', 16)
+        if isinstance(configured_font, str):
+            configured_font = configured_font.strip().removesuffix('px')
+        quiz_font = float(configured_font)
+        if not 8 <= quiz_font <= 96:
+            quiz_font = 16
+    except (TypeError, ValueError):
+        quiz_font = 16
+    font_style = (f'--sp-quiz-font-size:{quiz_font:g}px;'
+                  f'--sp-quiz-question-font-size:{quiz_font * 1.125:g}px;'
+                  f'--sp-quiz-support-font-size:{max(12, quiz_font * .875):g}px')
     return (
         f'<div class="{quiz_classes}" data-interactive="quiz" data-required="true" data-autostart="true" '
+        f'style="{font_style}" '
         f'data-interactive-id="quiz-{slide_idx}-{el_idx}" '
         f'data-adaptive="{"true" if cfg.get("adaptiveMode") is True else "false"}" data-questions="{qjson_attr}">'
         f'<div class="sp-quiz-icon">📝</div>'

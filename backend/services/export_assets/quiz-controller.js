@@ -84,6 +84,7 @@ var QuizController = (function() {
             
             var container = document.querySelector('.quiz-player-container[data-element-id="' + elementId + '"]');
             if (!container) return;
+            if (window.ScormifyQuizTypography) window.ScormifyQuizTypography.bind(container, quiz.config);
             
             var question = quiz.questions[quiz.currentIndex];
             var total = quiz.questions.length;
@@ -93,8 +94,8 @@ var QuizController = (function() {
             // Get font size from config (default 16px)
             var baseFontSize = quiz.config.fontSize || 16;
             var titleFontSize = Math.round(baseFontSize * 0.8125); // 13px at 16
-            var questionFontSize = Math.round(baseFontSize * 0.875); // 14px at 16
-            var altFontSize = Math.round(baseFontSize * 0.75); // 12px at 16
+            var questionFontSize = baseFontSize * 1.125; // Same hierarchy as the Editor
+            var altFontSize = baseFontSize; // Honor the author's configured size
             var smallFontSize = Math.round(baseFontSize * 0.6875); // 11px at 16
 
             // Transparent background mode (blends quiz over slide bg)
@@ -125,7 +126,7 @@ var QuizController = (function() {
                 '<h3 style="font-size:' + questionFontSize + 'px;font-weight:600;margin-bottom:12px;color:' + quizQuestionColor + ';line-height:1.4;' + quizQuestionShadow + '">' + question.text + '</h3>' +
                 
                 // Alternatives in 2x2 grid - smaller
-                '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;">';
+                '<div class="quiz-native-options" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;">';
             
             question.alternatives.forEach(function(alt, idx) {
                 var isSelected = quiz.selectedAnswer === alt.id;
@@ -162,7 +163,7 @@ var QuizController = (function() {
                 
                 html += '<button style="' + altStyle + '" onclick="QuizController.selectAnswer(\'' + elementId + '\', \'' + alt.id + '\')" ' + (showingFeedback ? 'disabled' : '') + '>' +
                     '<div style="' + circleStyle + '">' + (showingFeedback && isCorrect ? '✓' : (showingFeedback && isSelected && !isCorrect ? '✕' : '')) + '</div>' +
-                    '<span style="flex:1;' + textStyle + '">' + optionText(alt.text) + '</span></button>';
+                    '<span class="quiz-native-option-text" style="flex:1;' + textStyle + '">' + optionText(alt.text) + '</span></button>';
             });
             
             html += '</div>';
@@ -291,6 +292,7 @@ var QuizController = (function() {
             
             var container = document.querySelector('.quiz-player-container[data-element-id="' + elementId + '"]');
             if (!container) return;
+            if (window.ScormifyQuizTypography) window.ScormifyQuizTypography.bind(container, quiz.config);
             
             var correctCount = quiz.answers.filter(function(a) { return a.isCorrect; }).length;
             var totalCount = quiz.answers.length;

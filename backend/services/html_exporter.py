@@ -3324,6 +3324,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
         }})();
         
         // QuizController for HTML export
+        {(Path(__file__).parent / 'export_assets' / 'quiz-typography.js').read_text(encoding='utf-8')}
         var QuizController = (function() {{
             var quizzes = {{}};
             var questions = {{}};
@@ -3395,6 +3396,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     
                     var container = document.querySelector('.quiz-player-container[data-element-id="' + elementId + '"]');
                     if (!container) return;
+                    window.ScormifyQuizTypography.bind(container, quiz.config);
                     
                     var question = quiz.questions[quiz.currentIndex];
                     var total = quiz.questions.length;
@@ -3421,7 +3423,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         '<div style="height:100%;width:' + progress + '%;background:#06b6d4;transition:width 0.3s;"></div></div></div>' +
                         '<div class="quiz-scroll" style="flex:1;padding:12px 16px;overflow:auto;">' +
                         '<h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:' + quizQuestionColor + ';line-height:1.4;' + quizQuestionShadow + '">' + question.text + '</h3>' +
-                        '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;">';
+                        '<div class="quiz-native-options" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;">';
                     
                     question.alternatives.forEach(function(alt) {{
                         var isSelected = quiz.selectedAnswer === alt.id;
@@ -3458,7 +3460,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                         
                         html += '<button style="' + altStyle + '" onclick="QuizController.selectAnswer(\\'' + elementId + '\\', \\'' + alt.id + '\\')" ' + (showingFeedback ? 'disabled' : '') + '>' +
                             '<div style="' + circleStyle + '">' + (showingFeedback && isCorrect ? '✓' : (showingFeedback && isSelected && !isCorrect ? '✕' : '')) + '</div>' +
-                            '<span style="flex:1;' + textStyle + '">' + alt.text + '</span></button>';
+                            '<span class="quiz-native-option-text" style="flex:1;' + textStyle + '">' + alt.text + '</span></button>';
                     }});
                     
                     html += '</div>';
@@ -3572,6 +3574,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                     
                     var container = document.querySelector('.quiz-player-container[data-element-id="' + elementId + '"]');
                     if (!container) return;
+                    window.ScormifyQuizTypography.bind(container, quiz.config);
                     
                     var correctCount = quiz.answers.filter(function(a) {{ return a.isCorrect; }}).length;
                     var totalCount = quiz.answers.length;

@@ -211,6 +211,9 @@ body[data-fullscreen="true"] .sp-fullscreen-btn:hover{background:rgba(248,113,11
 .sp-quiz-body{margin-top:18px;text-align:left;background:#fff;color:#0f172a;border-radius:8px;padding:18px}
 .sp-quiz-body[hidden]{display:none}
 .sp-quiz-opt:hover{border-color:#2563eb!important;background:#eff6ff}
+.sp-quiz .sp-quiz-question legend{font-size:var(--sp-quiz-question-font-size,18px)!important;line-height:1.4;overflow-wrap:anywhere}
+.sp-quiz .sp-quiz-opt{font-size:var(--sp-quiz-font-size,16px)!important;line-height:1.4;overflow-wrap:anywhere}
+.sp-quiz .sp-quiz-explanation{font-size:var(--sp-quiz-support-font-size,14px)!important;line-height:1.4}
 
 /* Transparent background mode - quiz blends over slide bg */
 .sp-quiz.sp-quiz-transparent{background:transparent!important;border-color:transparent!important;box-shadow:none!important;text-shadow:0 1px 2px rgba(0,0,0,.6)}
