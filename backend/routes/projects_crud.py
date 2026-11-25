@@ -5,7 +5,7 @@ Extracted from the old monolithic routes/projects.py. This module holds the
 PPT upload pipeline that creates projects from PowerPoint files.
 """
 from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks, Request, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from pathlib import Path
 import uuid
@@ -116,6 +116,44 @@ from services.astryx_appearance import Appearance
 class AstryxAppearanceRequest(BaseModel):
     appearance: Appearance
     fingerprint: Optional[str] = None
+
+
+class AstryxRevisionRequest(AstryxAppearanceRequest):
+    slideIds: List[str] = Field(default_factory=list, max_length=500)
+    requestId: Optional[str] = None
+
+
+@router.get('/projects/{project_id}/astryx-revision')
+async def astryx_revision_options(project_id: str, user: dict = Depends(require_auth)):
+    _astryx_editor(user)
+    await load_authorized_project(project_id,user)
+    raw=await db.projects.find_one({'id':project_id},{'_id':0})
+    from services.astryx_revision import revision_plan
+    from services.astryx_appearance import catalog
+    try: _,rows=revision_plan(raw,[],{})
+    except ValueError as exc:raise HTTPException(422,str(exc))
+    return {**catalog(),'slides':rows}
+
+
+@router.post('/projects/{project_id}/astryx-revision/preview')
+async def astryx_revision_preview(project_id: str, data: AstryxRevisionRequest, user: dict = Depends(require_auth)):
+    _astryx_editor(user)
+    await load_authorized_project(project_id,user)
+    raw=await db.projects.find_one({'id':project_id},{'_id':0})
+    from services.astryx_revision import revision_plan, source_token
+    try: _,rows=revision_plan(raw,data.slideIds,data.appearance.model_dump())
+    except ValueError as exc:raise HTTPException(422,str(exc))
+    return {'slides':rows,'fingerprint':source_token(raw)}
+
+
+@router.post('/projects/{project_id}/astryx-revision/create')
+async def astryx_revision_create(project_id: str, data: AstryxRevisionRequest, user: dict = Depends(require_auth)):
+    _astryx_editor(user)
+    await load_authorized_project(project_id,user)
+    raw=await db.projects.find_one({'id':project_id},{'_id':0})
+    from services.astryx_revision import create_revision
+    try:return await create_revision(db,raw,data.slideIds,data.appearance.model_dump(),data.fingerprint,data.requestId,user.get('user_id'),now_utc().isoformat(),PROJECTS_DIR)
+    except (ValueError,TypeError,AttributeError) as exc:raise HTTPException(409,str(exc))
 
 
 @router.get('/design-prototypes/astryx/appearance-options')

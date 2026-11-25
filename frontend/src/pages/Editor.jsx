@@ -18,6 +18,7 @@ import LayoutRecoveryNotice from '../components/editor/LayoutRecoveryNotice';
 import FilmStudioDialog from '../components/FilmStudioDialog';
 import AstryxPrototypeDialog from '../components/AstryxPrototypeDialog';
 import AstryxAppearanceDialog from '../components/AstryxAppearanceDialog';
+import AstryxRevisionDialog from '../components/AstryxRevisionDialog';
 import QualityReviewDialog from '../components/QualityReviewDialog';
 import GammaRefreshDialog from '../components/GammaRefreshDialog';
 import { Button } from '../components/ui/button';
@@ -301,6 +302,7 @@ export default function Editor() {
   const [showFilmStudio,setShowFilmStudio]=useState(false);
   const [showAstryxPrototype,setShowAstryxPrototype]=useState(false);
   const [showAstryxAppearance,setShowAstryxAppearance]=useState(false);
+  const [showAstryxRevision,setShowAstryxRevision]=useState(false);
   const [showQualityReview,setShowQualityReview]=useState(false);
   // Background opacity slider: local draft + debounced save. Without this
   // every 1% tick fired a PUT and any failure (e.g. project deleted in
@@ -1426,6 +1428,7 @@ export default function Editor() {
       <FilmStudioDialog open={showFilmStudio} onOpenChange={setShowFilmStudio} sourceProjectId={currentProject?.id} sourceTitle={currentProject?.name}/>
       {canUseAstryx&&<AstryxPrototypeDialog open={showAstryxPrototype} onOpenChange={setShowAstryxPrototype} sourceProjectId={currentProject?.id}/>}
       {canUseAstryx&&showAstryxAppearance&&currentProject?.id&&<AstryxAppearanceDialog projectId={currentProject.id} onClose={()=>setShowAstryxAppearance(false)} onSaved={()=>fetchProject(currentProject.id)}/>}
+      {canUseAstryx&&showAstryxRevision&&currentProject?.id&&<AstryxRevisionDialog projectId={currentProject.id} onClose={()=>setShowAstryxRevision(false)} onCreated={id=>{setShowAstryxRevision(false);navigate(`/editor/${id}`);}}/>}
       {showQualityReview && currentProject?.id && <QualityReviewDialog projectId={currentProject.id} onClose={()=>setShowQualityReview(false)} onSaved={()=>fetchProject(currentProject.id)}/>}
       {/* Course Preview Modal */}
       {showPreview && (
@@ -1527,6 +1530,7 @@ export default function Editor() {
                 <DropdownMenuItem onClick={()=>setShowQualityReview(true)}>Revisar qualidade do curso</DropdownMenuItem>
                 {canUseAstryx&&<DropdownMenuItem onClick={()=>setShowAstryxPrototype(true)} data-testid="editor-astryx-prototype">Astryx — laboratório de slides</DropdownMenuItem>}
                 {canUseAstryx&&<DropdownMenuItem onClick={()=>setShowAstryxAppearance(true)}>Astryx — estilos, cores e legendas</DropdownMenuItem>}
+                {canUseAstryx&&<DropdownMenuItem onClick={()=>setShowAstryxRevision(true)}>Aplicar design Astryx — criar cópia para revisão</DropdownMenuItem>}
                 <DropdownMenuItem
                   onClick={handleRepairPdfImages}
                   disabled={repairingPdfImages}
