@@ -1,7 +1,7 @@
 import copy
 import uuid
 import pytest
-from services.astryx_revision import revision_plan,create_revision
+from services.astryx_revision import revision_plan,create_revision,remap
 from services.astryx_revision import source_token as fingerprint
 
 PID='11223344-1122-3344-5566-778899aabbcc'
@@ -15,11 +15,16 @@ def project():
  ]}}
 
 def test_preview_is_read_only_selective_protects_activities_and_all_image_pixels():
+ assert remap('Nota 1 sobre q1 e questão',{'1':'replacement','q1':'question-new'})=='Nota 1 sobre q1 e questão'
+ assert remap('{"questionId":"q1"}',{'q1':'question-new'})=='{"questionId":"question-new"}'
  p=project();before=copy.deepcopy(p)
- styled,rows=revision_plan(p,['lesson','picture'],{'style':'studio','theme':'dark'})
+ styled,rows=revision_plan(p,['lesson','picture','animated'],{'style':'studio','theme':'dark'})
  assert p==before and len(styled['course']['slides'])==5
- for i in (1,2,3):assert styled['course']['slides'][i]==p['course']['slides'][i]
- assert [r['eligible'] for r in rows]==[True,False,False,False,True]
+ for i in (1,2):assert styled['course']['slides'][i]==p['course']['slides'][i]
+ assert [r['eligible'] for r in rows]==[True,False,False,True,True]
+ animated=styled['course']['slides'][3]['elements'][0]
+ assert animated['animations']==p['course']['slides'][3]['elements'][0]['animations']
+ assert 'Texto animado' in animated['htmlContent']
  html=styled['course']['slides'][0]['elements'][0]['htmlContent']
  assert 'Texto integral' in html and 'Captura acessível' in html and 'capture.png' in html
  assert styled['course']['slides'][0]['notes']=='Nota original'

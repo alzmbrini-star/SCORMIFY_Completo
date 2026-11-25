@@ -1,11 +1,51 @@
 """Explicit, conservative redesign of saved courses, always into a new draft."""
 import copy
 import hashlib
+import html
 import json
 import re
 import uuid
 from services.astryx_agent import build_elements, compatible, TEMPLATE, safe_url
 from services.astryx_appearance import normalize
+
+
+def compose_preview(slide):
+    """Preserve the canvas geometry of separately timed static blocks."""
+    w=float(slide.get('width') or 1920);h=float(slide.get('height') or 820)
+    pieces=[]
+    for e in slide.get('elements',[]):
+        style='position:absolute;left:%spx;top:%spx;width:%spx;height:%spx;border:0;'%tuple(float(e.get(k) or default) for k,default in [('x',0),('y',0),('width',w),('height',h)])
+        if e.get('type')=='image':
+            src=safe_url(e.get('src') or e.get('url') or e.get('content'))
+            pieces.append(f'<img style="{style}object-fit:contain" src="{html.escape(src,quote=True)}" alt="{html.escape(str(e.get("alt") or ""),quote=True)}">')
+        else:
+            pieces.append(f'<iframe title="Bloco de conteúdo" sandbox="allow-scripts" style="{style}" srcdoc="{html.escape(e.get("htmlContent", ""),quote=True)}"></iframe>')
+    bg=slide.get('background') or '#f4f7fc'
+    if not re.fullmatch(r'#[0-9a-fA-F]{3,8}',bg):bg='#f4f7fc'
+    background=slide.get('backgroundImage')
+    if isinstance(background,dict):background=background.get('url') or background.get('src')
+    if safe_url(background):pieces.insert(0,f'<img alt="Fundo original" src="{html.escape(background,quote=True)}" style="position:absolute;width:100%;height:100%;object-fit:contain">')
+    return f'<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:{bg}"><div id="canvas" style="position:relative;width:{w}px;height:{h}px;transform-origin:top left">'+''.join(pieces)+f'</div><script>function fit(){{var s=Math.min(1,innerWidth/{w});document.getElementById("canvas").style.transform="scale("+s+")";document.body.style.height=({h}*s)+"px";document.body.style.overflowX="hidden";}}addEventListener("resize",fit);fit();</script></body></html>'
+
+
+def timed_blocks(source, options):
+    """Change static document styling only; retain every outer timeline property."""
+    elements=[]
+    for e in source.get('elements',[]):
+        target=copy.deepcopy(e)
+        if e.get('type') in ('text','html'):
+            block=copy.deepcopy(e)
+            raw=block.get('content') or block.get('htmlContent') or ''
+            from services.teaching_copy import visible_teaching_text
+            if re.search(r'<img\b',raw,re.I) and not visible_teaching_text(raw):
+                block.update(content='',htmlContent=raw+'<figcaption>Imagem original</figcaption>')
+            generated=build_elements({'title':source.get('title',''),'elements':[block]},
+                {**TEMPLATE['palette'],'astryxAppearance':options})[0]
+            override='<style>.ax-page{padding:0!important;max-width:none!important;min-height:0!important}.ax-kicker,.ax-rule,main.ax-page>h2{display:none!important}.ax-copy{margin:0!important}</style>'
+            target.update(type='html',content='',htmlContent=generated['htmlContent'].replace('</head>',override+'</head>'),
+                          astryxDesign=True,astryxAppearance=options,htmlDisplayMode='scroll')
+        elements.append(target)
+    return elements
 
 
 def source_token(project):
@@ -29,9 +69,9 @@ def revision_plan(project, selected, appearance):
             reason='Slide vazio.'
         elif source.get('guidedActivity') or source.get('assessmentActivity') or source.get('interactions') or source.get('hotspots') or any(
             e.get('type') not in ('text','html','image') or e.get('quizConfig') or e.get('assessmentConfig') or
-            e.get('animations') or e.get('startTime',0) or any(e.get(k) for k in ('actions','action','link','hyperlink','onClick','events','interactions','trigger'))
+            any(e.get(k) for k in ('actions','action','link','hyperlink','onClick','events','interactions','trigger'))
             for e in elements):
-            reason='Atividade, mídia, ação ou animação temporizada: mantida integralmente.'
+            reason='Atividade, mídia ou ação: mantida integralmente.'
         elif not compatible({**source,'sourceImageOnly':False}) or any(re.search(r'<(?:details|summary|select|textarea)\b|\bon\w+\s*=|@keyframes|\banimation\s*:',str(e.get('htmlContent') or e.get('content') or ''),re.I) for e in elements):
             reason='HTML interativo ou diagrama: mantido integralmente.'
         else:
@@ -43,7 +83,6 @@ def revision_plan(project, selected, appearance):
             if any(not safe_url(u) for u in urls):
                 reason='Imagem com endereço não suportado: mantida sem conversão.'
             else:
-                import html
                 blocks=[copy.deepcopy(e) for e in elements if e.get('type') in ('text','html')]
                 from services.teaching_copy import visible_teaching_text
                 for block in blocks:
@@ -58,16 +97,21 @@ def revision_plan(project, selected, appearance):
                     blocks.append({'type':'html','htmlContent':f'<figure><img src="{html.escape(url,quote=True)}" alt="{html.escape(str(alt),quote=True)}"><figcaption>{label}</figcaption></figure>'})
                 candidate={**source,'sourceImageOnly':False,'elements':blocks}
                 converted=build_elements(candidate,{**TEMPLATE['palette'],'astryxAppearance':options},source.get('moduleName',''))
+                if any(e.get('animations') or e.get('startTime',0) for e in elements):
+                    converted=timed_blocks(source,options)
+                    reason='Visual dos blocos estáticos; posições, identificadores, tempos e animações preservados.'
         eligible=converted is not None
         chosen=source.get('id') in selected
         if eligible and chosen:
-            for element in converted:
-                element.update(width=source.get('width',1920),height=source.get('height',820))
+            timed=any(e.get('animations') or e.get('startTime',0) for e in elements)
+            if not timed:
+                for element in converted:element.update(width=source.get('width',1920),height=source.get('height',820))
             target['elements']=converted
-            target.update(background=('#101827' if options['theme']!='light' else '#f4f7fc'),backgroundImage=None)
+            target.update(background=('#101827' if options['theme']!='light' else '#f4f7fc'))
+            if not timed:target['backgroundImage']=None
         rows.append({'id':source['id'],'slide':index+1,'title':source.get('title') or f'Slide {index+1}',
                      'eligible':eligible,'selected':chosen and eligible,'reason':reason or 'Texto e imagens estáticos: visual Astryx com conteúdo preservado.',
-                     **({'html':converted[0]['htmlContent']} if eligible and chosen else {})})
+                     **({'html':compose_preview(target) if timed else converted[0]['htmlContent']} if eligible and chosen else {})})
     if selected and not any(r['selected'] for r in rows):raise ValueError('Nenhum slide selecionado é compatível. O curso não foi alterado.')
     return result,rows
 
@@ -76,7 +120,11 @@ def remap(value, replacements):
     if isinstance(value,dict):return {k:remap(v,replacements) for k,v in value.items()}
     if isinstance(value,list):return [remap(v,replacements) for v in value]
     if isinstance(value,str):
-        for old,new in replacements.items():value=value.replace(old,new)
+        if value in replacements:return replacements[value]
+        for old,new in replacements.items():
+            value=re.sub(r'(?<=[/"\'])'+re.escape(old)+r'(?=[/"\'?#]|$)',lambda _:new,value)
+            for quote in ('&quot;','\\"',"\\'"):
+                value=value.replace(quote+old+quote,quote+new+quote)
     return value
 
 
