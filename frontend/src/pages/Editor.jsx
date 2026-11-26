@@ -16,6 +16,7 @@ import { getApiUrl } from '../utils/apiUrl';
 import { mergeRunwayProject } from './Editor/utils/runwayJobs';
 import LayoutRecoveryNotice from '../components/editor/LayoutRecoveryNotice';
 import FilmStudioDialog from '../components/FilmStudioDialog';
+import MusicStudioDialog from '../components/MusicStudioDialog';
 import AstryxPrototypeDialog from '../components/AstryxPrototypeDialog';
 import AstryxAppearanceDialog from '../components/AstryxAppearanceDialog';
 import AstryxRevisionDialog from '../components/AstryxRevisionDialog';
@@ -300,6 +301,7 @@ export default function Editor() {
   // ── Local State ──
   const [showMediaDialog, setShowMediaDialog] = useState(false);
   const [showFilmStudio,setShowFilmStudio]=useState(false);
+  const [showMusicStudio,setShowMusicStudio]=useState(false);
   const [showAstryxPrototype,setShowAstryxPrototype]=useState(false);
   const [showAstryxAppearance,setShowAstryxAppearance]=useState(false);
   const [showAstryxRevision,setShowAstryxRevision]=useState(false);
@@ -1426,6 +1428,7 @@ export default function Editor() {
   return (
     <TooltipProvider>
       <FilmStudioDialog open={showFilmStudio} onOpenChange={setShowFilmStudio} sourceProjectId={currentProject?.id} sourceTitle={currentProject?.name}/>
+      <MusicStudioDialog open={showMusicStudio} onOpenChange={setShowMusicStudio} sourceProjectId={currentProject?.id} onUseAudio={file=>{setAudioFile(file);setAudioTarget('slide');setAudioType('narration');setShowAudioDialog(true);}}/>
       {canUseAstryx&&<AstryxPrototypeDialog open={showAstryxPrototype} onOpenChange={setShowAstryxPrototype} sourceProjectId={currentProject?.id}/>}
       {canUseAstryx&&showAstryxAppearance&&currentProject?.id&&<AstryxAppearanceDialog projectId={currentProject.id} onClose={()=>setShowAstryxAppearance(false)} onSaved={()=>fetchProject(currentProject.id)}/>}
       {canUseAstryx&&showAstryxRevision&&currentProject?.id&&<AstryxRevisionDialog projectId={currentProject.id} onClose={()=>setShowAstryxRevision(false)} onCreated={id=>{setShowAstryxRevision(false);navigate(`/editor/${id}`);}}/>}
@@ -2030,6 +2033,7 @@ export default function Editor() {
                 <TooltipContent>🎭 Criar Vídeo com Avatar (HeyGen)</TooltipContent>
               </Tooltip>
               <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-8 text-xs" onClick={()=>setShowFilmStudio(true)} data-testid="editor-film-studio">Filme educativo</Button></TooltipTrigger><TooltipContent>Filme educativo em desenho animado — storyboard e orçamento aprovados antes das mídias</TooltipContent></Tooltip>
+              <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="h-8 text-xs" onClick={()=>setShowMusicStudio(true)} data-testid="editor-music-studio">Músicas IA</Button></TooltipTrigger><TooltipContent>Trilhas e músicas educativas PT-BR — orçamento em reais antes de gerar</TooltipContent></Tooltip>
 
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -2767,6 +2771,7 @@ export default function Editor() {
           videoLibraryItems={videoLibraryItems} videoLibraryLoading={videoLibraryLoading} refreshingVideoId={refreshingVideoId}
           loadVideoLibrary={loadVideoLibrary} refreshVideoStatus={refreshVideoStatus}
           handleAddLibraryVideoToSlide={handleAddLibraryVideoToSlide} handleDeleteLibraryVideo={handleDeleteLibraryVideo}
+          handleUseLibraryAudio={file=>{setShowVideoLibrary(false);setAudioFile(file);setAudioTarget('slide');setAudioType('narration');setShowAudioDialog(true);}}
         />
 
         <TTSDialog

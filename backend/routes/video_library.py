@@ -13,6 +13,14 @@ def project_scope(user):
 
 
 def normalize(provider, row, project=None):
+    if provider == 'eleven_music':
+        spec=row.get('spec',{})
+        return {'library_id':'eleven_music:'+row['id'],'video_id':row['id'],'provider':provider,
+                'media_type':'audio','title':spec.get('title') or 'Música educativa',
+                'status':'completed','video_url':None,'audio_url':row.get('audioUrl'),
+                'duration':spec.get('duration'),'script':spec.get('theme'),'created_at':row.get('createdAt',''),
+                'music':True,'narrated':False,'music_mode':spec.get('mode'),
+                'can_delete':False,'can_refresh':False}
     identifier = str((row.get('id') if provider == 'runway' else None) or row.get('video_id') or row.get('taskId') or row.get('id') or row.get('slideId') or '')
     created = row.get('created_at') or row.get('createdAt') or row.get('submittedAt') or ''
     created = created.isoformat() if hasattr(created, 'isoformat') else str(created)
@@ -20,7 +28,7 @@ def normalize(provider, row, project=None):
     state = row.get('status', 'processing')
     if state == 'succeeded' and url:
         state = 'completed'
-    return {'library_id': provider + ':' + identifier, 'video_id': identifier, 'provider': provider,
+    return {'library_id': provider + ':' + identifier, 'video_id': identifier, 'provider': provider,'media_type':'video',
             'title': row.get('title') or row.get('prompt', '')[:100] or 'Vídeo ' + provider,
             'status': state, 'video_url': url, 'thumbnail_url': row.get('thumbnail_url'),
             'duration': row.get('durationActual') or row.get('duration'),
@@ -40,7 +48,7 @@ async def accessible_projects(user):
 @router.get('/videos/library')
 async def catalog(provider: str = '', search: str = '', offset: int = Query(0, ge=0),
                   limit: int = Query(100, ge=1, le=100), user=Depends(require_auth)):
-    if provider and provider not in ('heygen', 'heygem', 'kling', 'runway', 'educational_film'):
+    if provider and provider not in ('heygen', 'heygem', 'kling', 'runway', 'educational_film', 'eleven_music'):
         raise HTTPException(400, 'Provedor inválido.')
     projects = await accessible_projects(user)
     by_id = {p['id']: p for p in projects}
@@ -69,6 +77,11 @@ async def catalog(provider: str = '', search: str = '', offset: int = Query(0, g
     if owner:
         async for row in db.heygem_videos.find({'userId': owner}):
             add('heygem', row)
+    # Music stays independently owned, even when generated without a source course.
+    # Catalog reads never synthesize, approve, attach audio or alter video records.
+    if owner and has_any_role(user,'editor','company_admin') and (has_role(user,'super_admin') or (user.get('company') or {}).get('permissions',{}).get('elevenlabs')):
+        async for row in db.music_jobs.find({'ownerId':owner,'companyId':user.get('companyId'),'status':'ready'}):
+            add('eleven_music',row)
     # Separate tombstones survive project saves and keep original jobs/assets
     # available for diagnostics and undo. Completed results are never hidden.
     hidden = {row['_id'] async for row in db.video_library_hidden.find({'_id': {'$in': list(rows)}})}

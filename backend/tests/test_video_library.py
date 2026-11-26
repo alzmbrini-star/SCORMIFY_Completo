@@ -28,6 +28,27 @@ class Cursor:
 
 
 class VideoLibraryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_music_joins_same_library_without_source_project_or_course_writes(self):
+        queries={}
+        def coll(name,rows):
+            def find(query,*args):queries[name]=query;return Cursor(rows)
+            return SimpleNamespace(find=find)
+        empty=lambda name:coll(name,[])
+        row={'id':'m','ownerId':'u','companyId':'a','status':'ready','audioUrl':'/api/music/m/audio',
+             'createdAt':'2026-11-26','spec':{'title':'Colaborar','theme':'Trabalho em equipe','duration':60,'mode':'educational'}}
+        db=SimpleNamespace(projects=empty('projects'),educational_films=empty('films'),kling_generations=empty('kling'),
+            heygen_videos=empty('heygen'),heygem_videos=empty('heygem'),video_library_hidden=empty('hidden'),music_jobs=coll('music',[row]))
+        lib=library(db=db);user={'id':'u','companyId':'a','roles':['editor'],'company':{'permissions':{'elevenlabs':True}}}
+        result=await lib.catalog('eleven_music','',0,100,user)
+        self.assertEqual(result['total'],1)
+        item=result['videos'][0]
+        self.assertEqual(item['media_type'],'audio');self.assertEqual(item['audio_url'],row['audioUrl'])
+        self.assertIsNone(item['video_url']);self.assertFalse(item['can_delete']);self.assertFalse(item['can_refresh'])
+        self.assertEqual(queries['music'],{'ownerId':'u','companyId':'a','status':'ready'})
+        del queries['music']
+        await lib.catalog('','',0,100,{**user,'roles':['viewer']})
+        self.assertNotIn('music',queries)
+
     def test_company_scope_never_leaks_orphan_projects(self):
         lib=library()
         self.assertEqual(lib.project_scope({'companyId':'a'}),{'companyId':'a'})

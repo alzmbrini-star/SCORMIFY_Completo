@@ -9,29 +9,33 @@ import {
   Loader2, Plus, RefreshCw, Video, Trash2, Clock, Film, FileText, Play, Check, X,
 } from 'lucide-react';
 import { formatDuration, formatDateTime, getStatusBadge } from '../utils';
+import MusicLibraryAudio from '../../../components/MusicLibraryAudio';
 
 export function VideoLibraryDialog({
   open, onOpenChange,
   videoLibraryItems, videoLibraryLoading, refreshingVideoId,
   loadVideoLibrary, refreshVideoStatus,
   handleAddLibraryVideoToSlide, handleDeleteLibraryVideo,
+  handleUseLibraryAudio,
 }) {
   const [provider, setProvider] = useState('all');
   const [search, setSearch] = useState('');
-  const filtered = videoLibraryItems.filter(v => (provider === 'all' || v.provider === provider) && `${v.title || ''} ${v.script || ''} ${v.project_title || ''}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
+  const [mediaType,setMediaType]=useState('all');
+  const filtered = videoLibraryItems.filter(v => (mediaType==='all'||(v.media_type||'video')===mediaType) && (provider === 'all' || v.provider === provider) && `${v.title || ''} ${v.script || ''} ${v.project_title || ''}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Film className="w-5 h-5 text-cyan-500" />
-            Biblioteca de Vídeos
+            Biblioteca de Vídeos e Áudios
           </DialogTitle>
-          <DialogDescription>Filmes educativos, HeyGen, Runway, Kling e HeyGem dos projetos permitidos. Os vídeos concluídos podem ser reutilizados sem nova geração.</DialogDescription>
+          <DialogDescription>Vídeos dos projetos permitidos e suas músicas ElevenLabs. Ouça, baixe e reutilize mídias prontas sem nova geração. Inserir áudio abre a escolha de destino, sem substituir conteúdos automaticamente.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap gap-2">
           <Input aria-label="Buscar vídeos" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar título, roteiro ou projeto…" className="flex-1 min-w-[180px]" />
-          <select aria-label="Provedor de vídeo" value={provider} onChange={e => setProvider(e.target.value)} className="rounded border bg-background p-2"><option value="all">Todos os provedores</option>{['educational_film','heygen','runway','kling','heygem'].map(p => <option key={p} value={p}>{({educational_film:'Filme educativo',heygen:'HeyGen',runway:'Runway',kling:'Kling',heygem:'HeyGem'})[p]}</option>)}</select>
+          <select aria-label="Tipo de mídia" value={mediaType} onChange={e=>setMediaType(e.target.value)} className="rounded border bg-background p-2"><option value="all">Vídeos e áudios</option><option value="video">Vídeos</option><option value="audio">Áudios</option></select>
+          <select aria-label="Provedor de vídeo" value={provider} onChange={e => setProvider(e.target.value)} className="rounded border bg-background p-2"><option value="all">Todos os provedores</option>{['educational_film','heygen','runway','kling','heygem','eleven_music'].map(p => <option key={p} value={p}>{({educational_film:'Filme educativo',heygen:'HeyGen',runway:'Runway',kling:'Kling',heygem:'HeyGem',eleven_music:'ElevenLabs · Música'})[p]}</option>)}</select>
         </div>
 
         <div className="flex-1 overflow-hidden">
@@ -42,8 +46,8 @@ export function VideoLibraryDialog({
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-center">
               <Film className="w-16 h-16 text-muted-foreground/30 mb-4" />
-              <h3 className="text-lg font-medium text-muted-foreground">Nenhum vídeo encontrado</h3>
-              <p className="text-sm text-muted-foreground mt-1">Revise os filtros ou crie um vídeo em Adicionar Vídeo ou Avatares.</p>
+              <h3 className="text-lg font-medium text-muted-foreground">Nenhuma mídia encontrada</h3>
+              <p className="text-sm text-muted-foreground mt-1">Revise os filtros ou crie uma música em Músicas IA, ou um vídeo em Adicionar Vídeo.</p>
             </div>
           ) : (
             <ScrollArea className="h-[calc(85vh-200px)]">
@@ -51,13 +55,13 @@ export function VideoLibraryDialog({
                 {filtered.map((video) => (
                   <div key={video.library_id || video.video_id}
                     className={`group border rounded-lg overflow-hidden transition-all hover:border-cyan-500/50 hover:shadow-md ${video.status === 'completed' ? 'cursor-pointer' : 'opacity-80'}`}
-                    onClick={() => video.status === 'completed' && handleAddLibraryVideoToSlide(video)}>
+                    onClick={() => video.media_type!=='audio' && video.status === 'completed' && handleAddLibraryVideoToSlide(video)}>
                     <div className="flex gap-4 p-4">
                       <div className="flex-shrink-0 w-32 h-20 bg-muted rounded overflow-hidden relative">
                         {video.thumbnail_url ? (
                           <img src={video.thumbnail_url} alt={video.title} className="w-full h-full object-cover" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center"><Video className="w-8 h-8 text-muted-foreground/30" /></div>
+                          <div className="w-full h-full flex items-center justify-center">{video.media_type==='audio'?<span role="img" aria-label="Áudio" className="text-3xl">🎵</span>:<Video className="w-8 h-8 text-muted-foreground/30" />}</div>
                         )}
                         {video.duration && (
                           <div className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-black/70 rounded text-[10px] text-white font-mono">{formatDuration(video.duration)}</div>
@@ -67,7 +71,7 @@ export function VideoLibraryDialog({
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <h4 className="font-medium truncate">{video.title || 'Sem título'}</h4>
-                            <p className="text-xs text-cyan-400">{({educational_film:'Filme educativo',heygen:'HeyGen',runway:'Runway',kling:'Kling',heygem:'HeyGem'})[video.provider] || 'HeyGen'}{video.narrated && ' · Narração PT-BR'}{video.music && ' · Trilha sonora'}{video.project_title && ` · ${video.project_title}`}</p>
+                            <p className="text-xs text-cyan-400">{({educational_film:'Filme educativo',heygen:'HeyGen',runway:'Runway',kling:'Kling',heygem:'HeyGem',eleven_music:'ElevenLabs · Áudio'})[video.provider] || 'HeyGen'}{video.narrated && ' · Narração PT-BR'}{video.music && ' · Trilha sonora'}{video.project_title && ` · ${video.project_title}`}</p>
                             <div className="flex items-center gap-2 mt-1">
                               {getStatusBadge(video.status)}
                               <span className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" />{formatDateTime(video.created_at)}</span>
@@ -82,7 +86,7 @@ export function VideoLibraryDialog({
                                 <span className="ml-1 text-xs">Atualizar</span>
                               </Button>
                             )}
-                            {video.status === 'completed' && (
+                            {video.media_type!=='audio' && video.status === 'completed' && (
                               <Button variant="ghost" size="sm" className="h-8 px-2 text-cyan-600 hover:text-cyan-700 hover:bg-cyan-50"
                                 onClick={(e) => { e.stopPropagation(); handleAddLibraryVideoToSlide(video); }} data-testid={`add-video-${video.video_id}`}>
                                 <Plus className="w-4 h-4" /><span className="ml-1 text-xs">Adicionar</span>
@@ -103,7 +107,8 @@ export function VideoLibraryDialog({
                         {video.error && <p role="status" className="mt-2 text-xs text-amber-400">{video.error}</p>}
                       </div>
                     </div>
-                    {video.status === 'completed' && video.video_url && (
+                    {video.media_type==='audio'&&video.status==='completed'&&<MusicLibraryAudio item={video} onUseAudio={handleUseLibraryAudio}/>}
+                    {video.media_type!=='audio' && video.status === 'completed' && video.video_url && (
                       <div className="hidden group-hover:block border-t bg-black" onClick={(e) => e.stopPropagation()}>
                         <video src={video.video_url} controls className="w-full max-h-48" preload="none" />
                       </div>

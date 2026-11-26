@@ -64,6 +64,7 @@ import ApprovalQueuePanel from './Agent/components/ApprovalQueuePanel';
 import { CourseReviewPanel, EditResultPanel, PreviewPanel } from './Agent/components/CoursePanels';
 import { analysisMessage, updateAnalysisStatus } from './Agent/courseAnalysisUI';
 import FilmStudioDialog from '../components/FilmStudioDialog';
+import MusicStudioDialog from '../components/MusicStudioDialog';
 import AstryxPrototypeDialog from '../components/AstryxPrototypeDialog';
 import PdfPreviewPanel from './Agent/components/PdfPreviewPanel';
 import CompanySelector from '../components/CompanySelector';
@@ -104,6 +105,7 @@ export default function Agent() {
   // Mode: null = selection, 'create' = new course, 'edit' = edit existing
   const [mode, setMode] = useState(null);
   const [showFilmStudio,setShowFilmStudio]=useState(false);
+  const [showMusicStudio,setShowMusicStudio]=useState(false);
   const [showAstryxPrototype,setShowAstryxPrototype]=useState(false);
   const canUseAstryx = [...(authUser?.roles || []), authUser?.role].some(r => ['editor','company_admin','super_admin'].includes(r));
   const [sessionId, setSessionId] = useState(null);
@@ -1434,6 +1436,7 @@ export default function Agent() {
   return (
     <div className="h-screen flex flex-col bg-slate-950 text-white" data-testid="agent-page">
       <FilmStudioDialog open={showFilmStudio} onOpenChange={setShowFilmStudio}/>
+      <MusicStudioDialog open={showMusicStudio} onOpenChange={setShowMusicStudio}/>
       {canUseAstryx&&<AstryxPrototypeDialog open={showAstryxPrototype} onOpenChange={setShowAstryxPrototype}/>}
       {/* Header */}
       <header className="h-14 border-b border-slate-800 flex items-center px-4 gap-3 shrink-0">
@@ -1454,6 +1457,7 @@ export default function Agent() {
         <Brain className="w-5 h-5 text-emerald-400" />
         <span className="font-semibold text-sm">Agente de Design Instrucional</span>
         {!(isAprovador&&!isSuperAdmin)&&<Button variant="outline" size="sm" onClick={()=>setShowFilmStudio(true)} data-testid="agent-film-studio">Filme educativo</Button>}
+        {!(isAprovador&&!isSuperAdmin)&&<Button variant="outline" size="sm" onClick={()=>setShowMusicStudio(true)} data-testid="agent-music-studio">Músicas IA</Button>}
         {canUseAstryx&&<Button variant="outline" size="sm" onClick={()=>setShowAstryxPrototype(true)} data-testid="agent-astryx-prototype">Astryx · protótipo</Button>}
         {mode && (
           <Badge className={`text-[10px] ${mode === 'create' ? 'bg-emerald-600/20 text-emerald-300' : mode === 'approval' ? 'bg-amber-600/20 text-amber-300' : 'bg-blue-600/20 text-blue-300'}`}>
