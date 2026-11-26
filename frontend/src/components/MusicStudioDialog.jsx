@@ -19,7 +19,7 @@ export default function MusicStudioDialog({open,onOpenChange,sourceProjectId=nul
  const [preview,setPreview]=useState('');
  const guard=useRef(false),requestId=useRef(null),blobRef=useRef(null),previewRef=useRef('');
  const clearPreview=()=>{if(previewRef.current)URL.revokeObjectURL(previewRef.current);previewRef.current='';blobRef.current=null;setPreview('');};
- const accept=data=>{setJob(data);setConsent(false);setLimit((Math.ceil(data.quote.estimatedBrl*120)/100).toFixed(2));};
+ const accept=data=>{setJob(data);setConsent(false);setLimit((data.approval?.ceilingBrl??Math.ceil(data.quote.estimatedBrl*120)/100).toFixed(2));};
  const act=async fn=>{if(guard.current)return;guard.current=true;setBusy(true);setError('');try{return await fn();}catch(e){setError(e.message);}finally{guard.current=false;setBusy(false);}};
  useEffect(()=>{
   if(!open)return;let active=true;
@@ -36,6 +36,7 @@ export default function MusicStudioDialog({open,onOpenChange,sourceProjectId=nul
  useEffect(()=>()=>{if(previewRef.current)URL.revokeObjectURL(previewRef.current);},[]);
  const change=values=>{setSpec(old=>({...old,...values}));setJob(null);requestId.current=null;setConsent(false);clearPreview();};
  const estimate=()=>act(async()=>{
+  if(job){requestId.current=null;setJob(null);setConsent(false);clearPreview();}
   if(!requestId.current)requestId.current=crypto.randomUUID();
   accept(await musicRequest('/music/quotes','POST',{spec,sourceProjectId,requestId:requestId.current}));
  });

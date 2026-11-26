@@ -60,6 +60,18 @@ test('changed ceiling blocks generation of previously approved budget',async()=>
  expect(host.querySelector('[data-testid="music-generate"]').disabled).toBe(true);
 });
 
+test('reopening an approved quote preserves the author custom BRL limit',async()=>{
+ current={...quoted(),status:'approved',approval:{ceilingBrl:2.5}};await history();
+ expect(host.querySelector('[aria-label="Limite do orçamento da música"]').value).toBe('2.50');
+ expect(host.querySelector('[data-testid="music-generate"]').disabled).toBe(false);
+});
+
+test('recalculating a saved quote requests a fresh budget, not a paid generation',async()=>{
+ await history();await act(async()=>button('Calcular orçamento').click());
+ expect(fetch.mock.calls.filter(([u])=>u==='/api/music/quotes')).toHaveLength(1);
+ expect(fetch.mock.calls.some(([u])=>u.endsWith('/generate'))).toBe(false);
+});
+
 test('ready audio is fetched with authentication and inserted only after explicit click',async()=>{
  current={...quoted(),status:'ready',audioUrl:'/api/music/music1/audio'};
  const use=jest.fn(),close=jest.fn();await act(async()=>root.render(<MusicStudioDialog open onOpenChange={close} onUseAudio={use}/>));
