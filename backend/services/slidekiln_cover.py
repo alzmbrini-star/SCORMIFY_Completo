@@ -5,7 +5,7 @@ import io
 import re
 from html.parser import HTMLParser
 
-VERSION = 'v1'
+VERSION = 'v2'
 MAX_COVER = 12 * 1024 * 1024
 _VOID = {'area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr'}
 _BLOCKED = {'script','iframe','object','embed','form','input','textarea','select','audio','video','link','meta','base'}
@@ -112,6 +112,8 @@ def build_cover(path):
         name=re.search(family_pattern,match[0],re.I)
         return match[0] if name and name[1].strip().strip('\'"').casefold() in families else ''
     css=_css(re.sub(r'@font-face\s*\{[^}]*\}',face,css,flags=re.I))
+    from services.slidekiln_text import TEXT_FLIP_CSS
+    css+=TEXT_FLIP_CSS.removeprefix('<style id="sk-readable-text-flips-v1">').removesuffix('</style>')
     csp="default-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'; media-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
     result='<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="'+csp+'"><style>'+css+'</style><style>html,body{margin:0!important;padding:0!important;overflow:hidden!important;width:100%!important;height:100%!important}.slide{display:block!important;visibility:visible!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;opacity:1!important;transform:none!important}*,*::before,*::after{animation:none!important;transition:none!important}</style></head><body>'+body+'</body></html>'
     if len(result.encode('utf-8'))>MAX_COVER:raise ValueError('Capa excede o limite de prévia segura.')

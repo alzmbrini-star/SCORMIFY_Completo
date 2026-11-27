@@ -33,10 +33,11 @@ window.addEventListener('keyup',e=>{if(mediaEvent(e)&&keys.has(e.key))e.stopImme
 
 def runtime_document(html):
     """Non-persistent compatibility fix for new and already imported decks."""
-    if 'id="sk-media-keyboard-v1"' in html:
-        return html
-    return re.sub(r'(<head\b[^>]*>)', lambda m: m[0] + MEDIA_KEYS,
-                  html, count=1, flags=re.I)
+    from services.slidekiln_text import TEXT_FLIP_CSS
+    additions=''
+    if 'id="sk-media-keyboard-v1"' not in html:additions+=MEDIA_KEYS
+    if 'id="sk-readable-text-flips-v1"' not in html:additions+=TEXT_FLIP_CSS
+    return re.sub(r'(<head\b[^>]*>)',lambda m:m[0]+additions,html,count=1,flags=re.I) if additions else html
 
 
 def configured():
