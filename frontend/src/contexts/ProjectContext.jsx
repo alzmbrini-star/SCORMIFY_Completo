@@ -752,6 +752,7 @@ export const ProjectProvider = ({ children }) => {
       setLoading(true);
       const body = {};
       if (typeof options.singlePage === 'boolean') body.singlePage = options.singlePage;
+      if (typeof options.enableVlibras === 'boolean') body.enableVlibras = options.enableVlibras;
       const response = await axios.post(`${API_URL}/course/${currentProject.id}/export-scorm`, body);
       return response.data;
     } catch (err) {

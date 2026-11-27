@@ -1,20 +1,26 @@
-import React from 'react';
-import axios from 'axios';
+import React, { useEffect, useState } from 'react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
 import { Switch } from '../../../components/ui/switch';
 import { Download, Film } from 'lucide-react';
-import { getApiUrl } from '../../../utils/apiUrl';
 
 export function ExportDialog({
   open, onOpenChange, resetExportDialog,
   downloadUrl, downloadFilename, exportLoading,
   videoExportJobId, videoExportProgress, videoExportMessage,
   handleExport, handleExportHTML, handleExportVideo,
-  currentProject, fetchProject,
+  currentProject,
 }) {
+  const [singlePage,setSinglePage]=useState(!!currentProject?.singlePageMode);
+  const [includeVlibras,setIncludeVlibras]=useState(currentProject?.enableVlibras!==false);
+  const guided=!!currentProject?.course?.metadata?.guidedPath;
+  useEffect(()=>{
+    if(open){setSinglePage(!!currentProject?.singlePageMode);setIncludeVlibras(currentProject?.enableVlibras!==false);}
+  },[open,currentProject?.id,currentProject?.singlePageMode,currentProject?.enableVlibras]);
+  const options={singlePage:singlePage&&!guided,enableVlibras:includeVlibras};
+  const failed=videoExportMessage?.startsWith('Falha');
   return (
     <Dialog open={open} onOpenChange={(o) => {
       onOpenChange(o);
@@ -78,13 +84,10 @@ export function ExportDialog({
                 </div>
                 <Switch
                   data-testid="vlibras-toggle"
-                  key={`vlibras-${currentProject?.enableVlibras}`}
-                  defaultChecked={currentProject?.enableVlibras !== false}
-                  onCheckedChange={(newVal) => {
-                    axios.put(`${getApiUrl()}/api/projects/${currentProject.id}`, { enableVlibras: newVal })
-                      .then(() => fetchProject(currentProject.id))
-                      .catch(err => console.error('VLibras toggle error:', err));
-                  }}
+                  aria-label="Incluir VLibras nesta exportação"
+                  checked={includeVlibras}
+                  disabled={exportLoading}
+                  onCheckedChange={setIncludeVlibras}
                 />
               </div>
 
@@ -98,15 +101,20 @@ export function ExportDialog({
                 </div>
                 <Switch
                   data-testid="single-page-toggle"
-                  checked={!currentProject?.course?.metadata?.guidedPath && !!currentProject?.singlePageMode}
-                  disabled={!!currentProject?.course?.metadata?.guidedPath}
-                  onCheckedChange={(newVal) => {
-                    axios.put(`${getApiUrl()}/api/projects/${currentProject.id}`, { singlePageMode: newVal })
-                      .then(() => fetchProject(currentProject.id))
-                      .catch(err => console.error('SinglePage toggle error:', err));
-                  }}
+                  aria-label="Página Única nesta exportação"
+                  checked={!guided&&singlePage}
+                  disabled={guided||exportLoading}
+                  onCheckedChange={setSinglePage}
                 />
               </div>
+
+              <p className="text-xs text-muted-foreground">Estas opções valem apenas para este arquivo; não alteram o curso salvo. Formato: <strong>{options.singlePage?'Página Única':'Slides'}</strong>.</p>
+              {exportLoading&&!videoExportJobId&&<div role="status" className="rounded border p-3 space-y-2" data-testid="document-export-progress">
+                <p className="text-sm break-words">{videoExportMessage||'Preparando exportação…'}</p>
+                <progress className="w-full" max="100" value={Math.max(0,Math.min(100,videoExportProgress||0))} aria-label="Progresso da exportação"/>
+                <p className="text-xs text-muted-foreground">Aguarde a tarefa atual; não é necessário clicar novamente.</p>
+              </div>}
+              {!exportLoading&&failed&&<p role="alert" className="rounded border border-red-500 p-3 text-sm break-words">{videoExportMessage}</p>}
 
               <div className="p-4 border rounded-lg hover:border-primary/50 transition-colors">
                 <div className="flex items-start gap-3">
@@ -116,7 +124,7 @@ export function ExportDialog({
                   <div className="flex-1">
                     <h4 className="font-medium mb-1">SCORM 1.2</h4>
                     <p className="text-sm text-muted-foreground mb-3">Pacote compatível com LMS (Moodle, Blackboard, etc.)</p>
-                    <Button onClick={handleExport} disabled={exportLoading} className="w-full gap-2" size="sm" data-testid="generate-scorm-btn">
+                    <Button onClick={()=>handleExport(options)} disabled={exportLoading} className="w-full gap-2" size="sm" data-testid="generate-scorm-btn">
                       <Download className="w-4 h-4" /> Gerar SCORM
                     </Button>
                   </div>
@@ -131,7 +139,7 @@ export function ExportDialog({
                   <div className="flex-1">
                     <h4 className="font-medium mb-1">HTML Standalone</h4>
                     <p className="text-sm text-muted-foreground mb-3">Arquivo único para visualizar em qualquer navegador</p>
-                    <Button onClick={handleExportHTML} disabled={exportLoading} variant="outline" className="w-full gap-2" size="sm" data-testid="generate-html-btn">
+                    <Button onClick={()=>handleExportHTML(options)} disabled={exportLoading} variant="outline" className="w-full gap-2" size="sm" data-testid="generate-html-btn">
                       <Download className="w-4 h-4" /> Gerar HTML
                     </Button>
                   </div>

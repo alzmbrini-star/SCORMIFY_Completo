@@ -25,6 +25,36 @@ logger = logging.getLogger("server")
 router = APIRouter(tags=["Export"])
 
 
+def _start_export_task(coroutine):
+    """Retain document jobs just like preview/video jobs, until completion."""
+    task = asyncio.create_task(coroutine)
+    _active_export_tasks.add(task)
+    task.add_done_callback(_active_export_tasks.discard)
+    return task
+
+
+async def _export_snapshot(request, project_doc):
+    """Per-file options must never require saving or mutating the course."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if body is None:
+        body = {}
+    if not isinstance(body, dict):
+        raise HTTPException(422, 'As opções da exportação devem ser um objeto JSON.')
+    snapshot = dict(project_doc)
+    for name, field in (('singlePage','singlePageMode'),('enableVlibras','enableVlibras')):
+        if name in body:
+            if not isinstance(body[name], bool):
+                raise HTTPException(422, f'{name} deve ser verdadeiro ou falso.')
+            snapshot[field] = body[name]
+    single_page = bool(snapshot.get('singlePageMode',False))
+    if (snapshot.get('course',{}).get('metadata') or {}).get('guidedPath'):
+        single_page = False
+    return snapshot, single_page
+
+
 async def _merge_company_brand_kit(project_doc: dict, export_kind: str = "export") -> dict:
     """Enrich an export snapshot with the company's current Brand Kit."""
     enriched = dict(project_doc or {})
@@ -243,19 +273,7 @@ async def export_scorm(
     """
     project_doc = await load_authorized_project(project_id, user)
 
-    # Decide presentation mode (request body > project setting > default false)
-    single_page_override: Optional[bool] = None
-    try:
-        body = await request.json()
-        if isinstance(body, dict) and "singlePage" in body:
-            single_page_override = bool(body["singlePage"])
-    except Exception:
-        pass
-    use_single_page = single_page_override if single_page_override is not None \
-        else bool(project_doc.get("singlePageMode", False))
-
-    if (project_doc.get('course',{}).get('metadata') or {}).get('guidedPath'):
-        use_single_page = False  # The guided host and its completion gates use slides.
+    project_doc, use_single_page = await _export_snapshot(request, project_doc)
 
     # Capture URL from the request synchronously — it cannot be derived from a
     # background task because `request` is not valid outside the request scope.
@@ -282,7 +300,7 @@ async def export_scorm(
     # response in FastAPI but its execution still ties up the worker; using
     # create_task is asyncio-native and runs concurrently with the response
     # being sent).
-    asyncio.create_task(
+    _start_export_task(
         _run_scorm_export_job(
             job_id=job_id,
             project_id=project_id,
@@ -728,18 +746,7 @@ async def export_html(
     """
     project_doc = await load_authorized_project(project_id, user)
 
-    single_page_override: Optional[bool] = None
-    try:
-        body = await request.json()
-        if isinstance(body, dict) and "singlePage" in body:
-            single_page_override = bool(body["singlePage"])
-    except Exception:
-        pass
-    use_single_page = single_page_override if single_page_override is not None \
-        else bool(project_doc.get("singlePageMode", False))
-
-    if (project_doc.get('course',{}).get('metadata') or {}).get('guidedPath'):
-        use_single_page = False
+    project_doc, use_single_page = await _export_snapshot(request, project_doc)
 
     external_url = _get_external_url(request)
 
@@ -758,7 +765,7 @@ async def export_html(
     jobs[job_id] = job_data
     await create_job(job_id, job_data)
 
-    asyncio.create_task(
+    _start_export_task(
         _run_html_export_job(
             job_id=job_id,
             project_id=project_id,
@@ -785,6 +792,7 @@ async def _run_html_export_job(
 ):
     """Heavy HTML standalone export work — runs as an asyncio task."""
     try:
+        logger.info('HTML export job %s started: single_page=%s, vlibras=%s',job_id,use_single_page,project_doc.get('enableVlibras',True))
         if preview_mode:
             from services.singlepage_preview_assets import prepare_preview_assets
             project_doc=await asyncio.to_thread(prepare_preview_assets,project_doc,str(PROJECTS_DIR/project_id/'assets'),external_url)

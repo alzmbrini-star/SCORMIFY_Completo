@@ -75,13 +75,14 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
     });
   }, [API_URL]);
 
-  const handleExport = async () => {
+  const handleExport = async (options = {}) => {
+    let jobId='';
     try {
       setExportLoading(true);
       setVideoExportProgress(0);
       setVideoExportMessage('Iniciando exportacao SCORM...');
-      const singlePage = !!currentProject?.singlePageMode;
-      const startResp = await exportScorm({ singlePage });
+      const singlePage = typeof options.singlePage==='boolean'?options.singlePage:!!currentProject?.singlePageMode;
+      const startResp = await exportScorm({ singlePage, ...(typeof options.enableVlibras==='boolean'?{enableVlibras:options.enableVlibras}:{}) });
       // Backwards compat: legacy synchronous response with downloadUrl
       if (startResp?.downloadUrl && !startResp.jobId) {
         setDownloadUrl(`${API_URL}${startResp.downloadUrl}`);
@@ -91,10 +92,11 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
       }
       // New async-job pattern
       if (!startResp?.jobId) throw new Error('Resposta inesperada do servidor');
+      jobId=startResp.jobId;
       const finalJob = await pollJobUntilDone(startResp.jobId, {
         onProgress: (j) => {
           if (j.progress != null) setVideoExportProgress(j.progress);
-          if (j.message) setVideoExportMessage(j.message);
+          if (j.message) setVideoExportMessage(`${j.message} · Tarefa ${jobId}`);
         },
       });
       const result = finalJob.result || {};
@@ -104,23 +106,23 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
       notifyExportReady('SCORM', modeLabel, result);
     } catch (err) {
       console.error('SCORM export error:', err);
+      setVideoExportMessage(`Falha na exportação: ${err.message||'Erro desconhecido'}${jobId?' · Tarefa '+jobId:''}. O curso não foi alterado.`);
       toast.error('Falha na exportacao: ' + (err.message || 'Erro desconhecido'));
     } finally {
       setExportLoading(false);
-      setVideoExportProgress(0);
-      setVideoExportMessage('');
     }
   };
 
-  const handleExportHTML = async () => {
+  const handleExportHTML = async (options = {}) => {
+    let jobId='';
     try {
       setExportLoading(true);
       setVideoExportProgress(0);
       setVideoExportMessage('Iniciando exportacao HTML...');
-      const singlePage = !!currentProject?.singlePageMode;
+      const singlePage = typeof options.singlePage==='boolean'?options.singlePage:!!currentProject?.singlePageMode;
       const response = await axios.post(
         `${API_URL}/api/course/${currentProject.id}/export-html`,
-        { singlePage },
+        { singlePage, ...(typeof options.enableVlibras==='boolean'?{enableVlibras:options.enableVlibras}:{}) },
       );
       const startResp = response.data || {};
       // Backwards compat
@@ -131,10 +133,11 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
         return;
       }
       if (!startResp.jobId) throw new Error('Resposta inesperada do servidor');
+      jobId=startResp.jobId;
       const finalJob = await pollJobUntilDone(startResp.jobId, {
         onProgress: (j) => {
           if (j.progress != null) setVideoExportProgress(j.progress);
-          if (j.message) setVideoExportMessage(j.message);
+          if (j.message) setVideoExportMessage(`${j.message} · Tarefa ${jobId}`);
         },
       });
       const result = finalJob.result || {};
@@ -144,11 +147,10 @@ export function useEditorExport({ currentProject, exportScorm, fetchProject }) {
       notifyExportReady('HTML', modeLabel, result);
     } catch (err) {
       console.error('HTML export error:', err);
+      setVideoExportMessage(`Falha na exportação: ${err.response?.data?.detail||err.message||'Erro desconhecido'}${jobId?' · Tarefa '+jobId:''}. O curso não foi alterado.`);
       toast.error('Falha na exportacao: ' + (err.response?.data?.detail || err.message));
     } finally {
       setExportLoading(false);
-      setVideoExportProgress(0);
-      setVideoExportMessage('');
     }
   };
 
