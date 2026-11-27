@@ -25,7 +25,7 @@ export function coverElementRect(element, stage) {
     width:Math.max(1,pixel(element.width,stage.width) || 100), height:Math.max(1,pixel(element.height,stage.height) || 100)};
 }
 
-export function staticCoverDocument(source, backend = getApiUrl()) {
+export function staticCoverDocument(source, backend = getApiUrl(), {offline=false} = {}) {
   if (typeof source !== 'string' || !source.trim()) return '';
   // Thumbnails are passive documents, not running course players. No scripts or frames.
   const clean = DOMPurify.sanitize(source, {WHOLE_DOCUMENT:true, ADD_TAGS:['style','link'],
@@ -42,6 +42,6 @@ export function staticCoverDocument(source, backend = getApiUrl()) {
     (_,quote,url) => `url("${coverAssetUrl(url,backend).replace(/"/g,'%22')}")`);
   doc.querySelectorAll('style').forEach(node => {node.textContent=cssUrls(node.textContent);});
   doc.querySelectorAll('[style]').forEach(node => node.setAttribute('style',cssUrls(node.getAttribute('style'))));
-  const csp = "default-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'; media-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; img-src https: http: data: blob:; style-src 'unsafe-inline' https: http:; font-src https: http: data:";
+  const csp = offline ? "default-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'; media-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:" : "default-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'; media-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; img-src https: http: data: blob:; style-src 'unsafe-inline' https: http:; font-src https: http: data:";
   return `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="referrer" content="no-referrer">${doc.head.innerHTML}<style>html,body{margin:0;overflow:hidden!important;}html{width:100%;height:100%;}body{min-height:100%;}*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important;}</style></head><body>${doc.body.innerHTML}</body></html>`;
 }

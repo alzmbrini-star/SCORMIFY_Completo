@@ -1,6 +1,7 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {coverAssetUrl,coverDimensions,coverElementRect,staticCoverDocument} from '../utils/courseCover';
 import {imageShadowStyle} from '../utils/imageShadow';
+import SlideKilnCover from './SlideKilnCover';
 
 function PassiveHtml({html,title}) {
   const document=useMemo(()=>staticCoverDocument(html),[html]);
@@ -34,11 +35,12 @@ export default function CourseCoverPreview({project}) {
   const source=coverAssetUrl(slide?.backgroundImage);
   const saved=coverAssetUrl(project.thumbnail || slide?.thumbnail);
   const empty=!slide || (!source && !elements.length);
+  const slidekiln=elements.find(e=>e.type==='html'&&e.source==='slidekiln');
   const fallback=<div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',padding:16,textAlign:'center',background:'#e2e8f0',color:'#334155',fontSize:12}}>{title}</div>;
   return <div ref={host} data-testid="course-cover-preview" role="img" aria-label={`Capa do curso ${title}`}
     style={{width:'100%',height:'100%',position:'relative',overflow:'hidden',background,pointerEvents:'none'}}>
     {visible && <>
-      {empty ? (saved && !failed.saved ? <img src={saved} alt="" onError={fail('saved')} style={{width:'100%',height:'100%',objectFit:'contain'}}/> : fallback) :
+      {slidekiln ? <SlideKilnCover projectId={project.id} revision={slidekiln.htmlContent} visible={visible} size={size} title={title}/> : empty ? (saved && !failed.saved ? <img src={saved} alt="" onError={fail('saved')} style={{width:'100%',height:'100%',objectFit:'contain'}}/> : fallback) :
       <div data-testid="course-cover-stage" style={{position:'absolute',width:stage.width,height:stage.height,
         left:(size.width-stage.width*scale)/2,top:(size.height-stage.height*scale)/2,transform:`scale(${scale})`,transformOrigin:'0 0',background,overflow:'hidden'}}>
         {source && !failed.background && <img src={source} alt="" onError={fail('background')} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:slide.backgroundImageFit==='cover'?'cover':'contain'}}/>}

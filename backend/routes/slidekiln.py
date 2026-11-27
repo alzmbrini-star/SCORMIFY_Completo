@@ -13,12 +13,54 @@ from pydantic import BaseModel
 from routes import deps
 from routes.auth import require_auth, has_any_role, has_role
 from routes.projects_common import resolve_company_id_for_creation
+from routes.projects_common import load_authorized_project
 from services import slidekiln as sk
 from services.film_exchange import usd_brl_reference
 from services.asset_store import store_asset_async
 from models import Project, Slide, SlideElement
 
 router = APIRouter(tags=['SlideKiln PPT'])
+_cover_lock = asyncio.Semaphore(1)
+
+
+@router.get('/projects/{project_id}/slidekiln-cover')
+async def course_cover(project_id: str, user=Depends(require_auth)):
+    """Authorized passive derivative; never writes a course or calls SlideKiln."""
+    import json
+    import re
+    from services.slidekiln_cover import VERSION, build_cover
+    from services.asset_store import retrieve_asset_async
+    project=await load_authorized_project(project_id,user)
+    first=(project.get('course',{}).get('slides') or [{}])[0]
+    element=next((el for el in first.get('elements',[]) if el.get('type')=='html' and el.get('source')=='slidekiln'),None)
+    if not element:raise HTTPException(404,'Capa SlideKiln não disponível.')
+    match=re.search(r'/api/projects/'+re.escape(project_id)+r'/assets/([a-f0-9]{32}\.sk\.html)',element.get('htmlContent') or '')
+    if not match:raise HTTPException(404,'Pacote da capa não disponível.')
+    folder=deps.PROJECTS_DIR/project_id/'assets'
+    path=folder/match[1]
+    async with _cover_lock:
+        if not path.is_file():
+            data,_=await retrieve_asset_async(deps.db,project_id,match[1])
+            if not data:raise HTTPException(404,'Pacote convertido indisponível. Nenhuma conversão foi solicitada.')
+            folder.mkdir(parents=True,exist_ok=True)
+            await asyncio.to_thread(path.write_bytes,data)
+            del data
+        if path.stat().st_size>sk.MAX_DOCUMENT:raise HTTPException(413,'Pacote excede o limite seguro.')
+        def prepare():
+            digest=hashlib.sha256()
+            with path.open('rb') as source:
+                while block:=source.read(128*1024):digest.update(block)
+            cache=folder/('_sk-cover-'+VERSION+'-'+digest.hexdigest()[:24]+'.json')
+            if cache.is_file():return json.loads(cache.read_text(encoding='utf-8'))
+            result=build_cover(path)
+            temporary=cache.with_suffix('.'+uuid.uuid4().hex+'.tmp')
+            try:
+                temporary.write_text(json.dumps(result,ensure_ascii=False),encoding='utf-8')
+                temporary.replace(cache)
+            finally:temporary.unlink(missing_ok=True)
+            return result
+        try:return await asyncio.to_thread(prepare)
+        except ValueError as exc:raise HTTPException(422,str(exc)) from None
 
 
 def permission(user):
