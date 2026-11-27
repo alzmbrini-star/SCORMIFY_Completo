@@ -197,7 +197,13 @@ def inline_module_assets(html, assets_dir):
             raise ValueError('Pacote SlideKiln excede o limite de exportação segura.')
         # Patch only the response/export copy; never rewrite stored originals.
         document = runtime_document(path.read_text(encoding='utf-8'))
-        encoded = 'data:text/html;base64,' + base64.b64encode(document.encode('utf-8')).decode('ascii')
+        from services.export_media_stream import CURRENT, encode_document
+        stream = CURRENT.get()
+        # Keep large nested packages compact through escaping and rendering.
+        # Exact payloads expand only at final file write, not in every HTML copy.
+        if stream:
+            document = stream.compact(document)
+        encoded = 'data:text/html;base64,' + encode_document(document)
         # Chrome blocks multi-megabyte data: navigations. The controlled host
         # creates a Blob URL before loading its sandboxed child instead.
         return 'data-sk-src="' + encoded + '"'

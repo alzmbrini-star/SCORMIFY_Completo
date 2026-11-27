@@ -1207,7 +1207,8 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
         else:
             raw_with_meta = reset_css + raw
         from services.export_media_stream import encode_document
-        b64 = encode_document(raw_with_meta)
+        use_srcdoc = hosted_video or el.get('source') == 'slidekiln'
+        b64 = None if use_srcdoc else encode_document(raw_with_meta)
         sandbox = 'allow-scripts allow-same-origin allow-forms'
         if el.get('assessmentConfig'):
             sandbox += ' allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals'
@@ -1222,7 +1223,7 @@ def _render_html_element_inner(el: dict, project_id: str, assets_dir: str, base_
                     config = json.loads(match_config[1]) if match_config else el.get('videoQuizConfig',{})
                     video_quiz_key += f' data-video-quiz-graded="{"true" if config.get("graded") is True else "false"}" data-video-quiz-total="{len(config.get("checkpoints",[]))}"'
                 except (ValueError,TypeError): pass
-        frame_source = ('srcdoc="' + html.escape(raw_with_meta, quote=True) + '"') if hosted_video or el.get('source') == 'slidekiln' else f'src="data:text/html;charset=utf-8;base64,{b64}"'
+        frame_source = ('srcdoc="' + html.escape(raw_with_meta, quote=True) + '"') if use_srcdoc else f'src="data:text/html;charset=utf-8;base64,{b64}"'
         return (
             f'<div class="sp-html sp-interactive" data-interactive="html" data-required="true">'
             f'<iframe{video_quiz_key}{assessment_marker} sandbox="{sandbox}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen '
