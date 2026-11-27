@@ -17,9 +17,9 @@ import httpx
 
 BASE = 'https://slidekiln.com/backend'
 MAX_INPUT = 32 * 1024 * 1024
-MAX_DOCUMENT = 10 * 1024 * 1024
+MAX_DOCUMENT = 32 * 1024 * 1024
 MAX_ZIP = 24 * 1024 * 1024
-VERSION = 'slidekiln-2026-11-27-v2'
+VERSION = 'slidekiln-2026-11-27-v3'
 
 # Install before the vendor player: its window-level keyboard navigation must
 # not consume native media keys or prevent the browser's default Play/Pause.
@@ -155,7 +155,7 @@ def offline_document(data):
     raw = raw.replace('<head>', '<head><meta http-equiv="Content-Security-Policy" content="' + policy + '">', 1)
     raw = runtime_document(raw.replace('</body>', MOBILE + '</body>'))
     if len(raw.encode('utf-8')) > MAX_DOCUMENT:
-        raise ValueError('Apresentação interativa excede 10 MB após incorporação. Reduza vídeos/imagens antes de aprovar outra conversão; a chamada atual não será repetida.')
+        raise ValueError('Apresentação interativa excede 32 MB após incorporação. O pacote existente pode ser recuperado enquanto disponível; nenhuma nova conversão será iniciada automaticamente.')
     return raw
 
 

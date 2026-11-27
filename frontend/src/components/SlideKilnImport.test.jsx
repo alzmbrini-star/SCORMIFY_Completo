@@ -20,8 +20,37 @@ test('file selection only prepares quote; conversion requires both checks',async
  const input=div.querySelector('input[type=file]');Object.defineProperty(input,'files',{value:[new File(['test'],'a.pptx')],configurable:true});
  await act(async()=>input.dispatchEvent(new Event('change',{bubbles:true})));
  expect(axios.post).toHaveBeenCalledTimes(1);expect(axios.post.mock.calls[0][0]).toMatch(/\/quote$/);
- const button=div.querySelector('button');expect(button.disabled).toBe(true);
+ const button=[...div.querySelectorAll('button')].find(b=>b.textContent==='Aprovar e converter este arquivo');expect(button.disabled).toBe(true);
  const checks=div.querySelectorAll('input[type=checkbox]');await act(async()=>checks[0].click());expect(button.disabled).toBe(true);
  await act(async()=>checks[1].click());expect(button.disabled).toBe(false);
  expect(axios.post).toHaveBeenCalledTimes(1);
+});
+
+test('history restores failed import after reopening and recovery never approves a new conversion',async()=>{
+ const previous={id:'old',status:'unknown',canRecover:true,filename:'cliente.pptx',slides:30,message:'Pacote excedeu o limite anterior'};
+ const done={...previous,status:'completed',canRecover:false,projectId:'recovered-project'};
+ let recovered=false;
+ axios.get.mockImplementation(url=>Promise.resolve({data:url.endsWith('/config')?{configured:true,canApprove:true}:url.endsWith('/jobs')?[previous]:recovered?done:previous}));
+ axios.post.mockImplementation(url=>{expect(url).toMatch(/\/old\/recover$/);recovered=true;return Promise.resolve({data:{...previous,status:'recovering',canRecover:false}});});
+ const onComplete=jest.fn();
+ await act(async()=>root.render(<SlideKilnImport onComplete={onComplete}/>));
+ expect(div.textContent).toContain('cliente.pptx');expect(div.textContent).toContain('Pacote excedeu o limite anterior');
+ expect(div.querySelector('[role=alert]').textContent).toContain('Pacote excedeu');
+ await act(async()=>root.unmount());root=createRoot(div);
+ await act(async()=>root.render(<SlideKilnImport onComplete={onComplete}/>));
+ expect(div.textContent).toContain('cliente.pptx');
+ const button=[...div.querySelectorAll('button')].find(b=>b.textContent==='Recuperar pacote existente — sem reconverter');
+ await act(async()=>button.click());
+ expect(axios.post).toHaveBeenCalledTimes(1);
+ expect(axios.post.mock.calls[0][0]).not.toMatch(/approve|quote$/);
+ expect(onComplete).toHaveBeenCalledWith('recovered-project');
+});
+
+test('refresh only reads statuses and does not trigger paid conversion',async()=>{
+ axios.get.mockImplementation(url=>Promise.resolve({data:url.endsWith('/config')?{configured:true,canApprove:true}:[]}));
+ await act(async()=>root.render(<SlideKilnImport onComplete={jest.fn()}/>));
+ const button=[...div.querySelectorAll('button')].find(b=>b.textContent==='Atualizar acompanhamento');
+ await act(async()=>button.click());
+ expect(axios.post).not.toHaveBeenCalled();
+ expect(axios.get.mock.calls.filter(([url])=>url.endsWith('/jobs'))).toHaveLength(2);
 });

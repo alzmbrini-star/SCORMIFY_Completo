@@ -29,8 +29,9 @@ animações suportadas, links e mídias. Não transforma atividades em Quiz nati
 não cria nota e não conecta automaticamente conclusão de cada slide interno ao
 LMS. Critérios do bloco seguem o player SCORMIFY. Revise no LMS de destino.
 
-Pacote ZIP até 24 MB / 64 MB expandido; HTML autocontido final até 10 MB para
-armazenamento seguro por ativo MongoDB. Arquivos grandes podem falhar depois da
+Pacote ZIP até 24 MB / 64 MB expandido; HTML autocontido final até 32 MB.
+Ativos `.sk.html` acima de 8 MB usam GridFS `slidekiln_assets`, com ponteiro
+pequeno em `project_assets`, evitando o limite BSON sem recompressão. Arquivos grandes podem falhar depois da
 chamada cobrável. Pré-orçamento avisa os limites; falha não repete a cobrança.
 Entradas ficam no GridFS até aprovação/processamento. Ao preparar novo orçamento,
 uploads abandonados e expirados do próprio autor são limpos, sem tocar em cursos.
@@ -43,6 +44,21 @@ Novo projeto só aparece após persistência. `.sk.html` é servido com CSP sand
 o iframe não tem same-origin e o documento bloqueia conexão e recursos remotos.
 HTML/SCORM clássico e Página Única incorporam o ativo; falham explicitamente se
 ele não puder ser recuperado, sem gerar um arquivo offline quebrado silencioso.
+
+## Acompanhamento e recuperação sem reconversão
+
+`GET /api/ppt/slidekiln/jobs` lista as últimas 20 tentativas do próprio autor e
+empresa; não expõe IDs do provedor, blobs ou credenciais. A UI restaura o
+acompanhamento, mostra fases e falhas e oferece abrir o projeto concluído.
+`POST /api/ppt/slidekiln/{id}/recover` exige a mesma propriedade e permissão de
+edição. Faz claim atômico: não duplica workers, não chama `submit`, não reenvia
+PPTX, não usa nova aprovação financeira. Reutiliza `packageBlob` salvo em
+`slidekiln_packages` ou consulta/baixa o resultado anterior. A disponibilidade
+externa continua limitada a 24 horas; pacote expirado não aciona conversão.
+O ZIP é persistido antes da validação/importação. `pendingProjectId` permite
+retomar o projeto da mesma tentativa após interrupção sem duplicá-lo nem
+modificar cursos existentes. Processos sem atualização por 20 minutos aparecem
+interrompidos e só retomam por recuperação explícita.
 
 ## Mobile
 

@@ -11,13 +11,21 @@ Assets are stored in a 'project_assets' collection with:
 import asyncio
 import base64
 import logging
+import hashlib
 from pathlib import Path
 from pymongo import MongoClient
+from gridfs import GridFSBucket
+from motor.motor_asyncio import AsyncIOMotorGridFSBucket
 
 logger = logging.getLogger(__name__)
 
 # Limit concurrent MongoDB asset queries to avoid Atlas M0 timeouts
 _asset_semaphore = asyncio.Semaphore(5)
+_LARGE_SLIDEKILN = 8 * 1024 * 1024
+
+
+def _chunked_slidekiln(filename, size):
+    return filename.endswith('.sk.html') and size > _LARGE_SLIDEKILN
 
 
 def _get_content_type(filename: str) -> str:
@@ -39,6 +47,23 @@ async def store_asset_async(db, project_id: str, filename: str, file_path: str):
         with open(file_path, 'rb') as f:
             raw_data = f.read()
         
+        if _chunked_slidekiln(filename, len(raw_data)):
+            digest = hashlib.sha256(raw_data).hexdigest()
+            previous = await db.project_assets.find_one({'project_id':project_id,'filename':filename},
+                {'gridfs_id':1,'sha256':1})
+            if previous and previous.get('gridfs_id') and previous.get('sha256') == digest:
+                return True
+            bucket = AsyncIOMotorGridFSBucket(db, bucket_name='slidekiln_assets')
+            ident = await bucket.upload_from_stream(filename, raw_data,
+                metadata={'project_id': project_id, 'filename': filename})
+            try:
+                await db.project_assets.update_one({'project_id':project_id,'filename':filename},
+                    {'$set':{'project_id':project_id,'filename':filename,'gridfs_id':ident,
+                             'content_type':'text/html','size':len(raw_data),'sha256':digest},'$unset':{'data':''}},upsert=True)
+            except Exception:
+                await bucket.delete(ident)
+                raise
+            return True
         data_b64 = base64.b64encode(raw_data).decode('ascii')
         content_type = _get_content_type(filename)
         
@@ -67,7 +92,8 @@ def store_asset_sync(mongo_url: str, db_name: str, project_id: str, filename: st
     the unified startup_asset_sync in server.py which reuses a single client."""
     try:
         with open(file_path, 'rb') as f:
-            data = base64.b64encode(f.read()).decode('ascii')
+            raw = f.read()
+            data = None if _chunked_slidekiln(filename, len(raw)) else base64.b64encode(raw).decode('ascii')
 
         content_type = _get_content_type(filename)
 
@@ -83,6 +109,26 @@ def store_asset_sync(mongo_url: str, db_name: str, project_id: str, filename: st
             retryWrites=True,
         )
         db = client[db_name]
+        if data is None:
+            digest = hashlib.sha256(raw).hexdigest()
+            previous = db.project_assets.find_one({'project_id':project_id,'filename':filename},
+                {'gridfs_id':1,'sha256':1})
+            if previous and previous.get('gridfs_id') and previous.get('sha256') == digest:
+                client.close()
+                return
+            bucket = GridFSBucket(db, bucket_name='slidekiln_assets')
+            ident = bucket.upload_from_stream(filename, raw,
+                metadata={'project_id':project_id,'filename':filename})
+            try:
+                db.project_assets.update_one({'project_id':project_id,'filename':filename},
+                    {'$set':{'project_id':project_id,'filename':filename,'gridfs_id':ident,
+                             'content_type':'text/html','size':len(raw),'sha256':digest},'$unset':{'data':''}},upsert=True)
+            except Exception:
+                bucket.delete(ident)
+                raise
+            finally:
+                client.close()
+            return
         db.project_assets.update_one(
             {"project_id": project_id, "filename": filename},
             {"$set": {
@@ -119,14 +165,17 @@ def retrieve_asset_sync(mongo_url: str, db_name: str, project_id: str, filename:
             {"project_id": project_id, "filename": filename},
             {"_id": 0}
         )
-        client.close()
-
-        if not doc or not doc.get('data'):
+        if not doc or not (doc.get('data') or doc.get('gridfs_id')):
+            client.close()
             return False
 
         Path(dest_path).parent.mkdir(parents=True, exist_ok=True)
         with open(dest_path, 'wb') as f:
-            f.write(base64.b64decode(doc['data']))
+            if doc.get('gridfs_id'):
+                GridFSBucket(db, bucket_name='slidekiln_assets').download_to_stream(doc['gridfs_id'], f)
+            else:
+                f.write(base64.b64decode(doc['data']))
+        client.close()
 
         logger.info(f"Restored asset from MongoDB: {project_id}/{filename}")
         return True
@@ -148,13 +197,17 @@ async def retrieve_asset_async(db, project_id: str, filename: str) -> tuple:
             try:
                 doc = await db.project_assets.find_one(
                     {"project_id": project_id, "filename": filename},
-                    {"_id": 0, "data": 1, "content_type": 1}
+                    {"_id": 0, "data": 1, "gridfs_id": 1, "content_type": 1}
                 )
-                if not doc or not doc.get('data'):
+                if not doc or not (doc.get('data') or doc.get('gridfs_id')):
                     if attempt == 0:
                         logger.info(f"Asset not in MongoDB: {project_id}/{filename}")
                     return None, None
-                data = base64.b64decode(doc['data'])
+                if doc.get('gridfs_id'):
+                    stream = await AsyncIOMotorGridFSBucket(db, bucket_name='slidekiln_assets').open_download_stream(doc['gridfs_id'])
+                    data = await stream.read()
+                else:
+                    data = base64.b64decode(doc['data'])
                 logger.info(f"Retrieved asset from MongoDB: {project_id}/{filename} ({len(data)} bytes)")
                 return data, doc.get('content_type', 'application/octet-stream')
             except Exception as e:
@@ -182,11 +235,11 @@ def restore_project_assets_sync(mongo_url: str, db_name: str, project_id: str, a
         db = client[db_name]
         docs = list(db.project_assets.find(
             {"project_id": project_id},
-            {"_id": 0, "filename": 1, "data": 1}
+            {"_id": 0, "filename": 1, "data": 1, "gridfs_id": 1}
         ))
-        client.close()
 
         if not docs:
+            client.close()
             return 0
 
         dest = Path(assets_dir)
@@ -194,10 +247,14 @@ def restore_project_assets_sync(mongo_url: str, db_name: str, project_id: str, a
         restored = 0
         for doc in docs:
             fp = dest / doc['filename']
-            if not fp.exists() and doc.get('data'):
+            if not fp.exists() and (doc.get('data') or doc.get('gridfs_id')):
                 with open(fp, 'wb') as f:
-                    f.write(base64.b64decode(doc['data']))
+                    if doc.get('gridfs_id'):
+                        GridFSBucket(db, bucket_name='slidekiln_assets').download_to_stream(doc['gridfs_id'], f)
+                    else:
+                        f.write(base64.b64decode(doc['data']))
                 restored += 1
+        client.close()
         return restored
     except Exception as e:
         logger.warning(f"Failed to restore project assets: {e}")

@@ -170,7 +170,7 @@ def test_tutor_explains_approval_module_limit_and_existing_provider():
     from services.creator_guide import topics_for
     topic=next(t for t in topics_for(user()) if t['id']=='import')
     text=' '.join(topic['steps'])
-    for word in ('SlideKiln','ConvertAPI','Super Admin','SLIDEKILN_API_KEY','10 MB','um único bloco','Banco Central','Espaço','sem reconversão'):
+    for word in ('SlideKiln','ConvertAPI','Super Admin','SLIDEKILN_API_KEY','32 MB','GridFS','Minhas importações recentes','um único bloco','Banco Central','Espaço','sem reconversão'):
         assert word in text
 
 
@@ -204,11 +204,12 @@ async def test_producer_only_inserts_fresh_project(monkeypatch,tmp_path):
     data=b'approved-source';record=job('processing')
     record.update(blob='input',sha256=hashlib.sha256(data).hexdigest(),filename='a.pptx',slides=8,targetCompanyId='company')
     collection=Mock(find_one=AsyncMock(return_value=record),update_one=AsyncMock())
-    projects=Mock(insert_one=AsyncMock(),update_one=AsyncMock())
+    projects=Mock(insert_one=AsyncMock(),update_one=AsyncMock(),find_one=AsyncMock(return_value=None))
     monkeypatch.setattr(route.deps,'db',Mock(slidekiln_jobs=collection,projects=projects))
     monkeypatch.setattr(route.deps,'PROJECTS_DIR',tmp_path)
     uploads=Mock(open_download_stream=AsyncMock(return_value=Mock(read=AsyncMock(return_value=data))),delete=AsyncMock())
     monkeypatch.setattr(route,'bucket',lambda:uploads)
+    monkeypatch.setattr(route,'packages',lambda:Mock(upload_from_stream=AsyncMock(return_value='package-blob')))
     monkeypatch.setattr(sk,'submit',AsyncMock(return_value=str(uuid.uuid4())))
     monkeypatch.setattr(sk,'status',AsyncMock(return_value={'state':'succeeded','stats':{'warnings':[]}}))
     monkeypatch.setattr(sk,'download',AsyncMock(return_value=b'package'))
