@@ -749,7 +749,8 @@ export const ProjectProvider = ({ children }) => {
   const exportScorm = useCallback(async (options = {}) => {
     if (!currentProject) return;
     try {
-      setLoading(true);
+      // The export hook owns progress. Global loading unmounts the Editor's
+      // dialog and resets its local options while this request is pending.
       const body = {};
       if (typeof options.singlePage === 'boolean') body.singlePage = options.singlePage;
       if (typeof options.enableVlibras === 'boolean') body.enableVlibras = options.enableVlibras;
@@ -758,8 +759,6 @@ export const ProjectProvider = ({ children }) => {
     } catch (err) {
       setError(err.message);
       throw err;
-    } finally {
-      setLoading(false);
     }
   }, [currentProject]);
 
