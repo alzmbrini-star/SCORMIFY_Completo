@@ -165,8 +165,7 @@ body[data-fullscreen="true"] .sp-fullscreen-btn:hover{background:rgba(248,113,11
   .sp-narration-btn{transition:none}
 }
 
-/* Tracking wrapper only: no decorative yellow/colored frame around content.
-   Keep activity controls, native resource designs and completion markers. */
+/* Tracking wrapper: no decorative frame; keep controls and completion markers. */
 .sp-interactive{position:relative;background:transparent;border-radius:0;padding:0;border:0;box-shadow:none}
 .sp-interactive[data-completed="true"]:not(.sp-quiz):not(.sp-scenario){border:0;background:transparent;box-shadow:none}
 .sp-interactive[data-completed="true"]::after{content:"✓";position:absolute;top:8px;right:12px;color:#fff;background:#84cc16;font-weight:700;font-size:16px;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:10;box-shadow:0 2px 6px rgba(132,204,22,.4)}
@@ -216,23 +215,18 @@ body[data-fullscreen="true"] .sp-fullscreen-btn:hover{background:rgba(248,113,11
 .sp-quiz .sp-quiz-question legend{font-size:var(--sp-quiz-question-font-size,18px)!important;line-height:1.4;overflow-wrap:anywhere}
 .sp-quiz .sp-quiz-opt{font-size:var(--sp-quiz-font-size,16px)!important;line-height:1.4;overflow-wrap:anywhere}
 .sp-quiz .sp-quiz-explanation{font-size:var(--sp-quiz-support-font-size,14px)!important;line-height:1.4}
-.sp-quiz-autostart>.sp-quiz-icon,.sp-quiz-autostart>.sp-quiz-title,
-.sp-quiz-autostart>.sp-quiz-meta,.sp-quiz-autostart>.sp-btn-primary{display:none!important}
-.sp-quiz-autostart{padding:0!important;background:transparent!important;border-color:transparent!important;box-shadow:none!important}
-.sp-quiz-autostart .sp-quiz-body{margin-top:0;border:1px solid #dbeafe;border-radius:16px;padding:clamp(16px,2vw,26px);box-shadow:0 14px 38px rgba(15,23,42,.12)}
 
 /* Transparent background mode - quiz blends over slide bg */
 .sp-quiz.sp-quiz-transparent{background:transparent!important;border-color:transparent!important;box-shadow:none!important;text-shadow:0 1px 2px rgba(0,0,0,.6)}
 .sp-quiz.sp-quiz-transparent[data-completed="true"]{background:transparent!important;border-color:transparent!important;color:#dcfce7!important;text-shadow:0 1px 2px rgba(0,0,0,.6)}
 .sp-quiz.sp-quiz-transparent .sp-quiz-body{text-shadow:none}
 
-.sp-scenario{text-align:center;background:linear-gradient(135deg,#0f172a 0%,#173b63 58%,#0f766e 100%)!important;color:#f8fafc!important;border-color:#5eead4!important;padding:clamp(22px,3vw,38px);box-shadow:0 18px 48px rgba(15,23,42,.28)}
+.sp-scenario{text-align:center;background:linear-gradient(135deg,#7c2d12 0%,#ea580c 100%)!important;color:#fff!important;border-color:#fb923c!important;padding:24px}
 .sp-scenario[data-completed="true"]{background:linear-gradient(135deg,#14532d 0%,#16a34a 100%)!important;border-color:#84cc16!important;color:#dcfce7!important}
-.sp-scenario h3,.sp-scenario p{color:#f8fafc!important;margin:8px 0;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.sp-scenario h3,.sp-scenario p{color:inherit;margin:8px 0}
 .sp-scenario h3{font-size:20px}
-.sp-scenario p{font-size:13px;opacity:1!important}
+.sp-scenario p{font-size:13px;opacity:.92}
 .sp-scenario-icon{font-size:42px}
-.sp-scenario-chars>div{background:rgba(255,255,255,.12)!important;border:1px solid rgba(255,255,255,.22);color:#fff!important;box-shadow:inset 0 1px rgba(255,255,255,.12)}
 
 .sp-simulator{padding:8px;background:#fff;border-color:#cbd5e1}
 .sp-simulator-label{font-weight:700;color:#1e3a8a;font-size:14px;margin-bottom:8px}
