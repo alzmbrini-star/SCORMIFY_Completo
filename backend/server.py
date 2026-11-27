@@ -299,6 +299,8 @@ from routes import educational_films as educational_film_routes
 app.include_router(educational_film_routes.router, prefix="/api")
 from routes import music_studio as music_studio_routes
 app.include_router(music_studio_routes.router, prefix="/api")
+from routes import slidekiln as slidekiln_routes
+app.include_router(slidekiln_routes.router, prefix="/api")
 from routes import gamma as gamma_routes
 app.include_router(gamma_routes.router, prefix="/api")
 from routes import video_library as video_library_routes

@@ -184,6 +184,8 @@ html, body {{ background: {canvas}; }}
 
     # Inject CSS into template
     html = template.replace("__CSS_CONTENT__", css)
+    from services.slidekiln import install_host
+    html = install_host(html)
 
     # Replace remaining placeholders
     html = html.replace("__TITLE__", title)
@@ -776,6 +778,8 @@ def export_scorm_package(project: Project, storage_dir: str, output_dir: str, qu
             # Process HTML elements - fix image URLs inside htmlContent
             if elem_type == 'html':
                 html_content = element.get('htmlContent') or ''
+                from services.slidekiln import inline_module_assets
+                html_content = inline_module_assets(html_content, str(package_assets))
                 from services.simulator_slide import upgrade_simulator_slide
                 html_content = upgrade_simulator_slide(html_content)
                 if html_content and isinstance(html_content, str):

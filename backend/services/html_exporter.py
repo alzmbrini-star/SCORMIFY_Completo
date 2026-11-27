@@ -263,6 +263,8 @@ async def process_html_content_project_assets(html_content: str, assets_dir: str
     """
     if not html_content:
         return html_content
+    from services.slidekiln import inline_module_assets
+    html_content = inline_module_assets(html_content, assets_dir)
     pattern = re.compile(r'(?P<attr>src|href)=["\'](?P<url>/api/projects/[^"\']+/assets/[^"\']+)["\']', re.I)
 
     def replace(match):
@@ -2532,7 +2534,7 @@ def generate_html_template(title: str, course_data: Dict, width: int, height: in
                                     'body,body *{{text-shadow:' + elem.style.textShadow + '!important;}}' : '') +
                                 '</style></head><body>' + htmlContent + '</body></html>';
                             }}
-                            html += '<iframe ' + (elem.assessmentConfig ? 'data-assessment="true" ' : '') + (elem.guidedActivity ? 'data-guided-id="'+String(elem.guidedActivity.id).replace(/[^a-zA-Z0-9_-]/g,'')+'" ' : '') + 'srcdoc="' + wrappedHtml.replace(/"/g, '&quot;') + '" style="width:100%;height:100%;border:0;overflow:' + (isFullscreen ? 'hidden' : 'auto') + ';"></iframe>';
+                            html += '<iframe ' + (elem.source === 'slidekiln' ? 'data-slidekiln-module="true" allow="autoplay; fullscreen" allowfullscreen ' : '') + (elem.assessmentConfig ? 'data-assessment="true" ' : '') + (elem.guidedActivity ? 'data-guided-id="'+String(elem.guidedActivity.id).replace(/[^a-zA-Z0-9_-]/g,'')+'" ' : '') + 'srcdoc="' + wrappedHtml.replace(/"/g, '&quot;') + '" style="width:100%;height:100%;border:0;overflow:' + (isFullscreen ? 'hidden' : 'auto') + ';"></iframe>';
                         }}
                         else if (elem.type === 'flipbook' && elem.flipbookUrl) {{
                             var fbUrl = elem.flipbookUrl;
@@ -3846,6 +3848,8 @@ html,body{{background:{canvas}}}
     html = install_portrait_view(html)
     from services.astryx_export import install_astryx_host
     html = install_astryx_host(html, course_data.get('_astryxResponsive') is True, course_data.get('_astryxAgent') is True)
+    from services.slidekiln import install_host
+    html = install_host(html)
     from services.adaptive_assessment import install_adaptive_engine
     html = install_adaptive_engine(html)
     if gamification_config and gamification_config.get('enabled'):

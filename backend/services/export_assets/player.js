@@ -1590,6 +1590,11 @@ var CoursePlayer = (function() {
                 }
                 if(element.guidedActivity)htmlIframe.dataset.guidedId=element.guidedActivity.id;
                 htmlIframe.srcdoc = wrappedHtml;
+                if (element.source === 'slidekiln') {
+                    htmlIframe.dataset.slidekilnModule = 'true';
+                    htmlIframe.allow = 'autoplay; fullscreen';
+                    htmlIframe.allowFullscreen = true;
+                }
                 htmlIframe.style.cssText = 'width:100%!important;height:100%!important;border:none!important;background:transparent!important;overflow:' + (isHtmlFullscreen ? 'hidden' : 'auto') + '!important;display:block!important;';
                 htmlIframe.sandbox = element.assessmentConfig || element.guidedActivity
                     ? 'allow-scripts allow-same-origin allow-downloads allow-popups allow-popups-to-escape-sandbox allow-modals'

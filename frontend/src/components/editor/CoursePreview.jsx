@@ -262,8 +262,9 @@ const CoursePreview = ({ course, projectId, onClose }) => {
   // The avatar's own player owns time while its questions are in progress.
   // Never let a five-second slide timer remove a longer interactive video.
   const hasVideoQuiz = currentSlide?.elements?.some(el => Boolean(videoQuizSnapshot(el)));
+  const hasSlideKiln = currentSlide?.elements?.some(el => el.source === 'slidekiln');
   const timelineDuration = hasVideoQuiz ? Math.max(slideDuration, mediaDuration) : slideDuration;
-  const fluidVideo = fluidVideoQuizSlide(currentSlide);
+  const fluidVideo = fluidVideoQuizSlide(currentSlide) || (currentSlide?.elements?.length === 1 && currentSlide.elements[0].source === 'slidekiln');
   useEffect(() => {
     setMediaDuration(0);
     const receive = event => {
@@ -394,7 +395,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
   
   // Timeline playback
   useEffect(() => {
-    if (isPlaying && !hasVideoQuiz) {
+    if (isPlaying && !hasVideoQuiz && !hasSlideKiln) {
       timelineRef.current = setInterval(() => {
         setCurrentTime(prev => {
           const newTime = prev + 0.1;
@@ -439,7 +440,7 @@ const CoursePreview = ({ course, projectId, onClose }) => {
         clearInterval(timelineRef.current);
       }
     };
-  }, [isPlaying, slideDuration, currentSlideIndex, slides.length, currentTime, hasVideoQuiz]);
+  }, [isPlaying, slideDuration, currentSlideIndex, slides.length, currentTime, hasVideoQuiz, hasSlideKiln]);
   
   // Start/stop global audio with playback
   useEffect(() => {

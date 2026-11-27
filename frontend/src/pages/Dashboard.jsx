@@ -29,6 +29,7 @@ import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import CompanySelector from '../components/CompanySelector';
 import GammaCreateDialog from '../components/GammaCreateDialog';
+import SlideKilnImport from '../components/SlideKilnImport';
 import {
   Plus,
   Upload,
@@ -88,6 +89,7 @@ export default function Dashboard() {
 
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [pptProvider, setPptProvider] = useState('convertapi');
   useCreatorHelpNavigation({'new-project':()=>setShowNewProjectDialog(true),import:()=>setShowUploadDialog(true)});
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
@@ -534,7 +536,17 @@ export default function Dashboard() {
                   <DialogTitle>Import PowerPoint</DialogTitle>
                   <DialogDescription>Importe um arquivo .ppt ou .pptx para converter em curso.</DialogDescription>
                 </DialogHeader>
-                <div className="py-6">
+                <div className="py-3 max-h-[70vh] overflow-y-auto space-y-3">
+                  {!processingJobId && <label className="block text-sm">Provedor de importação
+                    <select aria-label="Provedor de importação PPT" className="block w-full mt-2 rounded border bg-background p-2" value={pptProvider} onChange={e=>setPptProvider(e.target.value)}>
+                      <option value="convertapi">ConvertAPI — slides como imagens (modo atual)</option>
+                      <option value="slidekiln">SlideKiln — apresentação interativa (PPTX)</option>
+                    </select>
+                  </label>}
+                  {pptProvider === 'slidekiln' ? <>
+                    <CompanySelector value={uploadCompanyId} onChange={setUploadCompanyId} testIdPrefix="slidekiln-company"/>
+                    <SlideKilnImport companyId={uploadCompanyId} onComplete={id=>{setShowUploadDialog(false);fetchProjects();navigate(`/editor/${id}`);}}/>
+                  </> : <>
                   {processingJobId ? (
                     <div className="space-y-4">
                       <div className="flex items-center gap-3">
@@ -572,6 +584,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                   )}
+                  </>}
                 </div>
               </DialogContent>
             </Dialog>
