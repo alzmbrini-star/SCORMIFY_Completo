@@ -32,3 +32,11 @@ test('empty HTML and non-image data are safe',()=>{
  expect(staticCoverDocument('')).toBe('');
  expect(staticCoverDocument('<img src="javascript:alert(1)">')).not.toContain('javascript:');
 });
+
+test('offline SlideKiln covers retain embedded fonts but reject executable data URLs',()=>{
+ const source='<style>@font-face{font-family:Carlito;src:url("data:application/octet-stream;base64,AAAA")}body{background:url("data:text/html;base64,AAAA")}</style><h1>Capa</h1>';
+ const doc=staticCoverDocument(source,'https://api.test',{offline:true});
+ expect(doc).toContain('data:application/octet-stream;base64,AAAA');
+ expect(doc).not.toContain('data:text/html;base64,AAAA');
+ expect(doc).toContain('font-src data:');expect(doc).toContain('img-src data:;');
+});

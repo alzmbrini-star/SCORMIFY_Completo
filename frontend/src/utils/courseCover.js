@@ -39,7 +39,10 @@ export function staticCoverDocument(source, backend = getApiUrl(), {offline=fals
     else node.setAttribute('href',coverAssetUrl(node.getAttribute('href'),backend));
   });
   const cssUrls = text => text.replace(/url\(\s*(['"]?)([^)'"\s]+)\1\s*\)/gi,
-    (_,quote,url) => `url("${coverAssetUrl(url,backend).replace(/"/g,'%22')}")`);
+    (_,quote,url) => {
+      const embeddedFont=offline && /^data:(?:font\/[\w.+-]+|application\/(?:octet-stream|font-woff|x-font-ttf|vnd.ms-fontobject));base64,[a-z0-9+/=]+$/i.test(url);
+      return `url("${(embeddedFont?url:coverAssetUrl(url,backend)).replace(/"/g,'%22')}")`;
+    });
   doc.querySelectorAll('style').forEach(node => {node.textContent=cssUrls(node.textContent);});
   doc.querySelectorAll('[style]').forEach(node => node.setAttribute('style',cssUrls(node.getAttribute('style'))));
   const csp = offline ? "default-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'; media-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:" : "default-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'; media-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; img-src https: http: data: blob:; style-src 'unsafe-inline' https: http:; font-src https: http: data:";
