@@ -1676,7 +1676,9 @@ async def _astryx_display_response(file_path, version, request=None):
     # Converted executable HTML must never run as the authenticated app origin,
     # even when somebody opens the asset directly instead of our sandboxed iframe.
     if file_path.name.endswith('.sk.html'):
-        return FileResponse(file_path, media_type='text/html', headers={
+        from services.slidekiln import runtime_document
+        document = await asyncio.to_thread(file_path.read_text, encoding='utf-8')
+        return Response(runtime_document(document), media_type='text/html', headers={
             'Content-Security-Policy': "sandbox allow-scripts allow-popups; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'",
             'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=0, must-revalidate'})
     from services.astryx_images import display_image, VERSION

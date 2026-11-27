@@ -1,4 +1,6 @@
 import io
+import base64
+import re
 import zipfile
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -128,11 +130,47 @@ def test_inline_asset_is_copied_without_modifying_original(tmp_path):
     assert path.read_bytes()==original
 
 
+def test_media_keyboard_patch_precedes_vendor_and_is_idempotent():
+    original='<html><head><script>vendorNavigation()</script></head><body><audio controls></audio></body></html>'
+    patched=sk.runtime_document(original)
+    assert patched.index('sk-media-keyboard-v1') < patched.index('vendorNavigation')
+    assert sk.runtime_document(patched)==patched
+    assert 'preventDefault' not in sk.MEDIA_KEYS
+    assert 'stopImmediatePropagation' in sk.MEDIA_KEYS
+    assert 'AUDIO|VIDEO' in sk.MEDIA_KEYS and 'pointerdown' not in sk.MEDIA_KEYS
+    assert ',true)' not in sk.MEDIA_KEYS  # preserve native target/default handlers
+
+
+def test_existing_deck_exports_receive_patch_without_rewriting_asset(tmp_path):
+    pid=str(uuid.uuid4());filename=uuid.uuid4().hex+'.sk.html';path=tmp_path/filename
+    original=b'<html><head></head><body><audio controls></audio></body></html>'
+    path.write_bytes(original)
+    result=sk.inline_module_assets(sk.module_html(pid,filename),str(tmp_path))
+    encoded=re.search(r'data-sk-src="data:text/html;base64,([^"]+)"',result)[1]
+    exported=base64.b64decode(encoded).decode()
+    assert 'sk-media-keyboard-v1' in exported
+    assert '<audio controls>' in exported and path.read_bytes()==original
+
+
+@pytest.mark.asyncio
+async def test_existing_deck_response_is_patched_without_writing(tmp_path):
+    from routes.export import _astryx_display_response
+    path=tmp_path/(uuid.uuid4().hex+'.sk.html')
+    original=b'<html><head></head><body><video controls></video></body></html>'
+    path.write_bytes(original)
+    response=await _astryx_display_response(path,'')
+    assert b'sk-media-keyboard-v1' in response.body
+    assert b'<video controls>' in response.body
+    assert "sandbox allow-scripts allow-popups" in response.headers['content-security-policy']
+    assert response.headers['cache-control']=='private, max-age=0, must-revalidate'
+    assert path.read_bytes()==original
+
+
 def test_tutor_explains_approval_module_limit_and_existing_provider():
     from services.creator_guide import topics_for
     topic=next(t for t in topics_for(user()) if t['id']=='import')
     text=' '.join(topic['steps'])
-    for word in ('SlideKiln','ConvertAPI','Super Admin','SLIDEKILN_API_KEY','10 MB','um único bloco','Banco Central'):
+    for word in ('SlideKiln','ConvertAPI','Super Admin','SLIDEKILN_API_KEY','10 MB','um único bloco','Banco Central','Espaço','sem reconversão'):
         assert word in text
 
 

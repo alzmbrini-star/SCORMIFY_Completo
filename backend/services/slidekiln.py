@@ -19,7 +19,24 @@ BASE = 'https://slidekiln.com/backend'
 MAX_INPUT = 32 * 1024 * 1024
 MAX_DOCUMENT = 10 * 1024 * 1024
 MAX_ZIP = 24 * 1024 * 1024
-VERSION = 'slidekiln-2026-11-27-v1'
+VERSION = 'slidekiln-2026-11-27-v2'
+
+# Install before the vendor player: its window-level keyboard navigation must
+# not consume native media keys or prevent the browser's default Play/Pause.
+MEDIA_KEYS = '''<script id="sk-media-keyboard-v1">(()=>{
+const mediaEvent=e=>e.composedPath().some(n=>n&&/^(AUDIO|VIDEO)$/.test(n.tagName));
+const keys=new Set([' ','Spacebar','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','PageUp','PageDown','Home','End','f','F']);
+window.addEventListener('keydown',e=>{if(mediaEvent(e)&&keys.has(e.key))e.stopImmediatePropagation();});
+window.addEventListener('keyup',e=>{if(mediaEvent(e)&&keys.has(e.key))e.stopImmediatePropagation();});
+})();</script>'''
+
+
+def runtime_document(html):
+    """Non-persistent compatibility fix for new and already imported decks."""
+    if 'id="sk-media-keyboard-v1"' in html:
+        return html
+    return re.sub(r'(<head\b[^>]*>)', lambda m: m[0] + MEDIA_KEYS,
+                  html, count=1, flags=re.I)
 
 
 def configured():
@@ -136,7 +153,7 @@ def offline_document(data):
         raise ValueError('O pacote contém conteúdo externo não suportado.')
     policy = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
     raw = raw.replace('<head>', '<head><meta http-equiv="Content-Security-Policy" content="' + policy + '">', 1)
-    raw = raw.replace('</body>', MOBILE + '</body>')
+    raw = runtime_document(raw.replace('</body>', MOBILE + '</body>'))
     if len(raw.encode('utf-8')) > MAX_DOCUMENT:
         raise ValueError('Apresentação interativa excede 10 MB após incorporação. Reduza vídeos/imagens antes de aprovar outra conversão; a chamada atual não será repetida.')
     return raw
@@ -178,10 +195,9 @@ def inline_module_assets(html, assets_dir):
                 raise ValueError('Pacote SlideKiln não disponível para exportação offline. Restaure o arquivo antes de exportar; nenhuma conversão foi solicitada.')
         if path.stat().st_size > MAX_DOCUMENT:
             raise ValueError('Pacote SlideKiln excede o limite de exportação segura.')
-        from services.html_exporter import file_to_base64
-        encoded = file_to_base64(str(path))
-        if not encoded:
-            raise ValueError('Não foi possível incorporar a apresentação SlideKiln.')
+        # Patch only the response/export copy; never rewrite stored originals.
+        document = runtime_document(path.read_text(encoding='utf-8'))
+        encoded = 'data:text/html;base64,' + base64.b64encode(document.encode('utf-8')).decode('ascii')
         # Chrome blocks multi-megabyte data: navigations. The controlled host
         # creates a Blob URL before loading its sandboxed child instead.
         return 'data-sk-src="' + encoded + '"'
